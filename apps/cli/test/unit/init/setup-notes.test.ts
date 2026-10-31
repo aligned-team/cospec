@@ -172,7 +172,7 @@ describe('init receipt setup notes under delivery', () => {
 })
 
 const sharedLine = (writer: string): string =>
-  `         skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for ${writer})`
+  `         skills for codex/agents/amp/antigravity/gsd/zed share the .agents/skills root (one tree, written for ${writer})`
 
 /** A third tool reading the vendor-neutral `.agents/skills` root, as Zed does upstream. */
 const SHARED_FIXTURE: HarnessAdapter = {
@@ -186,7 +186,7 @@ const SHARED_FIXTURE: HarnessAdapter = {
 }
 
 const fixtureLine = (writer: string): string =>
-  `         skills for codex/agents/antigravity/zed/shared-fixture share the .agents/skills root (one tree, written for ${writer})`
+  `         skills for codex/agents/amp/antigravity/gsd/zed/shared-fixture share the .agents/skills root (one tree, written for ${writer})`
 
 describe('init receipt shared skills root line', () => {
   test('the shipped rows name every row on the root and the one it was written for', () => {

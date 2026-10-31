@@ -17,13 +17,11 @@ contract test.
 ### Requirement: Verification-incomplete archive gate
 
 `cospec archive` SHALL run an explicit `archive/verification-incomplete` step
-after the tasks gate and before delegating to `openspec archive`, for any change
-where verification is enforced (per `enforcedApplyRequires`), independent of
-whether the change bears specs. The step SHALL parse `verification.md` and
-require every row to be either `[x]` with non-empty evidence or `[~]` with a
-non-empty reason; any bare `[ ]` row SHALL cause a refusal with exit 1. There
-SHALL be no `--force` escape — a row is resolved on the record by deferral
-instead.
+after the tasks gate and before delegating to `openspec archive`, for every
+change whose verification is enforced (per `enforcedApplyRequires`), with or
+without specs. Every `verification.md` row SHALL be `[x]` with non-empty
+evidence or `[~]` with a non-empty reason; a bare `[ ]` row SHALL refuse with
+exit 1. There SHALL be no `--force` escape; a row is resolved by deferral.
 
 #### Scenario: Unchecked row refuses archive
 
@@ -47,31 +45,12 @@ instead.
 ### Requirement: Scenario-preservation archive gate
 
 `cospec archive` SHALL run an explicit `archive/scenario-preservation` step
-before `openspec archive` executes, for specs-bearing changes only. For each
-`## MODIFIED Requirements` delta, it SHALL read the current living spec for the
-delta's capability — resolved through the shared recursive spec discovery, so a
-delta at `specs/<area>/<capability>/spec.md` is compared against the living
-`<capability>` and not against `<area>` — and compare the delta block's
-scenarios against the living requirement's, using cospec's normalising parser
-(BOM, CRLF, HTML-comment, and fence-aware). A `#### ` header with no body — no
-non-blank line before the next header or end of input — SHALL NOT be counted as
-a scenario, and this SHALL apply identically to the delta side and the living
-side, so the gate neither passes a delta that hollows a real scenario out to a
-bare header nor refuses a merge the wrapped binary accepts because the living
-spec carries one. The comparison SHALL be by scenario **name**, counted with
-multiplicity: every living scenario name whose occurrences are not all matched
-by an occurrence of the same name in the delta block is a missing scenario.
-Names SHALL be compared case-sensitively, so a case-only rename is a drop. The
-existing count comparison SHALL be retained as a second arm, and the step SHALL
-refuse with exit 1 when either arm reports a loss. There SHALL be no escape
-hatch: neither a `Scenario removed:` note nor any other annotation excuses a
-name-identity or count drop, and a requirement dropped through `## REMOVED`
-carries no MODIFIED operation and so is never seen by this gate. This SHALL
-catch scenario thinning and same-count scenario renaming that `openspec archive`
-would otherwise wave through at exit 0 on the lower half of the accepted
-`>=1.0.0 <2.0.0` range. From OpenSpec 1.8.0 the wrapped binary carries its own
-overlapping check; cospec's gate SHALL still run first, with cospec's own
-message and rule id, because it remains the only defence on 1.0.0 through 1.7.x.
+before `openspec archive`, for specs-bearing changes. Each `## MODIFIED` block's
+scenarios SHALL be compared with the living requirement's, found by shared
+recursive spec discovery and read by cospec's BOM-, CRLF-, comment- and
+fence-aware parser. It SHALL refuse with exit 1 when a living scenario name is
+unmatched (case-sensitive, counted with multiplicity) or the count drops. No
+annotation SHALL excuse a drop.
 
 #### Scenario: Dropped scenario refuses archive
 
@@ -146,16 +125,33 @@ message and rule id, because it remains the only defence on 1.0.0 through 1.7.x.
 - **THEN** the gate does not report a loss, matching the wrapped binary, rather
   than refusing an archive the binary accepts
 
+#### Scenario: A bodyless header is no scenario on either side
+
+- **WHEN** a `#### ` header has no non-blank line before the next header or the
+  end of input, in the delta block or in the living requirement
+- **THEN** the gate does not count it as a scenario on that side
+
+#### Scenario: A removal note excuses nothing
+
+- **WHEN** a MODIFIED block drops a living scenario and carries a
+  `Scenario removed:` note or any other annotation about it
+- **THEN** the gate still refuses with exit 1
+
+#### Scenario: cospec's gate runs ahead of the binary's own check
+
+- **WHEN** a scenario-dropping delta is archived with a wrapped binary at
+  OpenSpec 1.8.0 or later, which carries its own overlapping check
+- **THEN** cospec's gate still runs first and refuses with cospec's own message
+  and rule id, as it does on 1.0.0 through 1.7.x where it is the only defence
+
 ### Requirement: Hard gates are explicit command steps
 
-Both archive gates SHALL be implemented as explicit `cospec archive` command
-steps returning `EXIT.failure` (1) — the same refusal code the existing tasks
-gate uses — rather than being buried in the specs-conditional
-archive-precondition rule family. A mirror rule for scenario-preservation SHALL
-be added to the archive-precondition family so `cospec validate --strict`
-surfaces it advisorily, but the hard block SHALL remain the command step.
-Existing archive behavior — the tasks gate, `openspec archive` delegation,
-filesystem move verification, and blocker fan-out — SHALL be unchanged.
+Both archive gates SHALL be explicit `cospec archive` command steps returning
+`EXIT.failure` (1), the tasks gate's refusal code, not rules buried in the
+specs-conditional archive-precondition family. A mirror scenario-preservation
+rule in that family SHALL let `cospec validate --strict` surface it advisorily;
+the hard block SHALL remain the command step. The tasks gate, `openspec archive`
+delegation, move verification, and blocker fan-out SHALL be unchanged.
 
 #### Scenario: Refusal uses the existing failure code
 
@@ -172,13 +168,12 @@ filesystem move verification, and blocker fan-out — SHALL be unchanged.
 
 ### Requirement: Archive target verification uses the local date
 
-`cospec archive`'s post-delegation filesystem verification SHALL derive the
-expected archived directory name using the **local** date, matching the date the
-wrapped binary stamps, rather than a UTC date. It SHALL accept both archive
-directory forms produced across the accepted openspec range: `YYYY-MM-DD-<id>`
-and, for a change id that already begins with a `YYYY-MM-DD-` prefix, the id
-verbatim as written by openspec 1.7.0 and later. A successful archive SHALL
-never be reported as a failure because of a date or prefix mismatch.
+`cospec archive`'s post-delegation move check SHALL derive the expected archive
+directory name from the **local** date the wrapped binary stamps, not a UTC
+date. It SHALL accept both forms across the accepted range: `YYYY-MM-DD-<id>`
+and, for an id already prefixed `YYYY-MM-DD-`, the id verbatim (openspec 1.7.0
+and later). A successful archive SHALL never be reported as a failure over a
+date or prefix mismatch.
 
 #### Scenario: Archive succeeds in a timezone ahead of UTC
 
@@ -250,30 +245,13 @@ update check, which SHALL be treated as load-bearing rather than incidental.
 
 ### Requirement: Early-synced delta operations are not archive blockers
 
-The archive-precondition rule family SHALL treat as no-ops the three delta
-shapes the wrapped binary treats as already synced to the baseline, so cospec
-never refuses an archive that `openspec archive` performs at exit 0: an
-`## ADDED` requirement whose retained block, normalised with OpenSpec's own
-CRLF-fold-and-trim rule, matches the living requirement of the same name; a
-`## REMOVED` target that is already absent from the living spec; and a
-`## RENAMED` whose source is absent while its target is present, which SHALL
-suppress both the missing-source error and the living-spec half of the
-target-collision error the same shape raises today. Every one of these
-judgements — the target's presence and each exemption — SHALL be made against
-the spec as the wrapped binary has it when that operation runs, never the
-untouched living spec; see "Case-only requirement-name collisions are refused at
-pre-flight" for the replay. Each exemption SHALL be withheld when that spec
-still carries a name that folds equal to the named requirement —
-case-insensitively, with runs of whitespace collapsed — but is not it, because
-that is a mistyped header the wrapped binary aborts on; the resulting ERROR
-SHALL name the exact header to match. The remaining shapes SHALL stay ERRORs: an
-ADDED collision whose normalised block differs, a RENAMED whose source and
-target are both absent, a RENAMED applied while both source and target are
-present, a RENAMED whose target collides with an `## ADDED` requirement in the
-same delta — which the wrapped binary refuses before it classifies any early
-sync, so the early-sync exemption SHALL NOT reach it — and a MODIFIED whose
-target is absent — the wrapped binary refuses each of these, and relaxing any of
-them would be a false archive PASS.
+The archive-precondition family SHALL treat as no-ops the three shapes the
+wrapped binary treats as already synced: an `## ADDED` block equal, after
+OpenSpec's CRLF-fold-and-trim, to the living one of that name; a `## REMOVED`
+target already absent; a `## RENAMED` with source absent and target present,
+suppressing its missing-source and living-side target-collision errors. Each
+judgement SHALL use the spec as replayed up to that operation. Every other shape
+SHALL stay an ERROR.
 
 #### Scenario: Identical ADDED block is a no-op
 
@@ -335,70 +313,29 @@ them would be a false archive PASS.
 - **THEN** `archive/target-missing` is still an ERROR, because the wrapped
   binary has no early-sync path for it
 
+#### Scenario: A fold twin withholds the exemption
+
+- **WHEN** the spec as the binary has it at that operation carries a name that
+  folds equal to the named requirement (case-insensitive, whitespace runs
+  collapsed) but is not it
+- **THEN** the early-sync exemption is withheld, and the ERROR names the exact
+  header to match
+
+#### Scenario: A RENAMED with neither name present is still an error
+
+- **WHEN** a `## RENAMED` operation's source and target are both absent from the
+  spec as the binary has it at that operation
+- **THEN** cospec reports an ERROR and refuses the archive, as the binary does
+
 ### Requirement: Case-only requirement-name collisions are refused at pre-flight
 
-The archive-precondition rule family SHALL refuse a `## RENAMED` target and an
-`## ADDED` name that collides with an existing requirement name only in letter
-case or in internal whitespace, matching what the wrapped binary refuses when it
-builds the updated spec. The comparison SHALL be the same fold the
-`archive/target-missing` arm already uses — case-insensitive, with runs of
-whitespace collapsed — and the resulting ERROR SHALL be `archive/added-exists`,
-with a hint naming the exact header the name folds onto so the author can either
-match it or choose a distinct name. The message SHALL say where that header came
-from: the living spec, or an earlier operation in the same delta.
-
-The names an operation is checked against SHALL be the spec as the wrapped
-binary has it when that operation runs — the living spec with the delta's
-earlier operations already applied to it, in the binary's own order (`RENAMED`,
-then `REMOVED`, then `MODIFIED`, then `ADDED`) — and never the untouched living
-spec. Checking against the untouched living spec alone reported clean on every
-collision a delta makes with itself: two `## ADDED` names that fold onto each
-other, an `## ADDED` that folds onto the delta's own `## RENAMED` target, a
-second `## RENAMED` whose target folds onto the first one's. Each of those SHALL
-be an `archive/added-exists` ERROR, reported on the later operation — the one
-the binary refuses. A capability with no living spec SHALL be checked the same
-way, starting from the empty skeleton spec the binary builds for it, because the
-`## ADDED` operations of a brand-new capability collide with each other exactly
-as they do against a living one.
-
-Two exclusions SHALL hold, because either one gone wrong turns a false archive
-PASS into a false refusal. A `## RENAMED` operation's fold check SHALL exclude
-the name its own source occupies, so a case-only rename is applied as a rename
-rather than reported as a collision against itself. The existing early-sync
-exemptions SHALL keep applying, so a fold near-miss never resurrects a collision
-on an `## ADDED` requirement whose retained block already matches the living
-requirement of that name. Replaying the delta SHALL cover the rest: a living
-name the same delta removes or renames away is gone before an `## ADDED` name is
-folded against it, so the addition is not a second copy of anything; a name
-removed later in the same delta is still present when a `## RENAMED` target is
-checked, because renames run first, and the binary refuses there too; and a name
-an earlier `## RENAMED` vacated SHALL be free for a later one to take.
-
-The replayed set SHALL govern the exact-name arms too, not only the fold ones. A
-`## MODIFIED`, a `## REMOVED` or a `## RENAMED` source naming a header an
-earlier `## RENAMED` in the same delta created SHALL resolve; a `## RENAMED`
-early sync's near-miss search SHALL see only the names that survive to that
-operation; and an `## ADDED` SHALL be free to re-use the exact header an earlier
-`## RENAMED` vacated. Each of those is a delta the wrapped binary archives at
-exit 0, and judging them against the untouched living spec refused every one. An
-`## ADDED` re-using the exact header an `## REMOVED` in the same delta file
-names is not one of them: the wrapped binary refuses that pair before it merges
-anything, and it is refused as a same-name cross-section conflict. The matching
-refusals SHALL stay: a target an earlier operation carried away is an
-`archive/target-missing` ERROR whose message says so, and an `## ADDED` landing
-on this delta's own `## RENAMED` target stays the `archive/added-exists` ERROR
-the binary's pre-validation raises, reported once.
-
-`archive/scenario-preservation` SHALL follow a rename with the requirement: a
-`## MODIFIED` block naming a header this delta renamed into existence SHALL be
-measured against the scenarios of the `## RENAMED` source's living block,
-because that is the block the wrapped binary compares it to. Measuring against
-the absent target name instead found no living scenarios and waved through a
-drop the binary aborts on — a false archive PASS.
-
-Refusal SHALL happen at cospec's own pre-flight, before delegation, so the user
-sees cospec's rule id and message rather than a late abort from inside the
-delegated merge.
+The archive-precondition family SHALL refuse, as `archive/added-exists` at
+pre-flight, an `## ADDED` name or `## RENAMED` target that folds
+(case-insensitive, whitespace runs collapsed) onto an existing name, hinting the
+exact header and whether it is living or from an earlier operation. Names SHALL
+be checked, exact and folded, against the spec replayed in the binary's order
+(RENAMED, REMOVED, MODIFIED, ADDED; for a new capability from the empty
+skeleton), never the untouched living spec.
 
 #### Scenario: A case-only ADDED collision is refused
 
@@ -517,18 +454,41 @@ delegated merge.
 - **THEN** `archive/scenario-preservation` fires against the rename source's
   scenarios, matching the binary, which aborts the merge
 
+#### Scenario: A name removed later is still present for a rename
+
+- **WHEN** one delta renames `Widget caching` to `WIDGET RENDERING` and also
+  `## REMOVED`s `Widget rendering`
+- **THEN** `archive/added-exists` is an ERROR on the rename, because renames run
+  before removals and the binary refuses there too
+
+#### Scenario: A REMOVED or RENAMED source naming a renamed-in header resolves
+
+- **WHEN** one delta renames `Widget rendering` to `Widget drawing` and then
+  `## REMOVED`s `Widget drawing`, or renames `Widget drawing` onward
+- **THEN** no `archive/target-missing` issue is raised, as the binary archives
+  the change at exit 0
+
+#### Scenario: An ADDED re-using a header REMOVED in the same file is refused
+
+- **WHEN** one delta file `## REMOVED`s `Widget rendering` and `## ADDED`s the
+  exact header `Widget rendering`
+- **THEN** it is refused as a same-name cross-section conflict, as the binary
+  refuses the pair before merging
+
+#### Scenario: An ADDED onto the delta's own RENAMED target is reported once
+
+- **WHEN** an `## ADDED` name lands on this delta's own `## RENAMED` target
+- **THEN** exactly one `archive/added-exists` ERROR is reported, on the
+  `## ADDED` operation
+
 ### Requirement: The post-merge spot-check judges an operation against the delta's net effect
 
 After the delegated merge, `cospec archive` SHALL verify each delta operation
-landed by reading the merged living spec — and SHALL judge each operation
-against what the capability's other operations in the same delta do to that
-name, not against the end state alone. A name another operation writes
-(`## ADDED`, or a `## RENAMED` target) SHALL NOT make a `## REMOVED` or a
-`## RENAMED` source read as "still present", and a name another operation takes
-away SHALL NOT make an `## ADDED`, a `## MODIFIED` or a `## RENAMED` target read
-as "missing". Reporting either one is a false invariant breach on a delta the
-wrapped binary applies correctly, and the message it prints tells the user to
-file a bug.
+landed in the merged living spec, judging it against what the capability's other
+operations in the delta do to that name, not the end state alone. A name another
+operation writes SHALL NOT make a `## REMOVED` or `## RENAMED` source read as
+"still present", and a name another operation takes away SHALL NOT make an
+`## ADDED`, `## MODIFIED` or `## RENAMED` target read as "missing".
 
 #### Scenario: A swap of two requirement names verifies clean
 
@@ -546,28 +506,12 @@ file a bug.
 
 ### Requirement: Same-name cross-section conflicts are refused at pre-flight
 
-The archive-precondition rule family SHALL refuse an `## ADDED` requirement
-whose exact name the same delta file also names under `## REMOVED` or under
-`## MODIFIED`, because the wrapped binary's validation refuses both pairs before
-its merge runs, and `openspec archive` exits without archiving. Names SHALL be
-compared after the same requirement-name normalisation the parser already
-applies, and never folded: an `## ADDED` that differs from a removed or modified
-name only in case or spacing SHALL NOT be a cross-section conflict, as the
-wrapped binary does not treat it as one.
-
-Each conflict SHALL be an `archive/added-exists` ERROR reported once, on the
-`## ADDED` operation, whose message names the requirement and the other section.
-The check SHALL read the delta file's own section names, not the replayed spec,
-so it SHALL fire on a new capability and on a living one alike, whether or not
-the living spec carries the name and whether or not the ADDED block matches the
-living requirement. When a cross-section conflict fires on an `## ADDED`
-operation, the other `archive/added-exists` arms SHALL NOT report a second
-finding on that same operation.
-
-The refusal SHALL happen at cospec's own pre-flight, before delegation, and a
-contract test SHALL run each pair through both `cospec validate --strict` and
-the pinned binary's `archive`, so that cospec refuses exactly the pairs the
-binary refuses.
+The archive-precondition family SHALL refuse at pre-flight an `## ADDED`
+requirement whose exact normalised name (never folded) the same delta file also
+names under `## REMOVED` or `## MODIFIED`, as the wrapped binary does. Each
+SHALL be one `archive/added-exists` ERROR on the `## ADDED` operation naming the
+requirement and the other section, read from the delta's own sections, and no
+other `archive/added-exists` arm SHALL report that operation again.
 
 #### Scenario: REMOVED then ADDED of one name is refused
 
@@ -608,36 +552,28 @@ binary refuses.
 - **THEN** the ADDED operation carries exactly one `archive/added-exists` ERROR,
   the cross-section one
 
+#### Scenario: Cross-section conflicts ignore the living spec
+
+- **WHEN** an `## ADDED` and a `## REMOVED` or `## MODIFIED` of one exact name
+  sit in one delta file, for a new capability or a living one, whether or not
+  the living spec carries the name or matches the ADDED block
+- **THEN** `archive/added-exists` is an ERROR on the `## ADDED` operation
+
+#### Scenario: Each pair is contract-tested against the binary
+
+- **WHEN** the contract suite runs each cross-section pair through
+  `cospec validate --strict` and the pinned binary's `archive`
+- **THEN** cospec refuses exactly the pairs the binary refuses
+
 ### Requirement: Archive preconditions read what the archive merges
 
-cospec SHALL scan each delta file and living spec once, finding code fences on
-the raw lines before anything else, and SHALL NOT let an HTML comment open or
-close on a fenced line. Two views SHALL be read off that one scan: the verbatim
-view (fenced code masked, HTML comments kept — what the wrapped binary's readers
-and its archive read) and the masked view (HTML comments masked as well). Every
-rule in the archive-precondition family, `archive/scenario-preservation`
-included, SHALL read the verbatim view of both the delta files and the living
-spec: an operation written inside an HTML comment SHALL be checked as the
-operation the archive applies, a requirement header's trailing comment SHALL be
-part of its name, and a scenario inside a comment SHALL count on both sides of
-the scenario-loss check. Every other check that can change a gate outcome SHALL
-read the verbatim view too: every `deltas/*` finding at ERROR or WARNING that
-reads spec text — the statement, SHALL/MUST and scenario checks of
-`deltas/requirement-shape` among them — and the hard scenario-preservation gate
-of `cospec archive`. The masked view SHALL feed only advisory findings that no
-commented line can trigger (`deltas/skipped-header`, `deltas/scenario-depth`,
-`specs/purpose-tbd`), and the masked parse SHALL be a distinct type that no gate
-accepts, with a unit test enumerating every `archive/*` and `deltas/*` rule and
-proving each reads the view it is registered under. For every way an HTML
-comment has made the two readings differ — a statement, a requirement header or
-a scenario header inside a comment, a comment spanning a section boundary, a
-commented delta header in a living spec, a scenario kept only inside a comment,
-an unterminated comment, a commented orphan or unread file —
-`cospec validate --strict` and `cospec archive` SHALL accept exactly what the
-wrapped binary accepts. A UTF-8 BOM SHALL be stripped in both views, except in
-the living-spec structure check, which SHALL keep it as the wrapped binary's
-structure reader does. Each shape SHALL be covered by a contract test that runs
-the pinned binary's `validate` and `archive` on the fixture.
+cospec SHALL scan each delta and living spec once, finding fences first so no
+HTML comment opens or closes on a fenced line, yielding a verbatim view (fences
+masked, comments kept) and a masked view (comments masked too). Every
+`archive/*` rule, every gate-affecting `deltas/*` finding, and the hard
+scenario-preservation gate SHALL read the verbatim view; the masked view SHALL
+feed only `deltas/skipped-header`, `deltas/scenario-depth` and
+`specs/purpose-tbd`.
 
 #### Scenario: A comment opener inside a fenced example hides nothing
 
@@ -698,32 +634,44 @@ the pinned binary's `validate` and `archive` on the fixture.
 - **THEN** `cospec validate --strict` reports no cross-section conflict, and the
   binary's archive applies both operations
 
+#### Scenario: Commented operations and names are read as written
+
+- **WHEN** an operation, a requirement header's trailing comment, or a scenario
+  sits inside an HTML comment in a delta or living spec
+- **THEN** the operation is checked as the archive applies it, the comment is
+  part of the name, and the scenario counts on both sides of the loss check
+
+#### Scenario: Every comment shape matches the binary
+
+- **WHEN** a statement, requirement or scenario header sits inside a comment, a
+  comment spans a section boundary, a living spec carries a commented delta
+  header, a scenario is kept only in a comment, a comment is unterminated, or a
+  commented orphan or unread file exists
+- **THEN** `cospec validate --strict` and `cospec archive` accept exactly what
+  the pinned binary's `validate` and `archive` accept, under a contract test
+
+#### Scenario: A rule-view unit test enumerates every rule
+
+- **WHEN** the unit suite runs
+- **THEN** it enumerates every `archive/*` and `deltas/*` rule and proves each
+  reads the view it is registered under, the masked parse being a distinct type
+  no gate accepts
+
+#### Scenario: A BOM is stripped except for the structure check
+
+- **WHEN** a delta or living spec opens with a UTF-8 BOM
+- **THEN** both views strip it, except the living-spec structure check, which
+  keeps it as the binary's structure reader does
+
 ### Requirement: A skipped header that splits a requirement is refused at pre-flight
 
-The archive-precondition rule family SHALL refuse, as the ERROR
-`archive/split-requirement` on the header's line, a skipped `###` header inside
-an `## ADDED` or `## MODIFIED` requirement block that leaves a piece of the
-block with no scenario: the wrapped binary's archive appends the block as
-written and re-validates the rebuilt spec, where every `###` header is a
-requirement of its own, and refuses a requirement with no scenario. What counts
-as a scenario SHALL be read off the rebuilt spec's own parse, where any deeper
-header with a body under the piece — a `#####` included — is one, never off a
-count of `#### ` headers in the isolated block; where the merge refuses before
-building a spec, the block SHALL be read inside a spec of its own with the same
-parser. The header SHALL be refused when it is the block's first skipped header
-and the requirement's own text has no scenario above it, or when no scenario
-with a body follows it before the next header or the block's end. A header above
-the first requirement block, or one followed by a scenario of its own, SHALL NOT
-be refused, because the archive keeps it. A header inside an HTML comment SHALL
-be read as the archive reads it; a fenced one SHALL NOT. A `### Scenario:` line
-that `deltas/scenario-depth` already reports SHALL NOT also be reported by this
-rule. A header whose title is blank (`###` followed only by whitespace) SHALL
-also be refused when a scenario follows it but no line of text sits between the
-two, because the rebuilt spec reads it as a requirement with no text. The same
-cut inside a living requirement the delta keeps SHALL be
-`archive/rebuilt-spec-invalid`'s to report, not this rule's. Under `--fast` the
-rule SHALL NOT run, and `deltas/skipped-header` SHALL report the header at INFO
-instead.
+The archive-precondition family SHALL refuse, as `archive/split-requirement` on
+its line, a skipped `###` header inside an `## ADDED` or `## MODIFIED` block
+that leaves a piece without a scenario, as the rebuilt spec reads it: a block's
+first skipped header with no scenario above it, or any header with no bodied
+scenario before the next header or block end. A header above the first
+requirement or with its own scenario SHALL NOT be refused. Under `--fast` the
+rule SHALL NOT run.
 
 #### Scenario: A header between the text and the only scenario is refused
 
@@ -767,19 +715,40 @@ instead.
 - **THEN** no `archive/split-requirement` is raised, `deltas/skipped-header`
   reports the line at INFO, and the binary's archive applies the change
 
+#### Scenario: Scenarios are counted on the rebuilt spec's parse
+
+- **WHEN** a piece under a skipped header carries any deeper header with a body,
+  a `#####` included, or the merge refuses before building a spec
+- **THEN** the piece's scenarios are read off the rebuilt spec's own parse, or
+  the block inside a spec of its own with the same parser, never off a count of
+  `#### ` headers in the isolated block
+
+#### Scenario: Fenced headers and already-reported lines are left alone
+
+- **WHEN** the header sits inside a code fence, or is a `### Scenario:` line
+  `deltas/scenario-depth` already reports
+- **THEN** no `archive/split-requirement` is raised for it
+
+#### Scenario: A cut inside a kept living requirement belongs elsewhere
+
+- **WHEN** the same cut sits inside a living requirement the delta keeps
+- **THEN** `archive/rebuilt-spec-invalid` reports it, not
+  `archive/split-requirement`
+
+#### Scenario: Under --fast the header is reported at INFO
+
+- **WHEN** `cospec validate --fast` runs on a block with a splitting header
+- **THEN** `archive/split-requirement` does not run and `deltas/skipped-header`
+  reports the header at INFO
+
 ### Requirement: A structurally invalid living spec is refused at pre-flight
 
-`archive/target-invalid` SHALL refuse a living spec that carries a delta header
-(`## ADDED Requirements` and its siblings), a `### Requirement:` header outside
-its `## Requirements` section, or a second requirement under a normalised name
-already declared there, because the wrapped binary's archive refuses to update
-such a spec before merging anything. The check SHALL read the living spec as the
-wrapped binary's structure reader does: fenced lines excluded, HTML comments
-read as written, a UTF-8 BOM kept. The message SHALL name each defect's line. A
-living spec missing `## Requirements` or `## Purpose` SHALL NOT be refused by
-this rule, because the wrapped binary's archive refuses neither before merging:
-it appends an empty `## Requirements`, and a missing Purpose is the rebuilt
-spec's to refuse.
+`archive/target-invalid` SHALL refuse, naming each defect's line, a living spec
+with a delta header, a `### Requirement:` outside `## Requirements`, or a
+duplicate normalised requirement name there, reading it as the binary's
+structure reader does: fences excluded, comments as written, a BOM kept. A spec
+missing `## Requirements` or `## Purpose` SHALL NOT be refused by this rule, as
+the archive refuses neither before merging.
 
 #### Scenario: A delta header in a living spec is refused, commented or not
 
@@ -825,47 +794,13 @@ spec's to refuse.
 
 ### Requirement: The rebuilt spec is validated as the archive validates it
 
-The archive-precondition rule family SHALL rebuild each capability's main spec
-the way the wrapped binary's archive does — the living spec, or for a new
-capability the skeleton the archive writes with the delta's readable
-`## Purpose` carried, with the delta's operations applied in the binary's order
-(RENAMED, REMOVED, MODIFIED, ADDED), the living order kept and new blocks
-appended, and the preamble and every other section kept as written — reading
-both files on the verbatim view. It SHALL then run a port of the binary's
-main-spec validation over the result and report each ERROR it raises as the
-ERROR `archive/rebuilt-spec-invalid`, naming the header and the living-spec line
-it came from, or for a block the delta writes, its delta line. That validation
-takes every header under the first section titled `Requirements` as a
-requirement needing text and a scenario with a body, needs `## Purpose` text and
-at least one requirement, refuses the three structure defects, and needs a
-statement under every `### Requirement:` header.
-
-A finding on a line a delta block writes SHALL be dropped only where
-`deltas/requirement-shape` or `archive/split-requirement` reported that very
-line, never on the assumption that one did; a block written inside an HTML
-comment, which `deltas/requirement-shape` reads as the wrapped binary's
-validator does, SHALL be that rule's, as a visible one is. The rule SHALL NOT
-run for a capability another archive-precondition rule already refused, because
-the archive stops there first, nor where the merge itself refuses.
-
-The marker SHALL count only where the wrapped binary's archive honours it
-(`readBooleanMarker`): the whole `.openspec.yaml` passes its change-metadata
-schema and its `schema:` is one the binary lists and loads. A marker it cannot
-honour SHALL count as none, and the finding for a spec the change empties SHALL
-name the binary's reason. Under an honoured `retire_capabilities: true` the
-no-requirements ERROR SHALL be skipped only on the wrapped binary's own
-retirement decision: no requirement block survives the merge, every ERROR of the
-rebuilt spec is a no-requirements one at whatever level the header read as the
-Requirements section sits, nothing in the living spec sits outside what a
-retirement can name (the title, `## Purpose`, and each requirement block's own
-header, statement and scenario bullets), and this change removed a requirement
-block. A declared retirement the content blocks SHALL be reported with the
-blocking lines quoted as the binary's refusal quotes them; one the change did
-not empty SHALL be reported as such. Without the marker, the finding SHALL name
-the marker only when setting it alone would let the archive through, and the
-blocking lines otherwise. The legacy lane SHALL NOT run the rule. The rebuilt
-text SHALL equal, byte for byte, the spec the pinned binary writes for the same
-change.
+The archive-precondition family SHALL rebuild each capability's main spec as the
+wrapped binary's archive does, on the verbatim view, and run a port of its
+main-spec validation over it, reporting each ERROR as
+`archive/rebuilt-spec-invalid` naming the header and its living or delta line.
+It SHALL NOT run for a capability another precondition rule refused, where the
+merge refuses, or in the legacy lane. The rebuilt text SHALL equal, byte for
+byte, what the pinned binary writes.
 
 #### Scenario: A header above the first living requirement is refused
 
@@ -958,16 +893,59 @@ change.
   reason the binary's archive quotes, and the binary's archive refuses the
   change
 
+#### Scenario: The rebuild follows the binary's merge
+
+- **WHEN** a capability's spec is rebuilt
+- **THEN** it starts from the living spec, or for a new capability the skeleton
+  carrying the delta's readable `## Purpose`, applies RENAMED, REMOVED, MODIFIED
+  then ADDED, keeps living order with new blocks appended, and keeps the
+  preamble and every other section as written
+
+#### Scenario: The ported validation checks what the archive checks
+
+- **WHEN** the rebuilt spec is validated
+- **THEN** every header under the first `Requirements` section needs text and a
+  bodied scenario, `## Purpose` needs text, at least one requirement must exist,
+  the three structure defects are refused, and every `### Requirement:` needs a
+  statement
+
+#### Scenario: A delta-line finding is dropped only where another rule reported
+
+- **WHEN** a finding falls on a line a delta block writes
+- **THEN** it is dropped only where `deltas/requirement-shape` or
+  `archive/split-requirement` reported that very line, a commented block being
+  `deltas/requirement-shape`'s as a visible one is
+
+#### Scenario: The retirement marker counts only where the binary honours it
+
+- **WHEN** a change sets `retire_capabilities: true`
+- **THEN** it counts only if the whole `.openspec.yaml` passes the binary's
+  change-metadata schema and its `schema:` is one the binary lists and loads,
+  and otherwise counts as none, with the finding naming the binary's reason
+
+#### Scenario: The no-requirements ERROR is skipped only on the binary's decision
+
+- **WHEN** an honoured marker is set
+- **THEN** the no-requirements ERROR is skipped only if no block survives, every
+  rebuilt ERROR is a no-requirements one, nothing in the living spec lies
+  outside the title, `## Purpose` and each block's header, statement and
+  scenario bullets, and this change removed a block; a blocked retirement quotes
+  the blocking lines and one the change did not empty is reported as such
+
+#### Scenario: Without the marker the finding says what would help
+
+- **WHEN** a change empties a spec without the marker
+- **THEN** the finding names the marker only when setting it alone would let the
+  archive through, and the blocking lines otherwise
+
 ### Requirement: In-file operation conflicts are refused natively
 
-The archive-precondition rule family SHALL refuse, as the ERROR
-`archive/op-conflict`, the three conflicts inside one delta file that the
-wrapped binary's validate refuses and no other archive-precondition rule
-reports: a `## MODIFIED` requirement written twice, a `## REMOVED` requirement
-written twice (exact names), and a `## REMOVED` name that folds onto a
-`## RENAMED` FROM name. A cospec-typed change with no `proposal.md`, which
-cospec never delegates, SHALL be refused natively on every conflict shape the
-wrapped binary's validate reports.
+The archive-precondition family SHALL refuse, as `archive/op-conflict`, three
+in-file conflicts the wrapped binary's validate refuses and no other rule
+reports: a `## MODIFIED` or a `## REMOVED` requirement written twice (exact
+names), and a `## REMOVED` name folding onto a `## RENAMED` FROM name. A
+cospec-typed change with no `proposal.md`, never delegated, SHALL be refused
+natively on every conflict shape the binary's validate reports.
 
 #### Scenario: A duplicated MODIFIED or REMOVED is refused
 
@@ -994,16 +972,11 @@ wrapped binary's validate reports.
 ### Requirement: --no-validate skips only revalidation
 
 `cospec archive <change> --no-validate` SHALL skip only cospec's revalidation
-step (the archive-precondition validation `validateChange` runs) and SHALL
-forward `--no-validate` to the wrapped `archive -y` call, so the binary skips
-its own validation as the flag asks. The namespace-folder refusal, the tasks
-gate, `archive/verification-incomplete`, the archive-slot check,
-`archive/scenario-preservation`, the on-disk move verification and the
-post-merge spot-check SHALL still run. Before any of them, cospec SHALL print a
-banner on stderr, in text and `--json` mode alike, saying that revalidation was
-skipped and naming the gates that still run. cospec SHALL NOT prompt: its
-archive never prompts, so the binary's `--json --no-validate` confirmation
-refusal (`archive_confirmation_required`) has no cospec counterpart.
+(`validateChange`) and forward `--no-validate` to the wrapped `archive -y`.
+Every other gate SHALL still run, preceded by a stderr banner, in text and
+`--json` mode, saying revalidation was skipped and naming the gates that still
+run. cospec SHALL NOT prompt, so the binary's `archive_confirmation_required`
+refusal has no cospec counterpart.
 
 #### Scenario: Both hard gates still refuse under --no-validate
 
@@ -1020,15 +993,22 @@ refusal (`archive_confirmation_required`) has no cospec counterpart.
 - **THEN** the change archives with exit 0, the banner is on stderr, and the
   main specs equal what `openspec archive c1 -y --no-validate` writes on a copy
 
+#### Scenario: The gates that still run are named
+
+- **WHEN** `cospec archive c1 --no-validate` runs
+- **THEN** the namespace-folder refusal, the tasks gate,
+  `archive/verification-incomplete`, the archive-slot check,
+  `archive/scenario-preservation`, the on-disk move verification and the
+  post-merge spot-check all still run, and the banner names them
+
 ### Requirement: One scenario-preservation helper reads the verbatim view
 
-The `archive/scenario-preservation` hard gate SHALL live in one shared helper
-that `cospec archive` and `cospec sync-specs` both call, and that reads the
-living spec and the delta the way the binary's archive reads them: code fences
-masked and HTML comments kept. A scenario that sits inside a comment in the
-living spec SHALL count as a living scenario, and a scenario the MODIFIED block
-keeps only inside a comment SHALL count as kept, so the gate refuses and passes
-exactly where `openspec archive` does.
+The `archive/scenario-preservation` gate SHALL live in one shared helper that
+`cospec archive` and `cospec sync-specs` both call, reading the living spec and
+delta as the binary's archive does: fences masked, HTML comments kept. A
+commented living scenario SHALL count as living, and one a MODIFIED block keeps
+only in a comment SHALL count as kept, so the gate refuses and passes exactly
+where `openspec archive` does.
 
 #### Scenario: A scenario kept only inside a comment archives on both sides
 
@@ -1089,12 +1069,11 @@ that operations were applied.
 ### Requirement: A brand-new capability refuses only MODIFIED and RENAMED
 
 `archive/new-spec-non-added` SHALL be an ERROR only on a MODIFIED or RENAMED
-operation that targets a capability with no living spec. A REMOVED operation
-there SHALL NOT be reported by it: the binary ignores it with a warning
-("nothing to remove") and applies the rest of the delta. A delta whose only
-operations on a new capability are REMOVED, without `retire_capabilities: true`,
-SHALL still be refused, by `archive/rebuilt-spec-invalid`, because the spec the
-binary would write has no requirements.
+operation targeting a capability with no living spec. A REMOVED there SHALL NOT
+be reported by it, as the binary ignores it with a warning ("nothing to remove")
+and applies the rest. A delta only REMOVing on a new capability, without
+`retire_capabilities: true`, SHALL still be refused, by
+`archive/rebuilt-spec-invalid`, as the spec written has no requirements.
 
 #### Scenario: ADDED with REMOVED on a new capability archives
 
@@ -1127,3 +1106,29 @@ authored spec text pass through byte-for-byte.
 - **THEN** the relayed `Warning:` line reads
   `… cospec validate --strict reports it as too brief.`, and no relayed line
   names a bare `openspec` command on the allowlist
+
+### Requirement: Spec writes preserve line endings
+
+Every spec write cospec performs or verifies, including `sync-specs` scratch
+merges and archive post-conditions, SHALL keep a file's dominant line ending,
+and SHALL write a new spec with LF.
+
+#### Scenario: CRLF spec
+
+- **WHEN** a change modifies one requirement in a CRLF living spec
+- **THEN** after `cospec archive` the spec is still CRLF and the diff touches
+  only that requirement
+
+### Requirement: Retirement cleanup failure is reported precisely
+
+When the delegated human-mode archive moves a change but capability-retirement
+cleanup fails, `cospec archive` SHALL classify it from that call's output plus
+the move verified on disk, report that the change was archived and cleanup did
+not complete, and carry `archive_retirement_cleanup_failed` in its own `--json`
+document. The single human-mode delegation SHALL be kept.
+
+#### Scenario: Cleanup failure
+
+- **WHEN** retirement cleanup fails after the move
+- **THEN** cospec verifies the move on disk, still fans out blocker sync, and
+  exits nonzero with that code

@@ -140,7 +140,7 @@ function writeChange(
   const out: Record<string, string> = {}
   if (schema !== null)
     out[`${dir}/.openspec.yaml`] =
-      `schema: ${schema}\ncreated: 2026-09-01\nschemaVersion: ${schemaVersion}\n`
+      `schema: ${schema}\ncreated: 2026-09-01\nx-cospec-schema-version: ${schemaVersion}\n`
   for (const [rel, body] of Object.entries(files)) out[`${dir}/${rel}`] = body
   writeFiles(root, out)
   mkdirSync(join(root, dir), { recursive: true })
@@ -442,7 +442,17 @@ describe('the key oracle', () => {
     expect(compareDocuments(up, broken, vspec).failures).toEqual([
       expect.stringContaining('items[].type: named collision broken'),
     ])
-    expect(NAMED_COLLISIONS.map((c) => c.path)).toEqual(['version', 'items[].type', 'status[].fix'])
+    expect(NAMED_COLLISIONS.map((c) => c.path)).toEqual([
+      'version',
+      'items[].type',
+      'install.location',
+      'install.packageManager',
+      'install.scope',
+      'update.status',
+      'update.latest',
+      'update.command',
+      'status[].fix',
+    ])
   })
 
   test('a respelled path must carry the binary value spelled through cospec', () => {
@@ -906,7 +916,7 @@ describe('3. status next steps', () => {
     requiredDone(root, 'done-but-design')
     writeFiles(root, {
       'openspec/changes/skipped/.openspec.yaml':
-        'schema: feat\ncreated: 2026-09-01\nschemaVersion: 2\nskip_specs: true\n',
+        'schema: feat\ncreated: 2026-09-01\nx-cospec-schema-version: 2\nskip_specs: true\n',
       'openspec/changes/skipped/proposal.md': PROPOSAL,
     })
     specDrivenChange(root, 'driven')
@@ -2632,18 +2642,24 @@ describe('17. round-4 review rows', () => {
 
   /** Each `.openspec.yaml` the binary's `ChangeMetadataSchema` refuses, its schema still loading. */
   const REFUSED_METADATA: { how: string; yaml: string }[] = [
-    { how: 'created', yaml: 'schema: chore\ncreated: notadate\nschemaVersion: 2\n' },
-    { how: 'skip_specs', yaml: 'schema: chore\nskip_specs: "yes"\nschemaVersion: 2\n' },
-    { how: 'goal', yaml: 'schema: chore\ngoal: ""\nschemaVersion: 2\n' },
-    { how: 'affected_areas', yaml: 'schema: chore\naffected_areas: [1]\nschemaVersion: 2\n' },
-    { how: 'initiative', yaml: 'schema: chore\ninitiative: {store: s1}\nschemaVersion: 2\n' },
+    { how: 'created', yaml: 'schema: chore\ncreated: notadate\nx-cospec-schema-version: 2\n' },
+    { how: 'skip_specs', yaml: 'schema: chore\nskip_specs: "yes"\nx-cospec-schema-version: 2\n' },
+    { how: 'goal', yaml: 'schema: chore\ngoal: ""\nx-cospec-schema-version: 2\n' },
+    {
+      how: 'affected_areas',
+      yaml: 'schema: chore\naffected_areas: [1]\nx-cospec-schema-version: 2\n',
+    },
+    {
+      how: 'initiative',
+      yaml: 'schema: chore\ninitiative: {store: s1}\nx-cospec-schema-version: 2\n',
+    },
     {
       how: 'initiative key',
-      yaml: 'schema: chore\ninitiative: {store: s1, id: i1, extra: x}\nschemaVersion: 2\n',
+      yaml: 'schema: chore\ninitiative: {store: s1, id: i1, extra: x}\nx-cospec-schema-version: 2\n',
     },
     {
       how: 'retire_capabilities',
-      yaml: 'schema: chore\nretire_capabilities: "no"\nschemaVersion: 2\n',
+      yaml: 'schema: chore\nretire_capabilities: "no"\nx-cospec-schema-version: 2\n',
     },
   ]
 

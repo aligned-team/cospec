@@ -78,7 +78,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:cca6f8cd0333b05ca9b632e5db623a55f63a8a486ffcff2389bdfc0e9c2c53ca
+  contentHash: sha256:6edd840ee4c7406f13b5eadca3b1dfac54b5fe8fc96d5d08521a929af99970be
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -244,6 +244,11 @@ Loop until every artifact in the type's \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
@@ -286,7 +291,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:cca6f8cd0333b05ca9b632e5db623a55f63a8a486ffcff2389bdfc0e9c2c53ca
+  contentHash: sha256:6edd840ee4c7406f13b5eadca3b1dfac54b5fe8fc96d5d08521a929af99970be
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -452,6 +457,11 @@ Loop until every artifact in the type's \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
@@ -740,7 +750,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:ecae7c09271255c1170c8f365badf52ff7bf0b4be954f9c2ffaaee8e6cc26f0a
+  contentHash: sha256:08ee523699165cb0044aa2b0321cacc534805b6f8f721e0604b80ff619e1e1df
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -815,11 +825,26 @@ cospec status --change <slug> --json
 Read which \`apply.requires\` artifacts are still missing and which are ready to
 write next.
 
+**First, finish a partly written artifact.** A glob artifact (the
+\`specs/**/*.md\` deltas) reads \`done\` as soon as one matching file exists, so a
+run interrupted while writing its files leaves it \`done\` with some still
+missing. For each such \`done\` artifact, get its instructions and read the
+dependencies that say which files it should have — for the specs, the proposal's
+capabilities, one \`specs/<capability-path>/spec.md\` each — and compare them with
+\`artifactPaths.<id>.existingOutputPaths\`. Write only the missing files, each at
+a path you have checked stays inside the change directory after resolving
+symlinks, before moving on to any other artifact. If you cannot tell whether a
+capability was left out on purpose, ask the user.
+
 ## 3. Finish the artifacts
 
 Run the same loop as \`/cospec:propose\` step 3: for each ready artifact, call
 \`cospec instructions <artifact> --change <slug> --json\`, write it to the named
-path, and repeat until every required artifact exists. Apply \`context\` and
+path, and repeat until every required artifact exists. When the named path is a
+glob, choose a concrete path inside the change directory that matches it, and
+check it stays there after resolving symlinks; if it does not, stop and tell the
+user. If the \`instruction\` delegates creation to a skill or command, use it only
+if it can write to that checked path. Apply \`context\` and
 \`rules\` as constraints, never copy them into the output. Re-read every completed
 dependency artifact from disk before writing against it — this change was
 started in an earlier session, so nothing you remember about its artifacts is
@@ -857,7 +882,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:ecae7c09271255c1170c8f365badf52ff7bf0b4be954f9c2ffaaee8e6cc26f0a
+  contentHash: sha256:08ee523699165cb0044aa2b0321cacc534805b6f8f721e0604b80ff619e1e1df
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -932,11 +957,26 @@ cospec status --change <slug> --json
 Read which \`apply.requires\` artifacts are still missing and which are ready to
 write next.
 
+**First, finish a partly written artifact.** A glob artifact (the
+\`specs/**/*.md\` deltas) reads \`done\` as soon as one matching file exists, so a
+run interrupted while writing its files leaves it \`done\` with some still
+missing. For each such \`done\` artifact, get its instructions and read the
+dependencies that say which files it should have — for the specs, the proposal's
+capabilities, one \`specs/<capability-path>/spec.md\` each — and compare them with
+\`artifactPaths.<id>.existingOutputPaths\`. Write only the missing files, each at
+a path you have checked stays inside the change directory after resolving
+symlinks, before moving on to any other artifact. If you cannot tell whether a
+capability was left out on purpose, ask the user.
+
 ## 3. Finish the artifacts
 
 Run the same loop as \`/cospec:propose\` step 3: for each ready artifact, call
 \`cospec instructions <artifact> --change <slug> --json\`, write it to the named
-path, and repeat until every required artifact exists. Apply \`context\` and
+path, and repeat until every required artifact exists. When the named path is a
+glob, choose a concrete path inside the change directory that matches it, and
+check it stays there after resolving symlinks; if it does not, stop and tell the
+user. If the \`instruction\` delegates creation to a skill or command, use it only
+if it can write to that checked path. Apply \`context\` and
 \`rules\` as constraints, never copy them into the output. Re-read every completed
 dependency artifact from disk before writing against it — this change was
 started in an earlier session, so nothing you remember about its artifacts is
@@ -972,7 +1012,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:2463f2a0fbdaeb95f04ae1e5b6034352624171d465f9c027640838cdc13ffba2
+  contentHash: sha256:f31e79df80202daada4634eb6e8a4ee3ccf11c8682195c834878a4bd0576f450
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -1090,7 +1130,16 @@ Loop until every artifact in \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
+
+Ask the user only when the context is critically unclear — when a wrong guess
+would change what gets built. Otherwise keep going, and state the assumption you
+made in the artifact it shapes.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft
@@ -1132,7 +1181,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:2463f2a0fbdaeb95f04ae1e5b6034352624171d465f9c027640838cdc13ffba2
+  contentHash: sha256:f31e79df80202daada4634eb6e8a4ee3ccf11c8682195c834878a4bd0576f450
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -1250,7 +1299,16 @@ Loop until every artifact in \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
+
+Ask the user only when the context is critically unclear — when a wrong guess
+would change what gets built. Otherwise keep going, and state the assumption you
+made in the artifact it shapes.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft
@@ -1290,7 +1348,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:c9515a44c9fc336666153213b26f25d157582d4760ed00319a119a33f9b81e76
+  contentHash: sha256:1148beb2629c2653fa435f49c43b70390c55b639826f3d98e56ff46549748523
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -1362,8 +1420,12 @@ choose as **Choosing a change** above says.
 cospec status --change <slug> --json
 \`\`\`
 
-Only artifacts reported \`done\` are in scope. Anything still missing is out of
-scope here — note it and point the user at \`/cospec:continue\`.
+The files in scope are \`artifactPaths.<id>.existingOutputPaths\` of the
+artifacts reported \`done\`, plus one exception: a confirmed new file under a glob
+artifact that already has files (step 4). Never write to a glob
+\`resolvedOutputPath\`. An artifact with no files and status \`ready\` or \`blocked\`
+is out of scope here — note it and point the user at \`/cospec:continue\`.
+Leave \`skipped\` artifacts untouched; they are not missing.
 
 ## 3. Understand the request
 
@@ -1392,9 +1454,23 @@ cospec instructions <artifact> --change <slug> --json
 
 Apply \`context\` and \`rules\` as constraints; never copy them into the artifact.
 \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and \`verification.md\` are
-machine-parsed — keep the exact format. For the specs artifact, revise only the
-delta files already under \`openspec/changes/<slug>/specs/\`; adding a new
-capability file is \`/cospec:continue\`'s job.
+machine-parsed — keep the exact format.
+
+A glob artifact (the \`specs/**/*.md\` deltas) reads \`done\` once one file matches,
+so \`/cospec:continue\` never comes back for a file it is missing. When
+reconciliation finds such a file missing — a capability the proposal lists with
+no delta yet — this workflow creates it:
+
+1. Run \`cospec instructions <artifact> --change <slug> --json\` and follow its
+   \`instruction\` and \`template\`. If it reports \`skipped: true\`, do not create
+   the file. Re-read the dependency files from disk; if a required one is
+   missing, stop and ask the user to restore it first.
+2. Choose a concrete path inside the change directory that matches the
+   artifact's \`outputPath\` and does not exist yet, and check it stays inside
+   the change directory after resolving symlinked parents.
+3. Propose the new file in step 5 like any other revision, and create it only
+   after the user confirms — refreshing status and instructions just before,
+   and stopping rather than overwriting if the path now exists.
 
 ## 5. Confirm each edit
 
@@ -1415,11 +1491,18 @@ cospec validate <slug> --strict
 Fix every ERROR and every WARNING, re-running the formatter over anything you
 edit. Then name the next step:
 
-- artifacts still missing → \`/cospec:continue\`
+- artifacts with no files and status \`ready\` or \`blocked\` → \`/cospec:continue\`
 - apply-ready and not yet implemented → \`/cospec:apply\`
 - already implemented, and the revision changed what should be built →
   \`/cospec:apply\` again to carry the delta into code
 - everything done → \`/cospec:verify\`, then \`/cospec:archive\`
+
+Guardrails: edit only the concrete files in \`existingOutputPaths\`, plus a
+confirmed new file under a glob artifact that already has files (step 4) — that
+is the only new-file scope. Do not advance the build frontier: an artifact with
+no files and status \`ready\` or \`blocked\` is
+\`/cospec:continue\`'s job, and \`skipped\` artifacts stay
+untouched.
 
 If the request changes the change's _intent_ rather than refining it, do not
 rewrite it in place — recommend \`/cospec:new <type> <new-slug>\` and stop.
@@ -1440,7 +1523,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:c9515a44c9fc336666153213b26f25d157582d4760ed00319a119a33f9b81e76
+  contentHash: sha256:1148beb2629c2653fa435f49c43b70390c55b639826f3d98e56ff46549748523
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -1512,8 +1595,12 @@ choose as **Choosing a change** above says.
 cospec status --change <slug> --json
 \`\`\`
 
-Only artifacts reported \`done\` are in scope. Anything still missing is out of
-scope here — note it and point the user at \`/cospec:continue\`.
+The files in scope are \`artifactPaths.<id>.existingOutputPaths\` of the
+artifacts reported \`done\`, plus one exception: a confirmed new file under a glob
+artifact that already has files (step 4). Never write to a glob
+\`resolvedOutputPath\`. An artifact with no files and status \`ready\` or \`blocked\`
+is out of scope here — note it and point the user at \`/cospec:continue\`.
+Leave \`skipped\` artifacts untouched; they are not missing.
 
 ## 3. Understand the request
 
@@ -1542,9 +1629,23 @@ cospec instructions <artifact> --change <slug> --json
 
 Apply \`context\` and \`rules\` as constraints; never copy them into the artifact.
 \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and \`verification.md\` are
-machine-parsed — keep the exact format. For the specs artifact, revise only the
-delta files already under \`openspec/changes/<slug>/specs/\`; adding a new
-capability file is \`/cospec:continue\`'s job.
+machine-parsed — keep the exact format.
+
+A glob artifact (the \`specs/**/*.md\` deltas) reads \`done\` once one file matches,
+so \`/cospec:continue\` never comes back for a file it is missing. When
+reconciliation finds such a file missing — a capability the proposal lists with
+no delta yet — this workflow creates it:
+
+1. Run \`cospec instructions <artifact> --change <slug> --json\` and follow its
+   \`instruction\` and \`template\`. If it reports \`skipped: true\`, do not create
+   the file. Re-read the dependency files from disk; if a required one is
+   missing, stop and ask the user to restore it first.
+2. Choose a concrete path inside the change directory that matches the
+   artifact's \`outputPath\` and does not exist yet, and check it stays inside
+   the change directory after resolving symlinked parents.
+3. Propose the new file in step 5 like any other revision, and create it only
+   after the user confirms — refreshing status and instructions just before,
+   and stopping rather than overwriting if the path now exists.
 
 ## 5. Confirm each edit
 
@@ -1565,11 +1666,18 @@ cospec validate <slug> --strict
 Fix every ERROR and every WARNING, re-running the formatter over anything you
 edit. Then name the next step:
 
-- artifacts still missing → \`/cospec:continue\`
+- artifacts with no files and status \`ready\` or \`blocked\` → \`/cospec:continue\`
 - apply-ready and not yet implemented → \`/cospec:apply\`
 - already implemented, and the revision changed what should be built →
   \`/cospec:apply\` again to carry the delta into code
 - everything done → \`/cospec:verify\`, then \`/cospec:archive\`
+
+Guardrails: edit only the concrete files in \`existingOutputPaths\`, plus a
+confirmed new file under a glob artifact that already has files (step 4) — that
+is the only new-file scope. Do not advance the build frontier: an artifact with
+no files and status \`ready\` or \`blocked\` is
+\`/cospec:continue\`'s job, and \`skipped\` artifacts stay
+untouched.
 
 If the request changes the change's _intent_ rather than refining it, do not
 rewrite it in place — recommend \`/cospec:new <type> <new-slug>\` and stop.
@@ -1588,7 +1696,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:623fd234d1f57a3a9313521daa82d7ecdc929d48f5bd7c0a3bca4071f413f5c0
+  contentHash: sha256:8b3fcc8b300d860b358bd86a46a6d56a8eb044701975f23f48a657a2d1f18d3f
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -1695,8 +1803,11 @@ Obey the exit code:
 
 ## 3. Finish
 
-When every task is checked, tell the user the change is ready to archive — next
-step \`/cospec:archive\`.
+When every tracked task is checked, tell the user the tracked tasks are complete
+— not that the change is ready to archive. The next step is to review and verify
+it with \`/cospec:verify\`, then \`/cospec:archive\`. Plain
+bullets under \`## Workflow follow-up\` in \`tasks.md\` are steps for after archive,
+not tasks to check off here.
 "
 ,
     "kind": "skill",
@@ -1714,7 +1825,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:623fd234d1f57a3a9313521daa82d7ecdc929d48f5bd7c0a3bca4071f413f5c0
+  contentHash: sha256:8b3fcc8b300d860b358bd86a46a6d56a8eb044701975f23f48a657a2d1f18d3f
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -1821,8 +1932,11 @@ Obey the exit code:
 
 ## 3. Finish
 
-When every task is checked, tell the user the change is ready to archive — next
-step \`/cospec:archive\`.
+When every tracked task is checked, tell the user the tracked tasks are complete
+— not that the change is ready to archive. The next step is to review and verify
+it with \`/cospec:verify\`, then \`/cospec:archive\`. Plain
+bullets under \`## Workflow follow-up\` in \`tasks.md\` are steps for after archive,
+not tasks to check off here.
 "
 ,
     "kind": "command",
@@ -1838,12 +1952,12 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:09e5eb18bdf8fd4a426182e609bfcf375700a289a0aeb33d367f480b89fc8920
+  contentHash: sha256:c8e1a5d8eb7286672d9a3c27efa9697dd192b8ac44027c76d1f3997a69421d94
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
-runs \`cospec validate --strict\`, walks the verification ledger to observed
-evidence, and names the hard gates \`/cospec:archive\` will enforce.
+runs \`cospec validate --strict\`, checks the delta specs against the code, walks
+the verification ledger to observed evidence, and names the hard gates \`/cospec:archive\` will enforce.
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -1909,7 +2023,54 @@ the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
 collisions, scenarios are well-formed) — do not proceed to the ledger walk with
 a validation failure outstanding.
 
-## 3. Walk the verification ledger
+## 3. Check spec coverage
+
+Run \`cospec status --change <slug> --json\`. Artifact ids come from the change's
+schema, so find inputs by output path, never by an assumed id: the spec
+artifacts are those whose \`artifactPaths.<id>.outputPath\` is under \`specs/\`,
+and the design artifact is the one whose output path is or ends in \`design.md\`.
+If the change's type has no spec artifact, or status reports it skipped, report
+spec coverage as **Not applicable**; likewise design adherence when there is no
+design artifact. If a spec or design artifact exists but its files are absent,
+empty, or hold no usable requirements, scenarios, or decisions, mark the checks
+it feeds as **Not verified** with the reason — never as clean.
+
+Read each delta spec file and note the section every requirement sits under. The
+section decides what you look for:
+
+- **ADDED / MODIFIED** — search the code for the behavior (for MODIFIED, the
+  text in the delta, not the old wording) and for tests covering each of its
+  scenarios. A requirement that appears unimplemented is a CRITICAL finding.
+- **REMOVED** — the behavior must be gone, so the check is inverted. The block
+  carries only the name and its Reason/Migration notes, so first read the
+  baseline requirement from the living spec at
+  \`<planningHome.root>/openspec/specs/<capability-path>/spec.md\`, matched by
+  exact name: the heading text after \`Requirement:\`, trimmed, with a closing
+  \`#\` run dropped only when a space or tab precedes it, compared
+  case-sensitively. A similarly worded heading is not a match. If that file no
+  longer holds it (an early \`/cospec:sync-specs\`, or a similarly named ADDED
+  requirement replaced it), recover it from that file's history with
+  \`git -C "<planningHome.root>" log -p -- openspec/specs/<capability-path>/spec.md\`
+  — empty output means the path matched nothing, not that there is no
+  baseline. Search the code for the baseline's behavior, never for the name
+  alone; finding none is the passing result. A baseline that cannot be
+  recovered, or only restates its own title, is unusable: report that entry as
+  **Not verified** and do not search. Behavior still present is a CRITICAL
+  finding naming the file and lines, never "Requirement not found".
+- **RENAMED** — the name changes, the behavior stays. Never report the \`FROM\`
+  name as missing, and do not require code symbols to be renamed. Check the
+  \`TO\` requirement's behavior against the baseline (under the \`FROM\` name, or
+  the \`TO\` name when the living spec is already synced); a \`TO\` name that also
+  appears under MODIFIED is checked there instead. An unreadable baseline makes
+  the entry **Not verified**.
+
+Skip scenarios under a REMOVED requirement. A change with only REMOVED or
+RENAMED requirements has no implementation mapping to check: report that as
+**Not applicable**, with each removal and rename settled above. If a design
+artifact exists, check the implementation against its decisions and report each
+contradiction as a WARNING.
+
+## 4. Walk the verification ledger
 
 Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 \`- [ ] N.M @layer (owner) probe -> result\`:
@@ -1923,13 +2084,19 @@ Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
 invent evidence for a probe you did not actually run.
 
-## 4. Confirm tasks are complete
+## 5. Confirm tasks are complete
 
-Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
-not, finish the remaining work (or tell the user which are outstanding) before
-moving on.
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks, so do not infer progress from a single \`tasks.md\` or
+from artifact status; only \`x\`/\`X\` boxes count as done, and plain bullets under
+\`## Workflow follow-up\` are not tracked. If \`completedTasks\` is below
+\`totalTasks\`, finish the remaining work (or tell the user which are
+outstanding) before moving on. If the lookup fails or the entry is missing,
+duplicated, or carries invalid counts, report task completion as **Not
+verified**.
 
-## 5. Name the gates archive will enforce
+## 6. Name the gates archive will enforce
 
 Tell the user \`/cospec:archive\` runs two hard gates, neither of which accepts
 \`--force\`:
@@ -1941,10 +2108,20 @@ Tell the user \`/cospec:archive\` runs two hard gates, neither of which accepts
 
 This workflow only checks these preconditions; it does not run the archive.
 
-## 6. Hand off
+## 7. Hand off
 
-Tell the user the change is dress-rehearsed and the next step is
+Report each check as passed, with its findings, **Not applicable**, or **Not
+verified (<reason>)**. Never score a skipped or partly checked check as passing.
+Report REMOVED and RENAMED requirements separately from the ADDED and MODIFIED
+count (for example, "1 removal confirmed, 1 rename verified").
+
+Only when every applicable check ran and no CRITICAL finding remains, tell the
+user the change is dress-rehearsed and the next step is
 \`/cospec:archive\`.
+If any check was not verified, do not claim it is ready: say "No critical issues
+found in the checks that ran", name each check that was not verified and why,
+and leave the decision to the user. Verification is advisory: never invent an
+optional or intentionally omitted artifact to obtain a clean report.
 "
 ,
     "kind": "skill",
@@ -1962,12 +2139,12 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:09e5eb18bdf8fd4a426182e609bfcf375700a289a0aeb33d367f480b89fc8920
+  contentHash: sha256:c8e1a5d8eb7286672d9a3c27efa9697dd192b8ac44027c76d1f3997a69421d94
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
-runs \`cospec validate --strict\`, walks the verification ledger to observed
-evidence, and names the hard gates \`/cospec:archive\` will enforce.
+runs \`cospec validate --strict\`, checks the delta specs against the code, walks
+the verification ledger to observed evidence, and names the hard gates \`/cospec:archive\` will enforce.
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -2033,7 +2210,54 @@ the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
 collisions, scenarios are well-formed) — do not proceed to the ledger walk with
 a validation failure outstanding.
 
-## 3. Walk the verification ledger
+## 3. Check spec coverage
+
+Run \`cospec status --change <slug> --json\`. Artifact ids come from the change's
+schema, so find inputs by output path, never by an assumed id: the spec
+artifacts are those whose \`artifactPaths.<id>.outputPath\` is under \`specs/\`,
+and the design artifact is the one whose output path is or ends in \`design.md\`.
+If the change's type has no spec artifact, or status reports it skipped, report
+spec coverage as **Not applicable**; likewise design adherence when there is no
+design artifact. If a spec or design artifact exists but its files are absent,
+empty, or hold no usable requirements, scenarios, or decisions, mark the checks
+it feeds as **Not verified** with the reason — never as clean.
+
+Read each delta spec file and note the section every requirement sits under. The
+section decides what you look for:
+
+- **ADDED / MODIFIED** — search the code for the behavior (for MODIFIED, the
+  text in the delta, not the old wording) and for tests covering each of its
+  scenarios. A requirement that appears unimplemented is a CRITICAL finding.
+- **REMOVED** — the behavior must be gone, so the check is inverted. The block
+  carries only the name and its Reason/Migration notes, so first read the
+  baseline requirement from the living spec at
+  \`<planningHome.root>/openspec/specs/<capability-path>/spec.md\`, matched by
+  exact name: the heading text after \`Requirement:\`, trimmed, with a closing
+  \`#\` run dropped only when a space or tab precedes it, compared
+  case-sensitively. A similarly worded heading is not a match. If that file no
+  longer holds it (an early \`/cospec:sync-specs\`, or a similarly named ADDED
+  requirement replaced it), recover it from that file's history with
+  \`git -C "<planningHome.root>" log -p -- openspec/specs/<capability-path>/spec.md\`
+  — empty output means the path matched nothing, not that there is no
+  baseline. Search the code for the baseline's behavior, never for the name
+  alone; finding none is the passing result. A baseline that cannot be
+  recovered, or only restates its own title, is unusable: report that entry as
+  **Not verified** and do not search. Behavior still present is a CRITICAL
+  finding naming the file and lines, never "Requirement not found".
+- **RENAMED** — the name changes, the behavior stays. Never report the \`FROM\`
+  name as missing, and do not require code symbols to be renamed. Check the
+  \`TO\` requirement's behavior against the baseline (under the \`FROM\` name, or
+  the \`TO\` name when the living spec is already synced); a \`TO\` name that also
+  appears under MODIFIED is checked there instead. An unreadable baseline makes
+  the entry **Not verified**.
+
+Skip scenarios under a REMOVED requirement. A change with only REMOVED or
+RENAMED requirements has no implementation mapping to check: report that as
+**Not applicable**, with each removal and rename settled above. If a design
+artifact exists, check the implementation against its decisions and report each
+contradiction as a WARNING.
+
+## 4. Walk the verification ledger
 
 Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 \`- [ ] N.M @layer (owner) probe -> result\`:
@@ -2047,13 +2271,19 @@ Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
 invent evidence for a probe you did not actually run.
 
-## 4. Confirm tasks are complete
+## 5. Confirm tasks are complete
 
-Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
-not, finish the remaining work (or tell the user which are outstanding) before
-moving on.
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks, so do not infer progress from a single \`tasks.md\` or
+from artifact status; only \`x\`/\`X\` boxes count as done, and plain bullets under
+\`## Workflow follow-up\` are not tracked. If \`completedTasks\` is below
+\`totalTasks\`, finish the remaining work (or tell the user which are
+outstanding) before moving on. If the lookup fails or the entry is missing,
+duplicated, or carries invalid counts, report task completion as **Not
+verified**.
 
-## 5. Name the gates archive will enforce
+## 6. Name the gates archive will enforce
 
 Tell the user \`/cospec:archive\` runs two hard gates, neither of which accepts
 \`--force\`:
@@ -2065,10 +2295,20 @@ Tell the user \`/cospec:archive\` runs two hard gates, neither of which accepts
 
 This workflow only checks these preconditions; it does not run the archive.
 
-## 6. Hand off
+## 7. Hand off
 
-Tell the user the change is dress-rehearsed and the next step is
+Report each check as passed, with its findings, **Not applicable**, or **Not
+verified (<reason>)**. Never score a skipped or partly checked check as passing.
+Report REMOVED and RENAMED requirements separately from the ADDED and MODIFIED
+count (for example, "1 removal confirmed, 1 rename verified").
+
+Only when every applicable check ran and no CRITICAL finding remains, tell the
+user the change is dress-rehearsed and the next step is
 \`/cospec:archive\`.
+If any check was not verified, do not claim it is ready: say "No critical issues
+found in the checks that ran", name each check that was not verified and why,
+and leave the decision to the user. Verification is advisory: never invent an
+optional or intentionally omitted artifact to obtain a clean report.
 "
 ,
     "kind": "command",
@@ -2084,7 +2324,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:ad1d257db8db143fb3d82236b07fc3bfbaf67718d2a60dbadbc72d2c13166d33
+  contentHash: sha256:c0a1260d30e003abbc05ed7e4ac5bbb5d8624d7f10c5861c1199869de85d4d81
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -2169,7 +2409,23 @@ either field, and do not copy their text verbatim into specs, change artifacts,
 or archive summaries unless the user separately asks for it. These are
 prompt-level behavior contracts, not enforceable checks.
 
-## 2. Archive
+## 2. Check task progress
+
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks — custom artifact names, output paths, and globs
+included — so do not infer completion from artifact status or from whether a
+top-level \`tasks.md\` exists. Only \`x\`/\`X\` boxes count as done, and plain bullets
+under \`## Workflow follow-up\` are not tracked. If the lookup fails, returns
+invalid JSON, omits or duplicates the change, or returns counts that are not
+nonnegative integers with \`completedTasks <= totalTasks\`, report the problem and
+stop before archiving.
+
+If \`completedTasks\` is below \`totalTasks\`, show how many are incomplete and ask
+the user whether to proceed (see step 4 for the flag). A \`totalTasks\` of zero
+needs no task warning.
+
+## 3. Archive
 
 \`\`\`
 cospec archive <slug>
@@ -2189,7 +2445,7 @@ no-op merge: the summary says the specs were already in sync, and both hard
 gates (\`archive/verification-incomplete\`, \`archive/scenario-preservation\`) still
 run.
 
-## 3. On failure
+## 4. On failure
 
 If it exits non-zero, relay the error output verbatim. Do NOT hand-\`mv\` the
 change directory into \`openspec/changes/archive/\`, and do NOT re-run with a flag
@@ -2201,8 +2457,12 @@ you do not understand:
 - Incomplete tasks block the archive. Finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: stop there. The change stays in place
+  and nothing has moved, so the user can fix the condition and archive again.
+  Never finish the move by hand with the living specs unchanged.
 
-## 4. Retiring a capability
+## 5. Retiring a capability
 
 A change whose REMOVED operations take the last requirement out of a capability
 is retiring that capability, and the merge deletes its
@@ -2236,7 +2496,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:ad1d257db8db143fb3d82236b07fc3bfbaf67718d2a60dbadbc72d2c13166d33
+  contentHash: sha256:c0a1260d30e003abbc05ed7e4ac5bbb5d8624d7f10c5861c1199869de85d4d81
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -2321,7 +2581,23 @@ either field, and do not copy their text verbatim into specs, change artifacts,
 or archive summaries unless the user separately asks for it. These are
 prompt-level behavior contracts, not enforceable checks.
 
-## 2. Archive
+## 2. Check task progress
+
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks — custom artifact names, output paths, and globs
+included — so do not infer completion from artifact status or from whether a
+top-level \`tasks.md\` exists. Only \`x\`/\`X\` boxes count as done, and plain bullets
+under \`## Workflow follow-up\` are not tracked. If the lookup fails, returns
+invalid JSON, omits or duplicates the change, or returns counts that are not
+nonnegative integers with \`completedTasks <= totalTasks\`, report the problem and
+stop before archiving.
+
+If \`completedTasks\` is below \`totalTasks\`, show how many are incomplete and ask
+the user whether to proceed (see step 4 for the flag). A \`totalTasks\` of zero
+needs no task warning.
+
+## 3. Archive
 
 \`\`\`
 cospec archive <slug>
@@ -2341,7 +2617,7 @@ no-op merge: the summary says the specs were already in sync, and both hard
 gates (\`archive/verification-incomplete\`, \`archive/scenario-preservation\`) still
 run.
 
-## 3. On failure
+## 4. On failure
 
 If it exits non-zero, relay the error output verbatim. Do NOT hand-\`mv\` the
 change directory into \`openspec/changes/archive/\`, and do NOT re-run with a flag
@@ -2353,8 +2629,12 @@ you do not understand:
 - Incomplete tasks block the archive. Finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: stop there. The change stays in place
+  and nothing has moved, so the user can fix the condition and archive again.
+  Never finish the move by hand with the living specs unchanged.
 
-## 4. Retiring a capability
+## 5. Retiring a capability
 
 A change whose REMOVED operations take the last requirement out of a capability
 is retiring that capability, and the merge deletes its
@@ -2386,7 +2666,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:abdeb17558f1fae47243e23e12c0b4ec59032a8e02761b8a44612a40dec34ec7
+  contentHash: sha256:86f4208e551beec67227bc5862b64cf3cbf5159b9fc51b9e4765fcc4003fc8fc
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -2486,8 +2766,16 @@ For each selected change, run
 cospec status --change "<slug>" --json
 \`\`\`
 
-and read its artifact states, its tasks file, and its delta specs from
-\`artifactPaths.specs\` (the existing output paths). Each delta spec's
+and read its artifact states and its delta specs from \`artifactPaths.specs\`
+(the existing output paths). For task progress, run \`cospec list --json\` once
+for the batch and find each selected change's \`changes\` entry by exact \`name\`:
+incomplete tasks are \`totalTasks - completedTasks\`, counted over every file the
+change's schema tracks, and a \`totalTasks\` of zero reads "No tasks". Do not
+infer completion from artifact status or from whether a top-level \`tasks.md\`
+exists. If the lookup fails, returns invalid JSON, omits or duplicates a
+selected change, or returns counts that are not nonnegative integers with
+\`completedTasks <= totalTasks\`, report the problem and stop before archiving
+any of the batch. Each delta spec's
 \`<capability-path>\` is its path relative to the change's \`specs/\`; its
 requirement names are its \`### Requirement: <name>\` lines. A change with no
 \`specs\` entry, or an empty list, has no delta specs — never infer deltas from
@@ -2623,6 +2911,10 @@ not understand:
 - Incomplete tasks block the archive — finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: that change stays in place with nothing
+  moved. Record it as Failed with the condition, never finish its move by hand,
+  and continue with the next change.
 - A cross-change collision step 4 missed (two changes in the batch add the same
   spec requirement) is caught by the later archive's own spec guard,
   \`archive/added-exists\`. Resolve it as step 5 does, by editing that change's
@@ -2651,7 +2943,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:abdeb17558f1fae47243e23e12c0b4ec59032a8e02761b8a44612a40dec34ec7
+  contentHash: sha256:86f4208e551beec67227bc5862b64cf3cbf5159b9fc51b9e4765fcc4003fc8fc
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -2751,8 +3043,16 @@ For each selected change, run
 cospec status --change "<slug>" --json
 \`\`\`
 
-and read its artifact states, its tasks file, and its delta specs from
-\`artifactPaths.specs\` (the existing output paths). Each delta spec's
+and read its artifact states and its delta specs from \`artifactPaths.specs\`
+(the existing output paths). For task progress, run \`cospec list --json\` once
+for the batch and find each selected change's \`changes\` entry by exact \`name\`:
+incomplete tasks are \`totalTasks - completedTasks\`, counted over every file the
+change's schema tracks, and a \`totalTasks\` of zero reads "No tasks". Do not
+infer completion from artifact status or from whether a top-level \`tasks.md\`
+exists. If the lookup fails, returns invalid JSON, omits or duplicates a
+selected change, or returns counts that are not nonnegative integers with
+\`completedTasks <= totalTasks\`, report the problem and stop before archiving
+any of the batch. Each delta spec's
 \`<capability-path>\` is its path relative to the change's \`specs/\`; its
 requirement names are its \`### Requirement: <name>\` lines. A change with no
 \`specs\` entry, or an empty list, has no delta specs — never infer deltas from
@@ -2888,6 +3188,10 @@ not understand:
 - Incomplete tasks block the archive — finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: that change stays in place with nothing
+  moved. Record it as Failed with the condition, never finish its move by hand,
+  and continue with the next change.
 - A cross-change collision step 4 missed (two changes in the batch add the same
   spec requirement) is caught by the later archive's own spec guard,
   \`archive/added-exists\`. Resolve it as step 5 does, by editing that change's
@@ -3158,7 +3462,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:c7662755f6f3b41cc0d35787704b0390c4f4c7f24cd5da5a44a5d9020c2de1c6
+  contentHash: sha256:8b0a369418d8566478c6afc3e25e6d63f52d9f5ad8622d515cb6b53fa57f35be
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -3296,6 +3600,12 @@ not re-ask for what they just asked for, and do ask before anything beyond it.
 This holds only when the request is theirs. A "yes" to an offer you made
 confirms only the scope your offer named, so name the change and the artifacts
 in the offer.
+
+Offer only artifacts the change's type defines — read them from
+\`cospec status --change <slug> --json\` (\`artifactPaths\`) once the change
+exists. Capture each insight in whichever of those artifacts fits it and name
+that artifact in your offer; never offer or create a file, such as \`design.md\`
+or a \`specs/\` delta, that the type does not have.
 
 Every other confirmation covers only the scope you described. Ask again before
 widening it. Answering a design or clarifying question is never consent to
@@ -3344,7 +3654,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:c7662755f6f3b41cc0d35787704b0390c4f4c7f24cd5da5a44a5d9020c2de1c6
+  contentHash: sha256:8b0a369418d8566478c6afc3e25e6d63f52d9f5ad8622d515cb6b53fa57f35be
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -3483,6 +3793,12 @@ This holds only when the request is theirs. A "yes" to an offer you made
 confirms only the scope your offer named, so name the change and the artifacts
 in the offer.
 
+Offer only artifacts the change's type defines — read them from
+\`cospec status --change <slug> --json\` (\`artifactPaths\`) once the change
+exists. Capture each insight in whichever of those artifacts fits it and name
+that artifact in your offer; never offer or create a file, such as \`design.md\`
+or a \`specs/\` delta, that the type does not have.
+
 Every other confirmation covers only the scope you described. Ask again before
 widening it. Answering a design or clarifying question is never consent to
 write, and neither is enthusiasm about an idea.
@@ -3528,7 +3844,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:5e62b09f00b47734b039b7e05241c9d799b987a30a899127272c6e87911ea5ac
+  contentHash: sha256:8ab2f23fe347a67abfe3c926abb888b29203b106735883df2fd4411d66bf0266
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -3625,6 +3941,13 @@ cospec instructions <artifact> --change <slug> --json
 
 Explain what the instructions ask for, write the artifact, show the user what
 you wrote, and pause before moving to the next artifact.
+
+For \`tasks.md\`, explain that each task group carries the tests and documentation
+for its own work, and the last group is only for integration checks. Draft the
+breakdown, show it, and ask "Does this task breakdown look right?" Wait for the
+user's approval or feedback, and save the file only after they approve. Then ask
+separately whether they are ready to implement, and wait for that answer before
+moving on.
 
 ## 6. Validate
 
@@ -3684,7 +4007,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:5e62b09f00b47734b039b7e05241c9d799b987a30a899127272c6e87911ea5ac
+  contentHash: sha256:8ab2f23fe347a67abfe3c926abb888b29203b106735883df2fd4411d66bf0266
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -3781,6 +4104,13 @@ cospec instructions <artifact> --change <slug> --json
 
 Explain what the instructions ask for, write the artifact, show the user what
 you wrote, and pause before moving to the next artifact.
+
+For \`tasks.md\`, explain that each task group carries the tests and documentation
+for its own work, and the last group is only for integration checks. Draft the
+breakdown, show it, and ask "Does this task breakdown look right?" Wait for the
+user's approval or feedback, and save the file only after they approve. Then ask
+separately whether they are ready to implement, and wait for that answer before
+moving on.
 
 ## 6. Validate
 
@@ -3843,7 +4173,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:21c04eeedd3e2e38696a65740fd35ec60140f3111a1a0d08c0c01e1b1324ffb7
+  contentHash: sha256:6479a4cba7c7daedb9052cfa031c03c53b3f5c02db7163d463494d5cb0891c26
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -4009,6 +4339,11 @@ Loop until every artifact in the type's \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
@@ -4172,7 +4507,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:a5eb53036fc16f028817f329f5ebfe06a90b321e43405660c0643c9429eedc99
+  contentHash: sha256:d3b216a9c2336cb53049490926212df05460d914f565d4c1837fcf1c264023f7
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -4247,11 +4582,26 @@ cospec status --change <slug> --json
 Read which \`apply.requires\` artifacts are still missing and which are ready to
 write next.
 
+**First, finish a partly written artifact.** A glob artifact (the
+\`specs/**/*.md\` deltas) reads \`done\` as soon as one matching file exists, so a
+run interrupted while writing its files leaves it \`done\` with some still
+missing. For each such \`done\` artifact, get its instructions and read the
+dependencies that say which files it should have — for the specs, the proposal's
+capabilities, one \`specs/<capability-path>/spec.md\` each — and compare them with
+\`artifactPaths.<id>.existingOutputPaths\`. Write only the missing files, each at
+a path you have checked stays inside the change directory after resolving
+symlinks, before moving on to any other artifact. If you cannot tell whether a
+capability was left out on purpose, ask the user.
+
 ## 3. Finish the artifacts
 
 Run the same loop as \`$cospec-propose (Codex) or /cospec-propose (other agents)\` step 3: for each ready artifact, call
 \`cospec instructions <artifact> --change <slug> --json\`, write it to the named
-path, and repeat until every required artifact exists. Apply \`context\` and
+path, and repeat until every required artifact exists. When the named path is a
+glob, choose a concrete path inside the change directory that matches it, and
+check it stays there after resolving symlinks; if it does not, stop and tell the
+user. If the \`instruction\` delegates creation to a skill or command, use it only
+if it can write to that checked path. Apply \`context\` and
 \`rules\` as constraints, never copy them into the output. Re-read every completed
 dependency artifact from disk before writing against it — this change was
 started in an earlier session, so nothing you remember about its artifacts is
@@ -4287,7 +4637,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:f8ee617d91393764b3df71ae897306792a81d0f19201bf9a34d0bc4e596c064e
+  contentHash: sha256:8c655d08de6262ba3d3c02aa4f3f3ed401d3e60fbcef4625f9a79a11cd3daf36
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -4405,7 +4755,16 @@ Loop until every artifact in \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
+
+Ask the user only when the context is critically unclear — when a wrong guess
+would change what gets built. Otherwise keep going, and state the assumption you
+made in the artifact it shapes.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft
@@ -4445,7 +4804,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:5c4c117b99666dcd017b9260add2d923750b4bac4db4fcf3319f9a0ebb3c737c
+  contentHash: sha256:4d69505572067307be67e9f4c12858f68071f7eba06fbed48740fa3c2dc45ed7
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -4517,8 +4876,12 @@ choose as **Choosing a change** above says.
 cospec status --change <slug> --json
 \`\`\`
 
-Only artifacts reported \`done\` are in scope. Anything still missing is out of
-scope here — note it and point the user at \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`.
+The files in scope are \`artifactPaths.<id>.existingOutputPaths\` of the
+artifacts reported \`done\`, plus one exception: a confirmed new file under a glob
+artifact that already has files (step 4). Never write to a glob
+\`resolvedOutputPath\`. An artifact with no files and status \`ready\` or \`blocked\`
+is out of scope here — note it and point the user at \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`.
+Leave \`skipped\` artifacts untouched; they are not missing.
 
 ## 3. Understand the request
 
@@ -4547,9 +4910,23 @@ cospec instructions <artifact> --change <slug> --json
 
 Apply \`context\` and \`rules\` as constraints; never copy them into the artifact.
 \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and \`verification.md\` are
-machine-parsed — keep the exact format. For the specs artifact, revise only the
-delta files already under \`openspec/changes/<slug>/specs/\`; adding a new
-capability file is \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`'s job.
+machine-parsed — keep the exact format.
+
+A glob artifact (the \`specs/**/*.md\` deltas) reads \`done\` once one file matches,
+so \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\` never comes back for a file it is missing. When
+reconciliation finds such a file missing — a capability the proposal lists with
+no delta yet — this workflow creates it:
+
+1. Run \`cospec instructions <artifact> --change <slug> --json\` and follow its
+   \`instruction\` and \`template\`. If it reports \`skipped: true\`, do not create
+   the file. Re-read the dependency files from disk; if a required one is
+   missing, stop and ask the user to restore it first.
+2. Choose a concrete path inside the change directory that matches the
+   artifact's \`outputPath\` and does not exist yet, and check it stays inside
+   the change directory after resolving symlinked parents.
+3. Propose the new file in step 5 like any other revision, and create it only
+   after the user confirms — refreshing status and instructions just before,
+   and stopping rather than overwriting if the path now exists.
 
 ## 5. Confirm each edit
 
@@ -4570,11 +4947,18 @@ cospec validate <slug> --strict
 Fix every ERROR and every WARNING, re-running the formatter over anything you
 edit. Then name the next step:
 
-- artifacts still missing → \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`
+- artifacts with no files and status \`ready\` or \`blocked\` → \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`
 - apply-ready and not yet implemented → \`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\`
 - already implemented, and the revision changed what should be built →
   \`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\` again to carry the delta into code
 - everything done → \`$cospec-verify-change (Codex) or /cospec-verify-change (other agents)\`, then \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\`
+
+Guardrails: edit only the concrete files in \`existingOutputPaths\`, plus a
+confirmed new file under a glob artifact that already has files (step 4) — that
+is the only new-file scope. Do not advance the build frontier: an artifact with
+no files and status \`ready\` or \`blocked\` is
+\`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`'s job, and \`skipped\` artifacts stay
+untouched.
 
 If the request changes the change's _intent_ rather than refining it, do not
 rewrite it in place — recommend \`$cospec-new-change (Codex) or /cospec-new-change (other agents) <type> <new-slug>\` and stop.
@@ -4593,7 +4977,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:b93bac47347571b5aff31792b899f82ec83d47e693f72ec743fcbb468b723760
+  contentHash: sha256:11111d585143922ed5a6b04394626e143bb2274811feec4f2e686f778612e46e
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -4700,8 +5084,11 @@ Obey the exit code:
 
 ## 3. Finish
 
-When every task is checked, tell the user the change is ready to archive — next
-step \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\`.
+When every tracked task is checked, tell the user the tracked tasks are complete
+— not that the change is ready to archive. The next step is to review and verify
+it with \`$cospec-verify-change (Codex) or /cospec-verify-change (other agents)\`, then \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\`. Plain
+bullets under \`## Workflow follow-up\` in \`tasks.md\` are steps for after archive,
+not tasks to check off here.
 "
 ,
     "kind": "skill",
@@ -4717,12 +5104,12 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:489ce69c23039933c59332ef8de073a9df743138744e929a5f120c4fec083941
+  contentHash: sha256:b37a40e42d2c747ef0192bb0bd44bbd9ab5255cc79d3b91c60a1a5a0e12498a6
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
-runs \`cospec validate --strict\`, walks the verification ledger to observed
-evidence, and names the hard gates \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\` will enforce.
+runs \`cospec validate --strict\`, checks the delta specs against the code, walks
+the verification ledger to observed evidence, and names the hard gates \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\` will enforce.
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -4788,7 +5175,54 @@ the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
 collisions, scenarios are well-formed) — do not proceed to the ledger walk with
 a validation failure outstanding.
 
-## 3. Walk the verification ledger
+## 3. Check spec coverage
+
+Run \`cospec status --change <slug> --json\`. Artifact ids come from the change's
+schema, so find inputs by output path, never by an assumed id: the spec
+artifacts are those whose \`artifactPaths.<id>.outputPath\` is under \`specs/\`,
+and the design artifact is the one whose output path is or ends in \`design.md\`.
+If the change's type has no spec artifact, or status reports it skipped, report
+spec coverage as **Not applicable**; likewise design adherence when there is no
+design artifact. If a spec or design artifact exists but its files are absent,
+empty, or hold no usable requirements, scenarios, or decisions, mark the checks
+it feeds as **Not verified** with the reason — never as clean.
+
+Read each delta spec file and note the section every requirement sits under. The
+section decides what you look for:
+
+- **ADDED / MODIFIED** — search the code for the behavior (for MODIFIED, the
+  text in the delta, not the old wording) and for tests covering each of its
+  scenarios. A requirement that appears unimplemented is a CRITICAL finding.
+- **REMOVED** — the behavior must be gone, so the check is inverted. The block
+  carries only the name and its Reason/Migration notes, so first read the
+  baseline requirement from the living spec at
+  \`<planningHome.root>/openspec/specs/<capability-path>/spec.md\`, matched by
+  exact name: the heading text after \`Requirement:\`, trimmed, with a closing
+  \`#\` run dropped only when a space or tab precedes it, compared
+  case-sensitively. A similarly worded heading is not a match. If that file no
+  longer holds it (an early \`$cospec-sync-specs (Codex) or /cospec-sync-specs (other agents)\`, or a similarly named ADDED
+  requirement replaced it), recover it from that file's history with
+  \`git -C "<planningHome.root>" log -p -- openspec/specs/<capability-path>/spec.md\`
+  — empty output means the path matched nothing, not that there is no
+  baseline. Search the code for the baseline's behavior, never for the name
+  alone; finding none is the passing result. A baseline that cannot be
+  recovered, or only restates its own title, is unusable: report that entry as
+  **Not verified** and do not search. Behavior still present is a CRITICAL
+  finding naming the file and lines, never "Requirement not found".
+- **RENAMED** — the name changes, the behavior stays. Never report the \`FROM\`
+  name as missing, and do not require code symbols to be renamed. Check the
+  \`TO\` requirement's behavior against the baseline (under the \`FROM\` name, or
+  the \`TO\` name when the living spec is already synced); a \`TO\` name that also
+  appears under MODIFIED is checked there instead. An unreadable baseline makes
+  the entry **Not verified**.
+
+Skip scenarios under a REMOVED requirement. A change with only REMOVED or
+RENAMED requirements has no implementation mapping to check: report that as
+**Not applicable**, with each removal and rename settled above. If a design
+artifact exists, check the implementation against its decisions and report each
+contradiction as a WARNING.
+
+## 4. Walk the verification ledger
 
 Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 \`- [ ] N.M @layer (owner) probe -> result\`:
@@ -4802,13 +5236,19 @@ Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
 invent evidence for a probe you did not actually run.
 
-## 4. Confirm tasks are complete
+## 5. Confirm tasks are complete
 
-Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
-not, finish the remaining work (or tell the user which are outstanding) before
-moving on.
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks, so do not infer progress from a single \`tasks.md\` or
+from artifact status; only \`x\`/\`X\` boxes count as done, and plain bullets under
+\`## Workflow follow-up\` are not tracked. If \`completedTasks\` is below
+\`totalTasks\`, finish the remaining work (or tell the user which are
+outstanding) before moving on. If the lookup fails or the entry is missing,
+duplicated, or carries invalid counts, report task completion as **Not
+verified**.
 
-## 5. Name the gates archive will enforce
+## 6. Name the gates archive will enforce
 
 Tell the user \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\` runs two hard gates, neither of which accepts
 \`--force\`:
@@ -4820,10 +5260,20 @@ Tell the user \`$cospec-archive-change (Codex) or /cospec-archive-change (other 
 
 This workflow only checks these preconditions; it does not run the archive.
 
-## 6. Hand off
+## 7. Hand off
 
-Tell the user the change is dress-rehearsed and the next step is
+Report each check as passed, with its findings, **Not applicable**, or **Not
+verified (<reason>)**. Never score a skipped or partly checked check as passing.
+Report REMOVED and RENAMED requirements separately from the ADDED and MODIFIED
+count (for example, "1 removal confirmed, 1 rename verified").
+
+Only when every applicable check ran and no CRITICAL finding remains, tell the
+user the change is dress-rehearsed and the next step is
 \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\`.
+If any check was not verified, do not claim it is ready: say "No critical issues
+found in the checks that ran", name each check that was not verified and why,
+and leave the decision to the user. Verification is advisory: never invent an
+optional or intentionally omitted artifact to obtain a clean report.
 "
 ,
     "kind": "skill",
@@ -4839,7 +5289,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:0056961a60fb49d8cb3633e04c2d805d6d1859825f71b6516b5ea4a6ef424cdc
+  contentHash: sha256:a380f4d2c2982e33613b9ba8d425fa8040ac1b34081655f308e6bfb101ecd8e6
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -4924,7 +5374,23 @@ either field, and do not copy their text verbatim into specs, change artifacts,
 or archive summaries unless the user separately asks for it. These are
 prompt-level behavior contracts, not enforceable checks.
 
-## 2. Archive
+## 2. Check task progress
+
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks — custom artifact names, output paths, and globs
+included — so do not infer completion from artifact status or from whether a
+top-level \`tasks.md\` exists. Only \`x\`/\`X\` boxes count as done, and plain bullets
+under \`## Workflow follow-up\` are not tracked. If the lookup fails, returns
+invalid JSON, omits or duplicates the change, or returns counts that are not
+nonnegative integers with \`completedTasks <= totalTasks\`, report the problem and
+stop before archiving.
+
+If \`completedTasks\` is below \`totalTasks\`, show how many are incomplete and ask
+the user whether to proceed (see step 4 for the flag). A \`totalTasks\` of zero
+needs no task warning.
+
+## 3. Archive
 
 \`\`\`
 cospec archive <slug>
@@ -4944,7 +5410,7 @@ no-op merge: the summary says the specs were already in sync, and both hard
 gates (\`archive/verification-incomplete\`, \`archive/scenario-preservation\`) still
 run.
 
-## 3. On failure
+## 4. On failure
 
 If it exits non-zero, relay the error output verbatim. Do NOT hand-\`mv\` the
 change directory into \`openspec/changes/archive/\`, and do NOT re-run with a flag
@@ -4956,8 +5422,12 @@ you do not understand:
 - Incomplete tasks block the archive. Finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: stop there. The change stays in place
+  and nothing has moved, so the user can fix the condition and archive again.
+  Never finish the move by hand with the living specs unchanged.
 
-## 4. Retiring a capability
+## 5. Retiring a capability
 
 A change whose REMOVED operations take the last requirement out of a capability
 is retiring that capability, and the merge deletes its
@@ -4989,7 +5459,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:b8146b10da652523c00ce7dc4290ca2c21bc1d707679dac1bebb52adc1466297
+  contentHash: sha256:1ebf4413e3130dab74477e38f5c9063000f0e00acc87c565f1d335440a1e6d99
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -5089,8 +5559,16 @@ For each selected change, run
 cospec status --change "<slug>" --json
 \`\`\`
 
-and read its artifact states, its tasks file, and its delta specs from
-\`artifactPaths.specs\` (the existing output paths). Each delta spec's
+and read its artifact states and its delta specs from \`artifactPaths.specs\`
+(the existing output paths). For task progress, run \`cospec list --json\` once
+for the batch and find each selected change's \`changes\` entry by exact \`name\`:
+incomplete tasks are \`totalTasks - completedTasks\`, counted over every file the
+change's schema tracks, and a \`totalTasks\` of zero reads "No tasks". Do not
+infer completion from artifact status or from whether a top-level \`tasks.md\`
+exists. If the lookup fails, returns invalid JSON, omits or duplicates a
+selected change, or returns counts that are not nonnegative integers with
+\`completedTasks <= totalTasks\`, report the problem and stop before archiving
+any of the batch. Each delta spec's
 \`<capability-path>\` is its path relative to the change's \`specs/\`; its
 requirement names are its \`### Requirement: <name>\` lines. A change with no
 \`specs\` entry, or an empty list, has no delta specs — never infer deltas from
@@ -5226,6 +5704,10 @@ not understand:
 - Incomplete tasks block the archive — finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: that change stays in place with nothing
+  moved. Record it as Failed with the condition, never finish its move by hand,
+  and continue with the next change.
 - A cross-change collision step 4 missed (two changes in the batch add the same
   spec requirement) is caught by the later archive's own spec guard,
   \`archive/added-exists\`. Resolve it as step 5 does, by editing that change's
@@ -5373,7 +5855,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d27460cd95944aef5141b0ab99f94ca1013ab153751efeba453a3c4ca19c8c0d
+  contentHash: sha256:1941546c8f91677d5697216e5a6ea3a55f5b9cf793d072c976c0183126e3d75d
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -5512,6 +5994,12 @@ This holds only when the request is theirs. A "yes" to an offer you made
 confirms only the scope your offer named, so name the change and the artifacts
 in the offer.
 
+Offer only artifacts the change's type defines — read them from
+\`cospec status --change <slug> --json\` (\`artifactPaths\`) once the change
+exists. Capture each insight in whichever of those artifacts fits it and name
+that artifact in your offer; never offer or create a file, such as \`design.md\`
+or a \`specs/\` delta, that the type does not have.
+
 Every other confirmation covers only the scope you described. Ask again before
 widening it. Answering a design or clarifying question is never consent to
 write, and neither is enthusiasm about an idea.
@@ -5557,7 +6045,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:538dc3d260562c79d34367a3868b8027226fa6227ae4987067ee3620c68b14d4
+  contentHash: sha256:bfbd637144f8993803418a9e624764d62e80e15f23243d458f542bc446d2eab5
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -5655,6 +6143,13 @@ cospec instructions <artifact> --change <slug> --json
 Explain what the instructions ask for, write the artifact, show the user what
 you wrote, and pause before moving to the next artifact.
 
+For \`tasks.md\`, explain that each task group carries the tests and documentation
+for its own work, and the last group is only for integration checks. Draft the
+breakdown, show it, and ask "Does this task breakdown look right?" Wait for the
+user's approval or feedback, and save the file only after they approve. Then ask
+separately whether they are ready to implement, and wait for that answer before
+moving on.
+
 ## 6. Validate
 
 \`\`\`
@@ -5739,7 +6234,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:e1d4365c02f4cdf229e041faee431076055a12cccd565940846c40987a4500b4
+  contentHash: sha256:01d95f06409f0c2be3dd83454a1ebb9a5251269282c2d4e4d013c133bd7d2dd8
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -5905,6 +6400,11 @@ Loop until every artifact in the type's \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
@@ -5942,7 +6442,7 @@ description: Propose a new change and generate every artifact its type requires,
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d003432e45fdd001251bbbc76abd03fd29b80a928693f58f2dd4a0123cf8f34e
+  contentHash: sha256:fc4ccb691b80aa16f30402645e4d4475d9c2d16776cfbcc5f7f9c3a1e89f2e2b
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -6110,6 +6610,11 @@ Loop until every artifact in the type's \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
@@ -6395,7 +6900,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1982b017073af0ee9e2fcf93d1603cfba8d7e423647314f60ea1f6a383b1e399
+  contentHash: sha256:531a28ebfd11763bf2e6fe4e3f04d0206da8191ec23e0d2b22be07324b513b3e
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -6470,11 +6975,26 @@ cospec status --change <slug> --json
 Read which \`apply.requires\` artifacts are still missing and which are ready to
 write next.
 
+**First, finish a partly written artifact.** A glob artifact (the
+\`specs/**/*.md\` deltas) reads \`done\` as soon as one matching file exists, so a
+run interrupted while writing its files leaves it \`done\` with some still
+missing. For each such \`done\` artifact, get its instructions and read the
+dependencies that say which files it should have — for the specs, the proposal's
+capabilities, one \`specs/<capability-path>/spec.md\` each — and compare them with
+\`artifactPaths.<id>.existingOutputPaths\`. Write only the missing files, each at
+a path you have checked stays inside the change directory after resolving
+symlinks, before moving on to any other artifact. If you cannot tell whether a
+capability was left out on purpose, ask the user.
+
 ## 3. Finish the artifacts
 
 Run the same loop as \`/cospec-propose\` step 3: for each ready artifact, call
 \`cospec instructions <artifact> --change <slug> --json\`, write it to the named
-path, and repeat until every required artifact exists. Apply \`context\` and
+path, and repeat until every required artifact exists. When the named path is a
+glob, choose a concrete path inside the change directory that matches it, and
+check it stays there after resolving symlinks; if it does not, stop and tell the
+user. If the \`instruction\` delegates creation to a skill or command, use it only
+if it can write to that checked path. Apply \`context\` and
 \`rules\` as constraints, never copy them into the output. Re-read every completed
 dependency artifact from disk before writing against it — this change was
 started in an earlier session, so nothing you remember about its artifacts is
@@ -6507,7 +7027,7 @@ description: Resume a partially-built change and finish its remaining artifacts.
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:962a94c85a74e73206c82be164882aa3f7a3c0f214657ece49e7bcc1572116ba
+  contentHash: sha256:b52ab2afec85c3202839b712d83cfd0add9c169194b9cec2909719c7457d74c0
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -6584,11 +7104,26 @@ cospec status --change <slug> --json
 Read which \`apply.requires\` artifacts are still missing and which are ready to
 write next.
 
+**First, finish a partly written artifact.** A glob artifact (the
+\`specs/**/*.md\` deltas) reads \`done\` as soon as one matching file exists, so a
+run interrupted while writing its files leaves it \`done\` with some still
+missing. For each such \`done\` artifact, get its instructions and read the
+dependencies that say which files it should have — for the specs, the proposal's
+capabilities, one \`specs/<capability-path>/spec.md\` each — and compare them with
+\`artifactPaths.<id>.existingOutputPaths\`. Write only the missing files, each at
+a path you have checked stays inside the change directory after resolving
+symlinks, before moving on to any other artifact. If you cannot tell whether a
+capability was left out on purpose, ask the user.
+
 ## 3. Finish the artifacts
 
 Run the same loop as \`/cospec-propose\` step 3: for each ready artifact, call
 \`cospec instructions <artifact> --change <slug> --json\`, write it to the named
-path, and repeat until every required artifact exists. Apply \`context\` and
+path, and repeat until every required artifact exists. When the named path is a
+glob, choose a concrete path inside the change directory that matches it, and
+check it stays there after resolving symlinks; if it does not, stop and tell the
+user. If the \`instruction\` delegates creation to a skill or command, use it only
+if it can write to that checked path. Apply \`context\` and
 \`rules\` as constraints, never copy them into the output. Re-read every completed
 dependency artifact from disk before writing against it — this change was
 started in an earlier session, so nothing you remember about its artifacts is
@@ -6624,7 +7159,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:fd181273cbfd35a43472a5ce82adf8ecb551ca214128814431908827d90c9878
+  contentHash: sha256:45677d9ea78ac10ec4888b5704df01bd6334dd09164a060fe335864a75943eb3
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -6742,7 +7277,16 @@ Loop until every artifact in \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
+
+Ask the user only when the context is critically unclear — when a wrong guess
+would change what gets built. Otherwise keep going, and state the assumption you
+made in the artifact it shapes.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft
@@ -6779,7 +7323,7 @@ description: Author every remaining artifact on an already-scaffolded change in 
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d56d5fe05f13e9b8809c7b008f846dd9b154ddf7a18af51957a14a865cadda35
+  contentHash: sha256:7dee7768b57c53bf4cbabfb179dc8d70c9d8e76da28f582955f9f24cf4a7d574
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -6899,7 +7443,16 @@ Loop until every artifact in \`apply.requires\` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
    \`verification.md\` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the \`instruction\` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
+
+Ask the user only when the context is critically unclear — when a wrong guess
+would change what gets built. Otherwise keep going, and state the assumption you
+made in the artifact it shapes.
 
 For \`blocking-changes.md\`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft
@@ -6939,7 +7492,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:387d8cfcde216c42a943f9eec1e378f5b1728c4a5ed8a13ee693b55bdd2c64ac
+  contentHash: sha256:5400252751e6cbdb1d01f2f81a6f82ab1dd3e9f60a87f1cac15a6db06701415d
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -7011,8 +7564,12 @@ choose as **Choosing a change** above says.
 cospec status --change <slug> --json
 \`\`\`
 
-Only artifacts reported \`done\` are in scope. Anything still missing is out of
-scope here — note it and point the user at \`/cospec-continue\`.
+The files in scope are \`artifactPaths.<id>.existingOutputPaths\` of the
+artifacts reported \`done\`, plus one exception: a confirmed new file under a glob
+artifact that already has files (step 4). Never write to a glob
+\`resolvedOutputPath\`. An artifact with no files and status \`ready\` or \`blocked\`
+is out of scope here — note it and point the user at \`/cospec-continue\`.
+Leave \`skipped\` artifacts untouched; they are not missing.
 
 ## 3. Understand the request
 
@@ -7041,9 +7598,23 @@ cospec instructions <artifact> --change <slug> --json
 
 Apply \`context\` and \`rules\` as constraints; never copy them into the artifact.
 \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and \`verification.md\` are
-machine-parsed — keep the exact format. For the specs artifact, revise only the
-delta files already under \`openspec/changes/<slug>/specs/\`; adding a new
-capability file is \`/cospec-continue\`'s job.
+machine-parsed — keep the exact format.
+
+A glob artifact (the \`specs/**/*.md\` deltas) reads \`done\` once one file matches,
+so \`/cospec-continue\` never comes back for a file it is missing. When
+reconciliation finds such a file missing — a capability the proposal lists with
+no delta yet — this workflow creates it:
+
+1. Run \`cospec instructions <artifact> --change <slug> --json\` and follow its
+   \`instruction\` and \`template\`. If it reports \`skipped: true\`, do not create
+   the file. Re-read the dependency files from disk; if a required one is
+   missing, stop and ask the user to restore it first.
+2. Choose a concrete path inside the change directory that matches the
+   artifact's \`outputPath\` and does not exist yet, and check it stays inside
+   the change directory after resolving symlinked parents.
+3. Propose the new file in step 5 like any other revision, and create it only
+   after the user confirms — refreshing status and instructions just before,
+   and stopping rather than overwriting if the path now exists.
 
 ## 5. Confirm each edit
 
@@ -7064,11 +7635,18 @@ cospec validate <slug> --strict
 Fix every ERROR and every WARNING, re-running the formatter over anything you
 edit. Then name the next step:
 
-- artifacts still missing → \`/cospec-continue\`
+- artifacts with no files and status \`ready\` or \`blocked\` → \`/cospec-continue\`
 - apply-ready and not yet implemented → \`/cospec-apply\`
 - already implemented, and the revision changed what should be built →
   \`/cospec-apply\` again to carry the delta into code
 - everything done → \`/cospec-verify\`, then \`/cospec-archive\`
+
+Guardrails: edit only the concrete files in \`existingOutputPaths\`, plus a
+confirmed new file under a glob artifact that already has files (step 4) — that
+is the only new-file scope. Do not advance the build frontier: an artifact with
+no files and status \`ready\` or \`blocked\` is
+\`/cospec-continue\`'s job, and \`skipped\` artifacts stay
+untouched.
 
 If the request changes the change's _intent_ rather than refining it, do not
 rewrite it in place — recommend \`/cospec-new <type> <new-slug>\` and stop.
@@ -7084,7 +7662,7 @@ description: Revise an existing change's already-written artifacts and keep them
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:470ff5b08245444c207e0d840f1f8e9da31d788f89cda0ea78dd52cf99205463
+  contentHash: sha256:79eef8427d9c6d60247e4e2d62641ea145abf9220b18a31bff7082da44657435
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -7158,8 +7736,12 @@ choose as **Choosing a change** above says.
 cospec status --change <slug> --json
 \`\`\`
 
-Only artifacts reported \`done\` are in scope. Anything still missing is out of
-scope here — note it and point the user at \`/cospec-continue\`.
+The files in scope are \`artifactPaths.<id>.existingOutputPaths\` of the
+artifacts reported \`done\`, plus one exception: a confirmed new file under a glob
+artifact that already has files (step 4). Never write to a glob
+\`resolvedOutputPath\`. An artifact with no files and status \`ready\` or \`blocked\`
+is out of scope here — note it and point the user at \`/cospec-continue\`.
+Leave \`skipped\` artifacts untouched; they are not missing.
 
 ## 3. Understand the request
 
@@ -7188,9 +7770,23 @@ cospec instructions <artifact> --change <slug> --json
 
 Apply \`context\` and \`rules\` as constraints; never copy them into the artifact.
 \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and \`verification.md\` are
-machine-parsed — keep the exact format. For the specs artifact, revise only the
-delta files already under \`openspec/changes/<slug>/specs/\`; adding a new
-capability file is \`/cospec-continue\`'s job.
+machine-parsed — keep the exact format.
+
+A glob artifact (the \`specs/**/*.md\` deltas) reads \`done\` once one file matches,
+so \`/cospec-continue\` never comes back for a file it is missing. When
+reconciliation finds such a file missing — a capability the proposal lists with
+no delta yet — this workflow creates it:
+
+1. Run \`cospec instructions <artifact> --change <slug> --json\` and follow its
+   \`instruction\` and \`template\`. If it reports \`skipped: true\`, do not create
+   the file. Re-read the dependency files from disk; if a required one is
+   missing, stop and ask the user to restore it first.
+2. Choose a concrete path inside the change directory that matches the
+   artifact's \`outputPath\` and does not exist yet, and check it stays inside
+   the change directory after resolving symlinked parents.
+3. Propose the new file in step 5 like any other revision, and create it only
+   after the user confirms — refreshing status and instructions just before,
+   and stopping rather than overwriting if the path now exists.
 
 ## 5. Confirm each edit
 
@@ -7211,11 +7807,18 @@ cospec validate <slug> --strict
 Fix every ERROR and every WARNING, re-running the formatter over anything you
 edit. Then name the next step:
 
-- artifacts still missing → \`/cospec-continue\`
+- artifacts with no files and status \`ready\` or \`blocked\` → \`/cospec-continue\`
 - apply-ready and not yet implemented → \`/cospec-apply\`
 - already implemented, and the revision changed what should be built →
   \`/cospec-apply\` again to carry the delta into code
 - everything done → \`/cospec-verify\`, then \`/cospec-archive\`
+
+Guardrails: edit only the concrete files in \`existingOutputPaths\`, plus a
+confirmed new file under a glob artifact that already has files (step 4) — that
+is the only new-file scope. Do not advance the build frontier: an artifact with
+no files and status \`ready\` or \`blocked\` is
+\`/cospec-continue\`'s job, and \`skipped\` artifacts stay
+untouched.
 
 If the request changes the change's _intent_ rather than refining it, do not
 rewrite it in place — recommend \`/cospec-new <type> <new-slug>\` and stop.
@@ -7234,7 +7837,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:beca9525bfb14e05457e411c750775c8c627bcb4f7a39dce5ece2f6606cd81bb
+  contentHash: sha256:cd03b86b4c63bd3088a00cf111bc5ec06a30de927d4c40e9072d38e222d5b3eb
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -7341,8 +7944,11 @@ Obey the exit code:
 
 ## 3. Finish
 
-When every task is checked, tell the user the change is ready to archive — next
-step \`/cospec-archive\`.
+When every tracked task is checked, tell the user the tracked tasks are complete
+— not that the change is ready to archive. The next step is to review and verify
+it with \`/cospec-verify\`, then \`/cospec-archive\`. Plain
+bullets under \`## Workflow follow-up\` in \`tasks.md\` are steps for after archive,
+not tasks to check off here.
 "
 ,
     "kind": "skill",
@@ -7355,7 +7961,7 @@ description: Run the apply gate for a change and implement its tasks, obeying th
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:9fe5d010a326b70a28a1be28aec1230c47324ed7341f53647ef959b87a0c244d
+  contentHash: sha256:1172221c5f2d1d68f5ce6fa433835656559ad62399c7f05199bb17ea8eb3df01
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -7464,8 +8070,11 @@ Obey the exit code:
 
 ## 3. Finish
 
-When every task is checked, tell the user the change is ready to archive — next
-step \`/cospec-archive\`.
+When every tracked task is checked, tell the user the tracked tasks are complete
+— not that the change is ready to archive. The next step is to review and verify
+it with \`/cospec-verify\`, then \`/cospec-archive\`. Plain
+bullets under \`## Workflow follow-up\` in \`tasks.md\` are steps for after archive,
+not tasks to check off here.
 "
 ,
     "kind": "command",
@@ -7481,12 +8090,12 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:7e43ab522cae4feec756cdaa997e23255cf5f418cfdebbea8d03bb13771a1fde
+  contentHash: sha256:4a6bdd47ec9a00d80a6925c4a39d0527e78be868fff38ed637f85e04a8621c5a
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
-runs \`cospec validate --strict\`, walks the verification ledger to observed
-evidence, and names the hard gates \`/cospec-archive\` will enforce.
+runs \`cospec validate --strict\`, checks the delta specs against the code, walks
+the verification ledger to observed evidence, and names the hard gates \`/cospec-archive\` will enforce.
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -7552,7 +8161,54 @@ the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
 collisions, scenarios are well-formed) — do not proceed to the ledger walk with
 a validation failure outstanding.
 
-## 3. Walk the verification ledger
+## 3. Check spec coverage
+
+Run \`cospec status --change <slug> --json\`. Artifact ids come from the change's
+schema, so find inputs by output path, never by an assumed id: the spec
+artifacts are those whose \`artifactPaths.<id>.outputPath\` is under \`specs/\`,
+and the design artifact is the one whose output path is or ends in \`design.md\`.
+If the change's type has no spec artifact, or status reports it skipped, report
+spec coverage as **Not applicable**; likewise design adherence when there is no
+design artifact. If a spec or design artifact exists but its files are absent,
+empty, or hold no usable requirements, scenarios, or decisions, mark the checks
+it feeds as **Not verified** with the reason — never as clean.
+
+Read each delta spec file and note the section every requirement sits under. The
+section decides what you look for:
+
+- **ADDED / MODIFIED** — search the code for the behavior (for MODIFIED, the
+  text in the delta, not the old wording) and for tests covering each of its
+  scenarios. A requirement that appears unimplemented is a CRITICAL finding.
+- **REMOVED** — the behavior must be gone, so the check is inverted. The block
+  carries only the name and its Reason/Migration notes, so first read the
+  baseline requirement from the living spec at
+  \`<planningHome.root>/openspec/specs/<capability-path>/spec.md\`, matched by
+  exact name: the heading text after \`Requirement:\`, trimmed, with a closing
+  \`#\` run dropped only when a space or tab precedes it, compared
+  case-sensitively. A similarly worded heading is not a match. If that file no
+  longer holds it (an early \`/cospec-sync-specs\`, or a similarly named ADDED
+  requirement replaced it), recover it from that file's history with
+  \`git -C "<planningHome.root>" log -p -- openspec/specs/<capability-path>/spec.md\`
+  — empty output means the path matched nothing, not that there is no
+  baseline. Search the code for the baseline's behavior, never for the name
+  alone; finding none is the passing result. A baseline that cannot be
+  recovered, or only restates its own title, is unusable: report that entry as
+  **Not verified** and do not search. Behavior still present is a CRITICAL
+  finding naming the file and lines, never "Requirement not found".
+- **RENAMED** — the name changes, the behavior stays. Never report the \`FROM\`
+  name as missing, and do not require code symbols to be renamed. Check the
+  \`TO\` requirement's behavior against the baseline (under the \`FROM\` name, or
+  the \`TO\` name when the living spec is already synced); a \`TO\` name that also
+  appears under MODIFIED is checked there instead. An unreadable baseline makes
+  the entry **Not verified**.
+
+Skip scenarios under a REMOVED requirement. A change with only REMOVED or
+RENAMED requirements has no implementation mapping to check: report that as
+**Not applicable**, with each removal and rename settled above. If a design
+artifact exists, check the implementation against its decisions and report each
+contradiction as a WARNING.
+
+## 4. Walk the verification ledger
 
 Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 \`- [ ] N.M @layer (owner) probe -> result\`:
@@ -7566,13 +8222,19 @@ Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
 invent evidence for a probe you did not actually run.
 
-## 4. Confirm tasks are complete
+## 5. Confirm tasks are complete
 
-Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
-not, finish the remaining work (or tell the user which are outstanding) before
-moving on.
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks, so do not infer progress from a single \`tasks.md\` or
+from artifact status; only \`x\`/\`X\` boxes count as done, and plain bullets under
+\`## Workflow follow-up\` are not tracked. If \`completedTasks\` is below
+\`totalTasks\`, finish the remaining work (or tell the user which are
+outstanding) before moving on. If the lookup fails or the entry is missing,
+duplicated, or carries invalid counts, report task completion as **Not
+verified**.
 
-## 5. Name the gates archive will enforce
+## 6. Name the gates archive will enforce
 
 Tell the user \`/cospec-archive\` runs two hard gates, neither of which accepts
 \`--force\`:
@@ -7584,10 +8246,20 @@ Tell the user \`/cospec-archive\` runs two hard gates, neither of which accepts
 
 This workflow only checks these preconditions; it does not run the archive.
 
-## 6. Hand off
+## 7. Hand off
 
-Tell the user the change is dress-rehearsed and the next step is
+Report each check as passed, with its findings, **Not applicable**, or **Not
+verified (<reason>)**. Never score a skipped or partly checked check as passing.
+Report REMOVED and RENAMED requirements separately from the ADDED and MODIFIED
+count (for example, "1 removal confirmed, 1 rename verified").
+
+Only when every applicable check ran and no CRITICAL finding remains, tell the
+user the change is dress-rehearsed and the next step is
 \`/cospec-archive\`.
+If any check was not verified, do not claim it is ready: say "No critical issues
+found in the checks that ran", name each check that was not verified and why,
+and leave the decision to the user. Verification is advisory: never invent an
+optional or intentionally omitted artifact to obtain a clean report.
 "
 ,
     "kind": "skill",
@@ -7600,12 +8272,12 @@ description: Dress-rehearse a change before archiving — validate strictly, wal
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1c986f3864400ce5f9a8cc47eb82fb3535f056d985a9576be68c93fa3052eec6
+  contentHash: sha256:f901db074a5113cc17fdf0df9aec43307581576e35d3d973ad52714113f60df8
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
-runs \`cospec validate --strict\`, walks the verification ledger to observed
-evidence, and names the hard gates \`/cospec-archive\` will enforce.
+runs \`cospec validate --strict\`, checks the delta specs against the code, walks
+the verification ledger to observed evidence, and names the hard gates \`/cospec-archive\` will enforce.
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -7673,7 +8345,54 @@ the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
 collisions, scenarios are well-formed) — do not proceed to the ledger walk with
 a validation failure outstanding.
 
-## 3. Walk the verification ledger
+## 3. Check spec coverage
+
+Run \`cospec status --change <slug> --json\`. Artifact ids come from the change's
+schema, so find inputs by output path, never by an assumed id: the spec
+artifacts are those whose \`artifactPaths.<id>.outputPath\` is under \`specs/\`,
+and the design artifact is the one whose output path is or ends in \`design.md\`.
+If the change's type has no spec artifact, or status reports it skipped, report
+spec coverage as **Not applicable**; likewise design adherence when there is no
+design artifact. If a spec or design artifact exists but its files are absent,
+empty, or hold no usable requirements, scenarios, or decisions, mark the checks
+it feeds as **Not verified** with the reason — never as clean.
+
+Read each delta spec file and note the section every requirement sits under. The
+section decides what you look for:
+
+- **ADDED / MODIFIED** — search the code for the behavior (for MODIFIED, the
+  text in the delta, not the old wording) and for tests covering each of its
+  scenarios. A requirement that appears unimplemented is a CRITICAL finding.
+- **REMOVED** — the behavior must be gone, so the check is inverted. The block
+  carries only the name and its Reason/Migration notes, so first read the
+  baseline requirement from the living spec at
+  \`<planningHome.root>/openspec/specs/<capability-path>/spec.md\`, matched by
+  exact name: the heading text after \`Requirement:\`, trimmed, with a closing
+  \`#\` run dropped only when a space or tab precedes it, compared
+  case-sensitively. A similarly worded heading is not a match. If that file no
+  longer holds it (an early \`/cospec-sync-specs\`, or a similarly named ADDED
+  requirement replaced it), recover it from that file's history with
+  \`git -C "<planningHome.root>" log -p -- openspec/specs/<capability-path>/spec.md\`
+  — empty output means the path matched nothing, not that there is no
+  baseline. Search the code for the baseline's behavior, never for the name
+  alone; finding none is the passing result. A baseline that cannot be
+  recovered, or only restates its own title, is unusable: report that entry as
+  **Not verified** and do not search. Behavior still present is a CRITICAL
+  finding naming the file and lines, never "Requirement not found".
+- **RENAMED** — the name changes, the behavior stays. Never report the \`FROM\`
+  name as missing, and do not require code symbols to be renamed. Check the
+  \`TO\` requirement's behavior against the baseline (under the \`FROM\` name, or
+  the \`TO\` name when the living spec is already synced); a \`TO\` name that also
+  appears under MODIFIED is checked there instead. An unreadable baseline makes
+  the entry **Not verified**.
+
+Skip scenarios under a REMOVED requirement. A change with only REMOVED or
+RENAMED requirements has no implementation mapping to check: report that as
+**Not applicable**, with each removal and rename settled above. If a design
+artifact exists, check the implementation against its decisions and report each
+contradiction as a WARNING.
+
+## 4. Walk the verification ledger
 
 Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 \`- [ ] N.M @layer (owner) probe -> result\`:
@@ -7687,13 +8406,19 @@ Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
 No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
 invent evidence for a probe you did not actually run.
 
-## 4. Confirm tasks are complete
+## 5. Confirm tasks are complete
 
-Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
-not, finish the remaining work (or tell the user which are outstanding) before
-moving on.
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks, so do not infer progress from a single \`tasks.md\` or
+from artifact status; only \`x\`/\`X\` boxes count as done, and plain bullets under
+\`## Workflow follow-up\` are not tracked. If \`completedTasks\` is below
+\`totalTasks\`, finish the remaining work (or tell the user which are
+outstanding) before moving on. If the lookup fails or the entry is missing,
+duplicated, or carries invalid counts, report task completion as **Not
+verified**.
 
-## 5. Name the gates archive will enforce
+## 6. Name the gates archive will enforce
 
 Tell the user \`/cospec-archive\` runs two hard gates, neither of which accepts
 \`--force\`:
@@ -7705,10 +8430,20 @@ Tell the user \`/cospec-archive\` runs two hard gates, neither of which accepts
 
 This workflow only checks these preconditions; it does not run the archive.
 
-## 6. Hand off
+## 7. Hand off
 
-Tell the user the change is dress-rehearsed and the next step is
+Report each check as passed, with its findings, **Not applicable**, or **Not
+verified (<reason>)**. Never score a skipped or partly checked check as passing.
+Report REMOVED and RENAMED requirements separately from the ADDED and MODIFIED
+count (for example, "1 removal confirmed, 1 rename verified").
+
+Only when every applicable check ran and no CRITICAL finding remains, tell the
+user the change is dress-rehearsed and the next step is
 \`/cospec-archive\`.
+If any check was not verified, do not claim it is ready: say "No critical issues
+found in the checks that ran", name each check that was not verified and why,
+and leave the decision to the user. Verification is advisory: never invent an
+optional or intentionally omitted artifact to obtain a clean report.
 "
 ,
     "kind": "command",
@@ -7724,7 +8459,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:6a557cabdefacf87f0dc0d81af1a83adf0bb1395e8a03609dbcc9d7a78b9c4b2
+  contentHash: sha256:eb03158edfae964ba6662a16b94d5fdc388cf86b02be4ca2a18b73c728f338d8
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -7809,7 +8544,23 @@ either field, and do not copy their text verbatim into specs, change artifacts,
 or archive summaries unless the user separately asks for it. These are
 prompt-level behavior contracts, not enforceable checks.
 
-## 2. Archive
+## 2. Check task progress
+
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks — custom artifact names, output paths, and globs
+included — so do not infer completion from artifact status or from whether a
+top-level \`tasks.md\` exists. Only \`x\`/\`X\` boxes count as done, and plain bullets
+under \`## Workflow follow-up\` are not tracked. If the lookup fails, returns
+invalid JSON, omits or duplicates the change, or returns counts that are not
+nonnegative integers with \`completedTasks <= totalTasks\`, report the problem and
+stop before archiving.
+
+If \`completedTasks\` is below \`totalTasks\`, show how many are incomplete and ask
+the user whether to proceed (see step 4 for the flag). A \`totalTasks\` of zero
+needs no task warning.
+
+## 3. Archive
 
 \`\`\`
 cospec archive <slug>
@@ -7829,7 +8580,7 @@ no-op merge: the summary says the specs were already in sync, and both hard
 gates (\`archive/verification-incomplete\`, \`archive/scenario-preservation\`) still
 run.
 
-## 3. On failure
+## 4. On failure
 
 If it exits non-zero, relay the error output verbatim. Do NOT hand-\`mv\` the
 change directory into \`openspec/changes/archive/\`, and do NOT re-run with a flag
@@ -7841,8 +8592,12 @@ you do not understand:
 - Incomplete tasks block the archive. Finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: stop there. The change stays in place
+  and nothing has moved, so the user can fix the condition and archive again.
+  Never finish the move by hand with the living specs unchanged.
 
-## 4. Retiring a capability
+## 5. Retiring a capability
 
 A change whose REMOVED operations take the last requirement out of a capability
 is retiring that capability, and the merge deletes its
@@ -7871,7 +8626,7 @@ description: Archive a completed change — validate, merge specs, verify, and f
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:dd9ae25d09df267b6d04cf8343e5138d9e547a0cd7fa1037539f18c0891cc58b
+  contentHash: sha256:81bc698b58bad21f63c7c69411f44ae72fe3bc08cd36eb2c40173aec4f2bdd90
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -7958,7 +8713,23 @@ either field, and do not copy their text verbatim into specs, change artifacts,
 or archive summaries unless the user separately asks for it. These are
 prompt-level behavior contracts, not enforceable checks.
 
-## 2. Archive
+## 2. Check task progress
+
+Run \`cospec list --json\` and find the one \`changes\` entry whose \`name\` is the
+slug exactly. Its \`totalTasks\` and \`completedTasks\` count every file the
+change's schema tracks — custom artifact names, output paths, and globs
+included — so do not infer completion from artifact status or from whether a
+top-level \`tasks.md\` exists. Only \`x\`/\`X\` boxes count as done, and plain bullets
+under \`## Workflow follow-up\` are not tracked. If the lookup fails, returns
+invalid JSON, omits or duplicates the change, or returns counts that are not
+nonnegative integers with \`completedTasks <= totalTasks\`, report the problem and
+stop before archiving.
+
+If \`completedTasks\` is below \`totalTasks\`, show how many are incomplete and ask
+the user whether to proceed (see step 4 for the flag). A \`totalTasks\` of zero
+needs no task warning.
+
+## 3. Archive
 
 \`\`\`
 cospec archive <slug>
@@ -7978,7 +8749,7 @@ no-op merge: the summary says the specs were already in sync, and both hard
 gates (\`archive/verification-incomplete\`, \`archive/scenario-preservation\`) still
 run.
 
-## 3. On failure
+## 4. On failure
 
 If it exits non-zero, relay the error output verbatim. Do NOT hand-\`mv\` the
 change directory into \`openspec/changes/archive/\`, and do NOT re-run with a flag
@@ -7990,8 +8761,12 @@ you do not understand:
 - Incomplete tasks block the archive. Finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: stop there. The change stays in place
+  and nothing has moved, so the user can fix the condition and archive again.
+  Never finish the move by hand with the living specs unchanged.
 
-## 4. Retiring a capability
+## 5. Retiring a capability
 
 A change whose REMOVED operations take the last requirement out of a capability
 is retiring that capability, and the merge deletes its
@@ -8023,7 +8798,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061
+  contentHash: sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -8123,8 +8898,16 @@ For each selected change, run
 cospec status --change "<slug>" --json
 \`\`\`
 
-and read its artifact states, its tasks file, and its delta specs from
-\`artifactPaths.specs\` (the existing output paths). Each delta spec's
+and read its artifact states and its delta specs from \`artifactPaths.specs\`
+(the existing output paths). For task progress, run \`cospec list --json\` once
+for the batch and find each selected change's \`changes\` entry by exact \`name\`:
+incomplete tasks are \`totalTasks - completedTasks\`, counted over every file the
+change's schema tracks, and a \`totalTasks\` of zero reads "No tasks". Do not
+infer completion from artifact status or from whether a top-level \`tasks.md\`
+exists. If the lookup fails, returns invalid JSON, omits or duplicates a
+selected change, or returns counts that are not nonnegative integers with
+\`completedTasks <= totalTasks\`, report the problem and stop before archiving
+any of the batch. Each delta spec's
 \`<capability-path>\` is its path relative to the change's \`specs/\`; its
 requirement names are its \`### Requirement: <name>\` lines. A change with no
 \`specs\` entry, or an empty list, has no delta specs — never infer deltas from
@@ -8260,6 +9043,10 @@ not understand:
 - Incomplete tasks block the archive — finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: that change stays in place with nothing
+  moved. Record it as Failed with the condition, never finish its move by hand,
+  and continue with the next change.
 - A cross-change collision step 4 missed (two changes in the batch add the same
   spec requirement) is caught by the later archive's own spec guard,
   \`archive/added-exists\`. Resolve it as step 5 does, by editing that change's
@@ -8283,7 +9070,7 @@ description: Archive a batch of completed changes in dependency order, one cospe
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061
+  contentHash: sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -8383,8 +9170,16 @@ For each selected change, run
 cospec status --change "<slug>" --json
 \`\`\`
 
-and read its artifact states, its tasks file, and its delta specs from
-\`artifactPaths.specs\` (the existing output paths). Each delta spec's
+and read its artifact states and its delta specs from \`artifactPaths.specs\`
+(the existing output paths). For task progress, run \`cospec list --json\` once
+for the batch and find each selected change's \`changes\` entry by exact \`name\`:
+incomplete tasks are \`totalTasks - completedTasks\`, counted over every file the
+change's schema tracks, and a \`totalTasks\` of zero reads "No tasks". Do not
+infer completion from artifact status or from whether a top-level \`tasks.md\`
+exists. If the lookup fails, returns invalid JSON, omits or duplicates a
+selected change, or returns counts that are not nonnegative integers with
+\`completedTasks <= totalTasks\`, report the problem and stop before archiving
+any of the batch. Each delta spec's
 \`<capability-path>\` is its path relative to the change's \`specs/\`; its
 requirement names are its \`### Requirement: <name>\` lines. A change with no
 \`specs\` entry, or an empty list, has no delta specs — never infer deltas from
@@ -8520,6 +9315,10 @@ not understand:
 - Incomplete tasks block the archive — finish them, or re-run with
   \`--force-incomplete\` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: that change stays in place with nothing
+  moved. Record it as Failed with the condition, never finish its move by hand,
+  and continue with the next change.
 - A cross-change collision step 4 missed (two changes in the batch add the same
   spec requirement) is caught by the later archive's own spec guard,
   \`archive/added-exists\`. Resolve it as step 5 does, by editing that change's
@@ -8787,7 +9586,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:59536b110e1ba0dce3a8ae4af609b8ef3027afe05d6a8da14315b008ba5f10b7
+  contentHash: sha256:d5ccf8e47a1ae1d9b9077e2e90eed5afbf260101343aabb9cc56e531e704265e
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -8926,6 +9725,12 @@ This holds only when the request is theirs. A "yes" to an offer you made
 confirms only the scope your offer named, so name the change and the artifacts
 in the offer.
 
+Offer only artifacts the change's type defines — read them from
+\`cospec status --change <slug> --json\` (\`artifactPaths\`) once the change
+exists. Capture each insight in whichever of those artifacts fits it and name
+that artifact in your offer; never offer or create a file, such as \`design.md\`
+or a \`specs/\` delta, that the type does not have.
+
 Every other confirmation covers only the scope you described. Ask again before
 widening it. Answering a design or clarifying question is never consent to
 write, and neither is enthusiasm about an idea.
@@ -8968,7 +9773,7 @@ description: Investigate the codebase or a spec question without writing impleme
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:8d02827e19b7dfb47a1ca1ea92cf44fbdc7b3415bea89a42f036b235c9024b7b
+  contentHash: sha256:351a90febcbc0aafbaf8074e5dda854bb872d48634dc6e7a0689b30998badcf5
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -9109,6 +9914,12 @@ This holds only when the request is theirs. A "yes" to an offer you made
 confirms only the scope your offer named, so name the change and the artifacts
 in the offer.
 
+Offer only artifacts the change's type defines — read them from
+\`cospec status --change <slug> --json\` (\`artifactPaths\`) once the change
+exists. Capture each insight in whichever of those artifacts fits it and name
+that artifact in your offer; never offer or create a file, such as \`design.md\`
+or a \`specs/\` delta, that the type does not have.
+
 Every other confirmation covers only the scope you described. Ask again before
 widening it. Answering a design or clarifying question is never consent to
 write, and neither is enthusiasm about an idea.
@@ -9154,7 +9965,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1
+  contentHash: sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -9251,6 +10062,13 @@ cospec instructions <artifact> --change <slug> --json
 
 Explain what the instructions ask for, write the artifact, show the user what
 you wrote, and pause before moving to the next artifact.
+
+For \`tasks.md\`, explain that each task group carries the tests and documentation
+for its own work, and the last group is only for integration checks. Draft the
+breakdown, show it, and ask "Does this task breakdown look right?" Wait for the
+user's approval or feedback, and save the file only after they approve. Then ask
+separately whether they are ready to implement, and wait for that answer before
+moving on.
 
 ## 6. Validate
 
@@ -9305,7 +10123,7 @@ description: Walk a first-time user through one real cospec change end to end, n
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1
+  contentHash: sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -9402,6 +10220,13 @@ cospec instructions <artifact> --change <slug> --json
 
 Explain what the instructions ask for, write the artifact, show the user what
 you wrote, and pause before moving to the next artifact.
+
+For \`tasks.md\`, explain that each task group carries the tests and documentation
+for its own work, and the last group is only for integration checks. Draft the
+breakdown, show it, and ask "Does this task breakdown look right?" Wait for the
+user's approval or feedback, and save the file only after they approve. Then ask
+separately whether they are ready to implement, and wait for that answer before
+moving on.
 
 ## 6. Validate
 

@@ -11,7 +11,7 @@
 ## Capabilities
 
 ### New Capabilities
-<!-- Each becomes specs/<capability-path>/spec.md. A capability path is relative to specs/: kebab-case per segment, one segment on a flat layout (user-auth), nested only where the project already nests (identity/user-auth). -->
+<!-- Each becomes specs/<capability-path>/spec.md. Name each for a durable system behavior that can own related requirements as the system evolves (user-auth), not for this change's work (add-login-endpoint) or a proposal section, and avoid broad catch-all names. A capability path is relative to specs/: kebab-case per segment, one segment on a flat layout (user-auth), nested only where the project already nests (identity/user-auth). -->
 - `<capability-path>`: <what this capability covers>
 
 ### Modified Capabilities

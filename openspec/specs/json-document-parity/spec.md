@@ -18,21 +18,13 @@ differently-reported upstream value, or any unnamed collision.
 
 ### Requirement: Upstream keys are added without changing cospec's
 
-For `cospec list`, `cospec list --specs`, `cospec status --change`,
-`cospec status --all`, `cospec validate` (a single item, a bulk scope, and
-`--report findings`) under `--json`, cospec SHALL emit every key the wrapped
-binary's own document for the same invocation carries, with the binary's value,
-matching array entries by their identity (`name`, `changeName`, artifact `id`,
-item `id` plus kind). It SHALL keep every key it emitted before, with its own
-value. It SHALL keep `version: 1` on every envelope that carries one, and it
-SHALL NOT take the binary's `version`. Remedy commands inside upstream values
-(`nextSteps`) SHALL be spelled `cospec`.
-
-Where a key both tools emit would need two different values, cospec's value
-SHALL win only for a key on the named collision list, which this change defines
-as `version` and validate's `items[].type` (cospec's is the change's schema; the
-binary's `change|spec` is cospec's `kind`). The `root` of the `status` documents
-SHALL take the binary's `{path, source, store_id?}` object.
+Under `--json`, `list`, `list --specs`, `status --change`, `status --all`, and
+`validate` (single, bulk, `--report findings`) SHALL emit every key the binary's
+document for the same invocation carries, with its value, matching array entries
+by identity (`name`, `changeName`, artifact `id`, item `id` plus kind). cospec
+SHALL keep every key it emitted before with its own value, including
+`version: 1`, never the binary's `version`. Remedies in upstream `nextSteps`
+SHALL be spelled `cospec`.
 
 #### Scenario: A mid-build status document carries both shapes
 
@@ -54,22 +46,23 @@ SHALL take the binary's `{path, source, store_id?}` object.
   `summary.totals`/`summary.byType` beside cospec's `errors`, `warnings` and
   `byRule`
 
+#### Scenario: Only listed collisions keep cospec's value
+
+- **WHEN** a key both tools emit would need two different values
+- **THEN** cospec's value wins only for the named collision list, `version` and
+  validate's `items[].type` (cospec's is the change's schema; the binary's
+  `change|spec` is cospec's `kind`), and the `status` documents' `root` takes
+  the binary's `{path, source, store_id?}` object
+
 ### Requirement: A key oracle proves the additivity against the binary
 
-A contract test SHALL run each command listed in the requirement above, and
+A contract test SHALL run each command the requirement above lists, and
 `cospec apply <unknown> --json` beside
 `openspec instructions apply --change <unknown> --json`, against the pinned
-binary on the same fixture and environment. It SHALL fail when an upstream key
-path is missing from cospec's document; when a key both tools emit carries
-different values and is not on the named collision list; and when a key from
-cospec's own pre-existing shape is missing or changed. Timing values
-(`durationMs`, `lastModified`) SHALL be compared by presence and type.
-Validation verdicts (`valid`, `issues`, the summary counts) SHALL be compared by
-presence and type, since each lane keeps its own findings. A key whose value is
-cospec's own pre-existing one SHALL be compared by presence and type too: the
-in-progress status entry's `artifacts: []`, into which the binary's artifacts
-are never appended. The oracle SHALL itself be tested to fail on a synthetic
-collision.
+binary on one fixture and environment. It SHALL fail when an upstream key path
+is missing from cospec's document, when a shared key differs and is not on the
+named collision list, or when a key of cospec's pre-existing shape is missing or
+changed, and SHALL itself be tested to fail on a synthetic collision.
 
 #### Scenario: The oracle passes for every covered command
 
@@ -83,24 +76,23 @@ collision.
   the binary's is an object
 - **THEN** it reports the collision and fails
 
+#### Scenario: Lane-owned values are compared by presence and type
+
+- **WHEN** the oracle compares timing values (`durationMs`, `lastModified`),
+  validation verdicts (`valid`, `issues`, the summary counts), or a key whose
+  value is cospec's own pre-existing one, such as the in-progress status entry's
+  `artifacts: []` that the binary's artifacts are never appended to
+- **THEN** it compares them by presence and type only
+
 ### Requirement: Every --json failure is one document
 
 Under `--json` a command SHALL answer every failure with exactly one JSON
-document on stdout and nothing else there:
-
-- Every root-selection failure SHALL carry the binary's per-command payload:
-  `{changes: [], root: null}` for `list` and `status --all`, and
-  `{specs: [], root: null}` for `list --specs`. A selection diagnostic (such as
-  an unknown store) SHALL keep its own code.
-- A raw resolver failure, one the binary rethrows rather than turning into a
-  selection diagnostic (such as an unreadable store registry), SHALL carry the
-  binary's per-command code: `list_error` for `list`, `change_error` for
-  `status` and `apply`, and `validate_error` for `validate`.
-- Every early exit of `cospec apply` (no `openspec/` root, an unknown change, a
-  failed wrapped call) SHALL be
-  `{status: [{severity: "error", code, message, fix?}]}` with exit 1.
-- A list-time read failure SHALL be the binary's own answer when the binary
-  reads that path, and otherwise a per-row `error`.
+document on stdout and nothing else there. A root-selection failure SHALL carry
+the binary's per-command payload (`{changes: [], root: null}` for `list` and
+`status --all`, `{specs: [], root: null}` for `list --specs`), a selection
+diagnostic such as an unknown store keeping its own code. A list-time read
+failure SHALL be the binary's own answer when the binary reads that path, and
+otherwise a per-row `error`.
 
 #### Scenario: Apply names an unknown change in one document
 
@@ -124,19 +116,29 @@ document on stdout and nothing else there:
   `{changes: [], root: null, status: [{…, code: "unknown_store", message, target, fix}]}`
   and the exit code is 1, as the binary answers
 
+#### Scenario: A raw resolver failure carries the binary's per-command code
+
+- **WHEN** the resolver fails in a way the binary rethrows rather than turning
+  into a selection diagnostic, such as an unreadable store registry
+- **THEN** the document's code is `list_error` for `list`, `change_error` for
+  `status` and `apply`, and `validate_error` for `validate`
+
+#### Scenario: Every early apply exit is a status document
+
+- **WHEN** `cospec apply --json` exits early on no `openspec/` root, an unknown
+  change, or a failed wrapped call
+- **THEN** stdout is `{status: [{severity: "error", code, message, fix?}]}` and
+  the exit code is 1
+
 ### Requirement: Archive's JSON documents carry the binary's keys
 
 `cospec archive <change> --json` SHALL add the binary's keys to its success
 document without changing any cospec key:
 `archive: {change, archivedAs, path, specsUpdated, totals?, warnings?}` and
 `root: {path, source, store_id?}`. `archivedAs` SHALL be the archive directory
-verified on disk. `path` SHALL be its canonical absolute path. `specsUpdated`
-and `totals` SHALL be the values the wrapped archive reported applying, read
-from its own `Totals:` line and its `Specs updated successfully.` or
-`Specs already in sync; no files changed.` line. `totals` SHALL be absent when
-no spec sync ran, and `warnings` SHALL be absent when the binary reported none.
-A key oracle row SHALL compare the document with the binary's own
-`archive <change> -y --json` on a copy of the same fixture.
+verified on disk and `path` its canonical absolute path. A key oracle row SHALL
+compare the document with the binary's own `archive <change> -y --json` on a
+copy of the same fixture.
 
 #### Scenario: The success document matches the binary's keys
 
@@ -145,35 +147,24 @@ A key oracle row SHALL compare the document with the binary's own
 - **THEN** cospec's `archive` and `root` equal the binary's, apart from the
   copy's own path, and every cospec key keeps its native value
 
+#### Scenario: Sync totals are what the wrapped archive reported
+
+- **WHEN** the success document is built
+- **THEN** `specsUpdated` and `totals` are the values the wrapped archive
+  reported applying, read from its `Totals:` line and its
+  `Specs updated successfully.` or `Specs already in sync; no files changed.`
+  line, `totals` is absent when no spec sync ran, and `warnings` is absent when
+  the binary reported none
+
 ### Requirement: Every archive refusal under --json is one document
 
 Under `--json` every refusal of `cospec archive` SHALL be exactly one document
-on stdout, with exit 1: `archive: null`, `root` (absent when no root resolved,
-as in the binary), `status: [{severity: "error", code, message, fix?}]`, and
-cospec's `change`, `type`, `archived: false` and `reason`. `code` and `message`
-SHALL be the binary's for every refusal the binary makes on the same input:
-
-| Refusal                           | `code`                               |
-| --------------------------------- | ------------------------------------ |
-| unknown change                    | `archive_change_not_found`           |
-| invalid change name               | `archive_change_name_invalid`        |
-| namespace folder                  | `archive_change_is_namespace_folder` |
-| revalidation failed               | `archive_validation_failed`          |
-| incomplete tasks                  | `archive_tasks_incomplete`           |
-| archive slot taken                | `archive_target_exists`              |
-| scenario preservation             | `archive_spec_update_failed`         |
-| unreadable archive directory      | the binary's code on that runtime    |
-| a delegated failure cospec relays | `archive_error`                      |
-
-For scenario preservation the `message` SHALL be the binary's sentence for the
-first dropped requirement its merge would abort on. For a delegated failure it
-SHALL be the wrapped archive's own last reason line, respelled.
-`archive/verification-incomplete` has no upstream counterpart and SHALL carry
-the code `archive_verification_incomplete`. `fix` SHALL be cospec's spelling of
-the remedy cospec accepts (`--force-incomplete` for the tasks gate, where the
-binary names `--yes`). The revalidation refusal SHALL keep the keys of the
-report it carried before. A root-selection failure SHALL answer through the
-shared resolver document with archive's payload `{archive: null}`.
+on stdout, exit 1: `archive: null`, `root` (absent when none resolved, as in the
+binary), `status: [{severity: "error", code, message, fix?}]`, and cospec's
+`change`, `type`, `archived: false` and `reason`. `code` and `message` SHALL be
+the binary's for each refusal the binary makes on that input. A root-selection
+failure SHALL answer through the shared resolver document with archive's payload
+`{archive: null}`.
 
 #### Scenario: A gate refusal prints a document
 
@@ -190,3 +181,33 @@ shared resolver document with archive's payload `{archive: null}`.
   the same runtime (`archive_path_outside_root` under Bun on macOS,
   `archive_error` naming the archive path under Bun on Linux), compared by code
   and path, and the exit code is 1
+
+#### Scenario: Refusal codes are the binary's
+
+- **WHEN** archive refuses under `--json`
+- **THEN** `code` is `archive_change_not_found` for an unknown change,
+  `archive_change_name_invalid` for an invalid name,
+  `archive_change_is_namespace_folder` for a namespace folder,
+  `archive_validation_failed` for failed revalidation,
+  `archive_tasks_incomplete` for incomplete tasks, `archive_target_exists` for a
+  taken archive slot, `archive_spec_update_failed` for scenario preservation,
+  the binary's code on that runtime for an unreadable archive directory, and
+  `archive_error` for a delegated failure cospec relays
+
+#### Scenario: Refusal messages and fixes
+
+- **WHEN** archive refuses under `--json` for scenario preservation, a delegated
+  failure, or the tasks gate
+- **THEN** the scenario-preservation `message` is the binary's sentence for the
+  first dropped requirement its merge would abort on, a delegated failure's is
+  the wrapped archive's last reason line respelled, and `fix` is cospec's
+  spelling of the remedy cospec accepts (`--force-incomplete` for the tasks
+  gate, where the binary names `--yes`)
+
+#### Scenario: cospec-only refusals keep their own shape
+
+- **WHEN** archive refuses on `archive/verification-incomplete` or on
+  revalidation
+- **THEN** the verification refusal carries code
+  `archive_verification_incomplete`, which has no upstream counterpart, and the
+  revalidation refusal keeps the keys of the report it carried before

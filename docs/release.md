@@ -1,9 +1,10 @@
 # Release
 
 `Release` (`.github/workflows/release.yml`) is the single entry point that cuts
-a new cospec release: **eight npm packages** plus a compiled-binary GitHub
-release. It is `workflow_dispatch`-only — no push or tag trigger — so a
-maintainer always chooses the moment and the bump explicitly.
+a new cospec release: **nine npm packages** plus a compiled-binary GitHub
+release with eight platform archives, the two install scripts, and `SHA256SUMS`.
+It is `workflow_dispatch`-only — no push or tag trigger — so a maintainer always
+chooses the moment and the bump explicitly.
 
 ## Package layout
 
@@ -12,20 +13,20 @@ executables so consumers on Node, Deno, or Bun (or with no JS runtime at all,
 via mise) can install and run it. The npm side is an esbuild-style set:
 
 - **`@aligned-team/cospec`** — a runtime-agnostic launcher (`bin/cospec.js`,
-  plain JS, zero deps) plus seven `optionalDependencies` pinned to the exact
+  plain JS, zero deps) plus eight `optionalDependencies` pinned to the exact
   same version. It ships no runtime source (`files` is `bin`, `README.md`,
   `LICENSE`).
 - **`@aligned-team/cospec-<platform>`** — one package per platform
   (`linux-x64-gnu`, `linux-x64-musl`, `linux-arm64-gnu`, `linux-arm64-musl`,
-  `darwin-x64`, `darwin-arm64`, `win32-x64`), each carrying only its compiled
-  binary, gated by `os`/`cpu` (+ `libc` on the Linux packages). Linux is
-  **libc-split** because bun's builds are not cross-libc portable — verified
-  empirically (bun 1.3.14, docker): the glibc build fails on Alpine, and the
-  "musl" build is **not static** (it needs the musl loader plus libstdc++/libgcc
-  and fails on Debian/Ubuntu). So we follow the oxlint/swc pattern: separate
-  `-gnu` (`libc: ["glibc"]`) and `-musl` (`libc: ["musl"]`) packages;
-  npm/pnpm/bun then install the one matching the host libc, and glibc distros
-  are never handed a musl binary. Source templates live in
+  `darwin-x64`, `darwin-arm64`, `win32-x64`, `win32-arm64`), each carrying only
+  its compiled binary, gated by `os`/`cpu` (+ `libc` on the Linux packages).
+  Linux is **libc-split** because bun's builds are not cross-libc portable —
+  verified empirically (bun 1.3.14, docker): the glibc build fails on Alpine,
+  and the "musl" build is **not static** (it needs the musl loader plus
+  libstdc++/libgcc and fails on Debian/Ubuntu). So we follow the oxlint/swc
+  pattern: separate `-gnu` (`libc: ["glibc"]`) and `-musl` (`libc: ["musl"]`)
+  packages; npm/pnpm/bun then install the one matching the host libc, and glibc
+  distros are never handed a musl binary. Source templates live in
   `apps/cli/npm/<platform>/`; binaries are built in CI and never committed.
 
 The launcher resolves the installed platform package via `createRequire` +
@@ -39,7 +40,11 @@ autodetection: os token (`linux`/`macos`/`windows`) + arch token
 (`x64`/`arm64`), a `musl` token on the musl variants, the version, `tar.gz` for
 unix / `zip` for Windows, with the `cospec` binary at the archive root.
 `mise use github:aligned-team/cospec` then picks the right asset (mise scores
-the libc variant too) and verifies it against `SHA256SUMS`.
+the libc variant too) and verifies it against `SHA256SUMS`. The same asset names
+and `SHA256SUMS` format are a public contract for `scripts/install/install.sh`,
+`scripts/install/install.ps1`, and the Nix flake; renaming an asset breaks all
+three. What users run is documented in
+[Installation](../apps/docs/guide/installation.md).
 
 mise only matches exact 3-part tags (`v{major}.{minor}.{patch}`) — a partial
 version like `@0.4` does not resolve and 404s. mise's github backend also
@@ -61,7 +66,7 @@ informational message instead of a version; the `version` job treats that as a
 failure (re-dispatch with an explicit `patch`/`minor`/`major` to force a
 release).
 
-## The six jobs
+## The jobs
 
 1. **`version`** — computes the next semver with cocogitto
    (`cog bump --dry-run`; no manifest edit, no commit), strips a leading `v`,
@@ -71,7 +76,7 @@ release).
 2. **`bump`** — checks out `main` normally (no deploy key, no SSH), runs
    `mise run release:set-version -- <v>` to stamp the version into **every**
    manifest — `apps/cli/package.json` (including its `optionalDependencies`
-   pins), all seven `apps/cli/npm/<platform>/package.json`, the matching
+   pins), all eight `apps/cli/npm/<platform>/package.json`, the matching
    workspace entry + optional-dependency pins in `bun.lock` (which bun never
    refreshes on install), and the `"npm:@aligned-team/cospec"` pin in the
    commit-gate template `apps/cli/src/canon/gate/mise.toml.tpl` (which
@@ -98,8 +103,8 @@ release).
 3. **`build`** — a matrix on `ubuntu-latest` that cross-compiles
    `bun build --compile --target=<t>` for `bun-linux-x64`, `bun-linux-x64-musl`,
    `bun-linux-arm64`, `bun-linux-arm64-musl`, `bun-darwin-x64`,
-   `bun-darwin-arm64`, and `bun-windows-x64`. Each leg emits **two** artifacts
-   from the one binary: a GitHub release archive
+   `bun-darwin-arm64`, `bun-windows-x64`, and `bun-windows-arm64`. Each leg
+   emits **two** artifacts from the one binary: a GitHub release archive
    `cospec-<version>-<os>-<arch>[-musl].tar.gz` (or `.zip` for Windows) with the
    binary at the archive root plus `README.md`/`LICENSE`, and an
    `@aligned-team/cospec-<platform>` npm tarball (`npm pack` of the template
@@ -111,30 +116,43 @@ release).
    committed, drift-gated in CI by `vendor:openspec:check`, and embedded into
    every target by the ordinary `--compile` static import — the build matrix is
    unchanged.
+   - **`smoke-musl`** and **`smoke-windows`** run the binaries the ubuntu build
+     host cannot. `smoke-musl` installs each musl archive with `install.sh`
+     inside an Alpine container (`docker run`, on `ubuntu-latest` for x64 and
+     `ubuntu-24.04-arm` for arm64, since GitHub's JavaScript actions cannot run
+     inside Alpine on arm64), then checks `cospec --version` and that
+     `cospec version --json` reports install type `standalone`. `smoke-windows`
+     installs the Windows archives with `install.ps1` on `windows-latest` and
+     `windows-11-arm` and checks `cospec.exe --version`. Both lay the downloaded
+     archives out like a release on disk (with a `SHA256SUMS` computed there)
+     and point the installer at it through `COSPEC_RELEASE_BASE`, so the
+     installers and binaries are proven together before anything is public.
+     `publish` needs both.
 4. **`stage-npm`** — checks out the bump commit, runs `mise run test:pack`, then
    the bun-less standalone gate `mise run test:pack:standalone`: builds the host
    (linux-x64-gnu) platform package, `npm install`s the launcher + platform
    tarballs with **bun stripped from PATH**, and runs `cospec --version` + a
    real subcommand on Node only. Then `bun pm pack`s `apps/cli` to produce the
    **exact** main tarball `publish` ships, and uploads it as an artifact.
-5. **`publish`** — downloads the release archives (`archive-*`) and the eight
-   npm tarballs (`npm-*`), generates `SHA256SUMS` over the archives (the
-   mise-verifiable release assets), runs `communique` to write
-   `RELEASE_NOTES.md` (using `ANTHROPIC_API_KEY_COMMUNIQUE`), creates a
-   **draft** GitHub release with the notes + archives + `SHA256SUMS` attached
-   (npm tarballs are not attached — they ship to npm), then flips the draft to
+5. **`publish`** — downloads the release archives (`archive-*`) and the nine npm
+   tarballs (`npm-*`), copies in `install.sh` and `install.ps1`, fails unless
+   exactly the eight expected archives are present, generates `SHA256SUMS` over
+   the archives and both scripts, runs `communique` to write `RELEASE_NOTES.md`
+   (using `ANTHROPIC_API_KEY_COMMUNIQUE`), creates a **draft** GitHub release
+   with the notes, archives, install scripts, and `SHA256SUMS` attached (npm
+   tarballs are not attached — they ship to npm), then flips the draft to
    published — by release ID, not by tag, since drafts aren't addressable by tag
    — using a short retry loop (the releases list can lag a moment behind the
    create call). Only after the release is published does it `npm publish` all
-   eight packages — authenticated via **trusted publishing (OIDC)** with
-   `--provenance`, no npm token — **the seven platform packages first, the main
+   nine packages — authenticated via **trusted publishing (OIDC)** with
+   `--provenance`, no npm token — **the eight platform packages first, the main
    package last** — as the job's **last** step: `npm publish` is irreversible (a
    version can never be republished), so nothing fallible runs after it, and
    publishing platforms before the main package means its `optionalDependencies`
    resolve the instant it goes live. Everything reversible — creating and
    publishing the GitHub release — happens first, so a failure anywhere before
    `npm publish` always leaves a clean slate for `cleanup` to roll back. The
-   publish step itself is **not atomic** (eight per-package publishes), so it is
+   publish step itself is **not atomic** (nine per-package publishes), so it is
    made **idempotent** instead: each publish is guarded by
    `npm view <name>@<version>`, skipping any package already live. A mid-loop
    failure that leaves the first N platform packages published is therefore
@@ -147,6 +165,17 @@ release).
    Best-effort deletes the tag via the REST API (app token) and the release
    (`GITHUB_TOKEN`) — draft or already-published — if either was created. It
    never touches `main` or the bump commit.
+7. **`pin-flake`** — after `publish`, downloads the release's `SHA256SUMS`,
+   rewrites `nix/release.json` with `mise run release:flake-pin` (the version
+   plus each Nix system's archive name and SHA-256), and commits it to `main`
+   through the same app-token `createCommitOnBranch` path as `bump`, as
+   `chore(release): pin the nix flake to v<version>`. The hashes only exist
+   after `build`, so they cannot ride the bump commit, and the tag therefore
+   never carries its own pin. The job is not in `cleanup`'s `needs`: npm is
+   already live, so a failure (usually `main` moving under `expectedHeadOid`) is
+   fixed by re-running the job, or by running
+   `mise run release:flake-pin -- <version>` in a PR. `build-docs` and
+   `deploy-docs` run alongside it.
 
 ## Signed commits without a bypass actor
 
@@ -234,8 +263,8 @@ silently skipped where unsupported (per npm's docs, a private repo still
 publishes, just unattested). The explicit flag makes it a hard gate: the publish
 fails rather than shipping unattested.
 
-This requires one-time registry-side configuration for **each** of the eight
-packages (`@aligned-team/cospec` + the seven `@aligned-team/cospec-<platform>`):
+This requires one-time registry-side configuration for **each** of the nine
+packages (`@aligned-team/cospec` + the eight `@aligned-team/cospec-<platform>`):
 in the package's npm settings, add a **GitHub Actions trusted publisher** with
 organization `aligned-team`, repository `cospec`, and workflow filename
 `release.yml` (no environment). A package without a trusted publisher fails its
@@ -243,4 +272,46 @@ organization `aligned-team`, repository `cospec`, and workflow filename
 the missing package and re-dispatching at the same version resumes cleanly.
 
 Note the workflow-filename coupling: renaming `release.yml` breaks publishing
-until all eight trusted-publisher entries are updated to the new filename.
+until all nine trusted-publisher entries are updated to the new filename.
+
+### Adding a platform package
+
+npm only offers trusted-publisher settings on a package that already exists, so
+a new platform package cannot ship through OIDC on its first release.
+`@aligned-team/cospec-win32-arm64` (added with the Windows arm64 target) needs
+this before the first release that includes it:
+
+1. From a maintainer machine, publish a placeholder once:
+   `npm publish --access public` from a copy of `apps/cli/npm/win32-arm64/` with
+   its version set to `0.0.0` and no binary (the package is only ever resolved
+   at the release version, so `0.0.0` is never installed).
+2. In that package's npm settings, add the GitHub Actions trusted publisher
+   (organization `aligned-team`, repository `cospec`, workflow `release.yml`).
+
+If a release runs before this is done, `npm publish` fails on that package with
+an auth error after the earlier platform packages are live; `cleanup` then
+leaves the tag and release in place, and a re-dispatch at the same version after
+steps 1–2 resumes the remaining packages and the main one.
+
+Adding a platform also means a new `build` matrix leg, a launcher entry in
+`apps/cli/bin/cospec.js`, an `optionalDependencies` pin, the platform list in
+`release:set-version` (and its test), `cleanup`'s package list, and the
+`publish` asset-set check.
+
+## Nix flake pin
+
+`flake.nix` reads `nix/release.json` and wraps the release binaries through
+`fetchurl`, using the SHA-256 values copied verbatim from that release's
+`SHA256SUMS` (Linux uses the glibc archive, patched with `autoPatchelfHook`).
+`pin-flake` keeps it on the latest release. To pin by hand:
+
+```sh
+mise run release:flake-pin -- 0.12.0                  # downloads SHA256SUMS
+mise run release:flake-pin -- 0.12.0 --sums SHA256SUMS # from a local copy
+```
+
+`mise run test:flake` (needs Nix) builds the package, runs it, and builds the
+consumer flake in `nix/test/consumer`, which uses only `overlays.default` and
+checks that `pkgs.cospec --version` matches the pin. CI's `ci-nix` job runs the
+same checks whenever `flake.nix`, `flake.lock`, or `nix/**` change. Bump the
+`nixpkgs` input with `nix flake update` in an ordinary PR.

@@ -307,11 +307,18 @@ function fixtureFacts(name: string): unknown[] {
 
 // --- the matrix ----------------------------------------------------------------------
 
+/**
+ * GSD writes only into the shared `.agents/skills` root and is detected by `.gsd` alone
+ * (pinned `AI_TOOLS`), so a bare re-detect of its own output finds `agents`, as the binary's
+ * would.
+ */
+const ROUND_TRIP_SKIPS: Record<string, Check[]> = { gsd: ['initDetection'] }
+
 describe('harness matrix', () => {
   for (const tool of UPSTREAM_TOOLS) {
     test(
       `${tool.value}: row, adapter paths, render and detection match the pinned binary`,
-      () => checkRow(tool, new Set<Check>()),
+      () => checkRow(tool, new Set<Check>(ROUND_TRIP_SKIPS[tool.value] ?? [])),
       120_000,
     )
   }

@@ -14,6 +14,7 @@ import {
   findScenarioDrops,
   parseDeltaSpec,
   parseLivingSpec,
+  describeScenarioBalance,
   quoteScenarioNames,
   SCENARIO_DROP_HINT,
   SCENARIO_DROP_NOTE_RETIRED,
@@ -111,7 +112,7 @@ export function scenarioRefusal(command: string, drops: readonly ScenarioDrop[])
       (d) =>
         `  ${d.capability}: "${d.name}" ${d.livingCount} -> ${d.deltaCount} scenario(s)${
           d.missingNames.length > 0 ? `; missing: ${quoteScenarioNames(d.missingNames)}` : ''
-        }`,
+        }. ${describeScenarioBalance(d)}`,
     ),
   ]
   if (drops.some((d) => d.noted)) lines.push(`${SCENARIO_DROP_NOTE_RETIRED}.`)

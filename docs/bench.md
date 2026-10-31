@@ -17,7 +17,8 @@ runs the full, expensive matrix). Its `test:bench` unit suite _is_ gated in
 
 ```bash
 mise run bench           # full matrix
-mise run bench:smoke     # one cheap cell: ci scenario, sonnet-5/high, cospec arm
+mise run bench:smoke     # __complete timing, then one cheap cell: ci scenario, sonnet-5/high, cospec arm
+mise run bench:complete  # __complete timing only
 ```
 
 Auth is inherited from the process environment — see [Auth](#auth) below for how
@@ -46,6 +47,29 @@ CLI filters narrow each axis (pass after `--`, e.g.
 Judge configuration is environment-only, sharing the eval's defaults:
 `DEEPSEEK_API_KEY` (presence gates judging), `DEEPSEEK_MODEL_ID`
 (`deepseek-v4-flash`), `DEEPSEEK_BASE_URL` (`https://api.deepseek.com`).
+
+## Completion startup timing
+
+`bench:complete` (also the first step of `bench:smoke`) times
+`cospec __complete changes` against this repo's own `openspec/` tree: one
+untimed warm-up, then 20 runs, reporting median, p95, min and max against a
+recorded median budget (`COMPLETE_BUDGET_MS` in
+`packages/bench/src/complete-timing.ts`, 1500 ms for the source entry). A
+completion helper runs on every Tab press, so this is the one startup cost a
+user feels directly.
+
+It is advisory: an overrun is printed, written to the GitHub step summary, and
+raised as a `::warning::` in Actions, but the script always exits 0. CI's
+`ci-bench-complete` job runs it on every change that touches Bun sources, with
+`continue-on-error` and outside `ci-gate`. Shared-runner wall-clock is too noisy
+to gate on; the functional guarantee (lazy modules, no telemetry) is a unit test
+in `apps/cli`.
+
+| variable                    | effect                                                       |
+| --------------------------- | ------------------------------------------------------------ |
+| `COSPEC_BIN`                | time this compiled binary instead of the source entry        |
+| `COSPEC_COMPLETE_BUDGET_MS` | override the recorded budget (e.g. tighter for `COSPEC_BIN`) |
+| `COSPEC_COMPLETE_RUNS`      | number of timed runs (default 20)                            |
 
 ## Auth
 
@@ -140,7 +164,7 @@ never mentions a spec-driven workflow — see
   (`apps/cli/src/index.ts … init . --harness claude --yes`), so the generated
   `cospec-*` skills and typed schemas come from the current tree under test.
 - **openspec arm** — initialized by the repo's pinned `@fission-ai/openspec`
-  1.13.1 binary, resolved **by path** (never `$PATH`), running
+  1.15.0 binary, resolved **by path** (never `$PATH`), running
   `openspec init . --tools claude`, which ships OpenSpec's own `openspec-*`
   skills.
 

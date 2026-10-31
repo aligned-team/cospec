@@ -15,13 +15,12 @@ variant an artifact defines obeys the same rule.
 ### Requirement: Artifact templates open with a top-level heading
 
 Every artifact template body cospec scaffolds SHALL open with a single top-level
-`# <Artifact name>` heading, in Title Case matching the artifact id —
+`# <Artifact name>` heading in Title Case matching the artifact id —
 `# Proposal`, `# Blocking Changes`, `# Specs`, `# Design`, `# Tasks`,
-`# Verification` — so a freshly scaffolded artifact is a document rather than a
-fragment and satisfies the one-H1-first rule (MD041) that common Markdown
-linters enforce. The rule SHALL hold for every template variant an artifact
-defines, including both `proposal` variants, and the heading SHALL be the
-literal first line of the template body.
+`# Verification` — so a fresh artifact is a document and satisfies the
+one-H1-first rule (MD041). This SHALL hold for every template variant, including
+both `proposal` variants, and the heading SHALL be the literal first line of the
+template body.
 
 #### Scenario: a scaffolded feat change opens every artifact with an H1
 
@@ -61,14 +60,13 @@ validate exactly as it did before the heading was introduced.
 
 ### Requirement: The tasks guidance never produces an archive task
 
-The tasks artifact's instruction, in every conventional-commit type's schema,
-SHALL state that archiving is not a task, because a task that describes the
-archive can only be completed by the step that refuses it while it is open, and
-SHALL tell the agent to end the list at the last implementation or documentation
-task. It SHALL tell the agent that, where the repo's flow lands the archive as a
-commit after the last task, that task's description ends with
-`The archive commit follows this one`. The tasks `templateBody` SHALL contain no
-archive row, and no type's note SHALL instruct adding one.
+Every type's tasks instruction SHALL state that archiving is not a task (only
+the step that refuses an open task could complete it) and SHALL tell the agent
+to end the list at the last implementation or documentation task. Where the
+repo's flow lands the archive as a commit after the last task, that task's
+description SHALL end with `The archive commit follows this one`. The tasks
+`templateBody` SHALL contain no archive row, and no type's note SHALL instruct
+adding one.
 
 #### Scenario: every type's tasks guidance states the rule
 

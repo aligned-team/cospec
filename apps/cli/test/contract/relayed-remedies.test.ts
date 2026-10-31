@@ -269,16 +269,15 @@ describe('show with an empty item name answers itself, never the binary screen',
   }, 30_000)
 })
 
-describe('view relays its footer through cospec', () => {
-  test('the dashboard names cospec list for the detailed views', async () => {
+// `view` is cospec's own dashboard since openspec-1-15-parity (design decision 3): nothing
+// of the binary's dashboard is relayed, and its footer names cospec's commands itself.
+describe('view names cospec for the detailed views', () => {
+  test("the dashboard's footer names cospec list, never a bare openspec command", async () => {
     const { co, up } = await both(['view'])
     expect(up.stdout).toContain('Use openspec list --changes or openspec list --specs')
     expect(co.exitCode, detail(co)).toBe(up.exitCode)
-    expect(co.stdout, detail(co)).toBe(
-      up.stdout.replace(
-        'Use openspec list --changes or openspec list --specs',
-        'Use cospec list --changes or cospec list --specs',
-      ),
+    expect(co.stdout, detail(co)).toContain(
+      'Use cospec list --all, cospec list --specs or cospec status --change <id> for detailed views',
     )
     expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
   }, 30_000)

@@ -29,7 +29,7 @@ import {
 } from '../../../src/core/rules/deltas.ts'
 import type { Issue } from '../../../src/core/rules/issue.ts'
 import { specsRules } from '../../../src/core/rules/specs.ts'
-import { ADVISORY_RULES } from '../../../src/core/rules/views.ts'
+import { ADVISORY_RULES, BINARY_COMMENT_RULES } from '../../../src/core/rules/views.ts'
 import { makeChange } from './helpers.ts'
 
 const SRC = join(import.meta.dir, '../../../src')
@@ -127,12 +127,24 @@ const FIXTURES: Record<string, Fixture> = {
     living: '## Purpose\n\nTBD: decide what this is for.\n\n## Requirements\n',
     wrap: 'living',
   },
+  'specs/requirement-too-long': {
+    delta: added(`The system SHALL ${'x'.repeat(600)}.\n\n${SCEN}`),
+  },
+  'deltas/dropped-text': {
+    delta: `${added(`The system SHALL do new.\n\n${SCEN}`)}\n## Notes\n\nProse archive drops.\n`,
+  },
+}
+
+/** The living-spec half of `specs/requirement-too-long`, on the verbatim view too. */
+const LONG_LIVING: Fixture = {
+  delta: '',
+  living: `${LIVING}\n### Requirement: Long\n\nThe system SHALL ${'x'.repeat(600)}.\n\n${SCEN}`,
+  wrap: 'living',
 }
 
 /** Every finding of `rule` the rule layer reports on `fixture`. */
 function findings(rule: string, fixture: Fixture): Issue[] {
   const living = fixture.living === undefined ? undefined : parseLivingSpec(fixture.living)
-  if (rule.startsWith('specs/')) return specsRules(living!, 'specs/x/spec.md')
   const change = makeChange({
     deltaFiles: fixture.unread
       ? []
@@ -142,10 +154,17 @@ function findings(rule: string, fixture: Fixture): Issue[] {
       : [],
     livingSpecs: living === undefined ? new Map() : new Map([['x', living]]),
   })
-  return [...unreadDeltaFileIssues(change), ...deltasRules(change), ...archiveRules(change)].filter(
-    (i) => i.rule === rule,
-  )
+  return [
+    ...(rule.startsWith('specs/') && living !== undefined
+      ? specsRules(living, 'specs/x/spec.md')
+      : []),
+    ...unreadDeltaFileIssues(change),
+    ...deltasRules(change),
+    ...archiveRules(change),
+  ].filter((i) => i.rule === rule)
 }
+
+const levelsAndMessages = (found: Issue[]) => found.map((i) => [i.level, i.message])
 
 function inComment(fixture: Fixture): Fixture {
   return fixture.wrap === 'living'
@@ -173,8 +192,14 @@ describe('rule views', () => {
   // `test/contract/validation-parity.test.ts` row 36.1 ("commented mis-depth
   // scenario: the binary archives it and cospec raises no deltas/scenario-depth").
   const advisory = new Set<string>(ADVISORY_RULES)
+  const ownComments = new Set<string>(BINARY_COMMENT_RULES)
   for (const [rule, fixture] of Object.entries(FIXTURES)) {
-    if (advisory.has(rule))
+    if (ownComments.has(rule))
+      test(`${rule} applies the binary's own comment rule: a commented copy holds no text`, () => {
+        expect(findings(rule, fixture).length).toBeGreaterThan(0)
+        expect(findings(rule, inComment(fixture))).toEqual([])
+      })
+    else if (advisory.has(rule))
       test(`${rule} is advisory: it fires on a visible line and never on a commented one`, () => {
         expect(findings(rule, fixture).length).toBeGreaterThan(0)
         expect(findings(rule, inComment(fixture))).toEqual([])
@@ -194,6 +219,19 @@ describe('rule views', () => {
         expect(decided(hidden)).toEqual(decided(visible))
       })
   }
+
+  test('specs/requirement-too-long reads a living spec verbatim too', () => {
+    const visible = findings('specs/requirement-too-long', LONG_LIVING)
+    expect(visible).toHaveLength(1)
+    expect(
+      levelsAndMessages(findings('specs/requirement-too-long', inComment(LONG_LIVING))),
+    ).toEqual(levelsAndMessages(visible))
+  })
+
+  test('no rule is both advisory and on the binary comment rule', () => {
+    expect(BINARY_COMMENT_RULES.filter((id) => advisory.has(id))).toEqual([])
+    expect(BINARY_COMMENT_RULES.filter((id) => !enumeratedRules().includes(id))).toEqual([])
+  })
 
   test('the masked parse is read only where the advisory findings are computed', () => {
     const readers = (pattern: RegExp): string[] => {

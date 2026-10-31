@@ -168,7 +168,7 @@ set_json_version "$CLI_PACKAGE" \
 # compiled binary. Fail loudly if the set of platform dirs ever drifts from
 # what the main manifest pins.
 for platform in linux-x64-gnu linux-x64-musl linux-arm64-gnu linux-arm64-musl \
-  darwin-x64 darwin-arm64 win32-x64; do
+  darwin-x64 darwin-arm64 win32-x64 win32-arm64; do
   PLATFORM_PACKAGE="$ROOT/apps/cli/npm/$platform/package.json"
   require_file "$PLATFORM_PACKAGE"
   set_json_version "$PLATFORM_PACKAGE"

@@ -23,6 +23,96 @@ import { respellRemedies } from './remedies.ts'
 
 export const METADATA_FILENAME = '.openspec.yaml'
 
+/**
+ * The key cospec stamps a change's schema version under. OpenSpec 1.14+
+ * reserves lowercase `x-` keys for tool metadata and warns on any other key it
+ * does not know, so the stamp lives in that namespace.
+ */
+export const SCHEMA_VERSION_KEY = 'x-cospec-schema-version'
+/** The stamp's pre-1.15 spelling, still read as an equal fallback. */
+export const LEGACY_SCHEMA_VERSION_KEY = 'schemaVersion'
+
+/** openspec's `CHANGE_METADATA_KNOWN_KEYS` (`core/change-metadata/schema.ts`, 1.15.0). */
+export const CHANGE_METADATA_KNOWN_KEYS = [
+  'schema',
+  'created',
+  'goal',
+  'affected_areas',
+  'initiative',
+  'skip_specs',
+  'retire_capabilities',
+] as const
+
+/**
+ * openspec's `EXTENSION_KEY_PATTERN`: a lowercase `x-` and a non-empty,
+ * whitespace-free name. `x-`, `x- foo` and `X-Foo` are not extensions.
+ */
+const EXTENSION_KEY_RE = /^x-\S+$/
+
+export function isExtensionMetadataKey(key: string): boolean {
+  return EXTENSION_KEY_RE.test(key)
+}
+
+/**
+ * openspec's `listUnknownChangeMetadataKeys`, sorted as it sorts them, plus
+ * cospec's own legacy `schemaVersion` stamp counted as known: cospec still
+ * reads it, so it is not a key that does nothing (`cospec doctor` names it
+ * for `cospec migrate` instead).
+ */
+export function unknownChangeMetadataKeys(parsed: unknown): string[] {
+  if (!isRecord(parsed)) return []
+  const known = new Set<string>([...CHANGE_METADATA_KNOWN_KEYS, LEGACY_SCHEMA_VERSION_KEY])
+  return Object.keys(parsed)
+    .filter((key) => !known.has(key) && !isExtensionMetadataKey(key))
+    .toSorted()
+}
+
+/**
+ * openspec's `readUnknownChangeMetadataKeys` (cospec's known set): a missing,
+ * unreadable or unparseable file has no keys to name, its failure being
+ * reported on its own read path.
+ */
+export function readUnknownChangeMetadataKeys(changeDir: string): string[] {
+  let raw: string
+  try {
+    raw = readFileSync(join(changeDir, METADATA_FILENAME), 'utf8')
+  } catch (err) {
+    if (!(err instanceof Error)) throw err
+    return []
+  }
+  let parsed: unknown
+  try {
+    parsed = parseYaml(raw)
+  } catch (err) {
+    if (!(err instanceof Error)) throw err
+    return []
+  }
+  return unknownChangeMetadataKeys(parsed)
+}
+
+/**
+ * The binary's own unknown-key warning (`formatUnknownChangeMetadataKeysMessage`):
+ * cospec reports the same keys under `change/unknown-metadata-key`, so a
+ * delegated copy is dropped rather than counted twice — and a copy naming only
+ * cospec's legacy stamp must not turn a strict verdict red.
+ */
+export const UPSTREAM_UNKNOWN_KEYS_RE = /^Unrecognized key name\(s\) in \.openspec\.yaml\b/
+
+/** One `change/unknown-metadata-key` message for `keys`, upstream's guidance in cospec's words. */
+export function unknownMetadataKeysMessage(keys: readonly string[]): string {
+  const listed = keys.map((key) => JSON.stringify(key).slice(1, -1).slice(0, 100)).join(', ')
+  let message =
+    `unrecognized key(s) in ${METADATA_FILENAME}: ${listed} — they are ignored and have no effect. ` +
+    `Known keys: ${CHANGE_METADATA_KNOWN_KEYS.join(', ')}; prefix tool-specific metadata with ` +
+    'a lowercase x- (for example x-tracker).'
+  if (keys.some((key) => /^x-/i.test(key)))
+    message +=
+      ' An x- extension key needs a lowercase x- prefix and a name after it with no whitespace.'
+  if (keys.includes('skip_design'))
+    message += ' skip_design is not a supported key; only skip_specs exists.'
+  return message
+}
+
 /** openspec's `{ declared, invalidReason? }` marker read. */
 export interface MarkerRead {
   /** The marker is set and openspec honours it. */
@@ -362,6 +452,33 @@ export interface LoadedSchemaArtifact {
  * declaration order.
  */
 export function loadSchema(name: string, projectRoot: string): LoadedSchemaArtifact[] {
+  return artifactsOf(loadSchemaRecord(name, projectRoot))
+}
+
+function artifactsOf(parsed: Record<string, unknown>): LoadedSchemaArtifact[] {
+  return (parsed.artifacts as Record<string, unknown>[]).map((a) => ({
+    id: a.id as string,
+    generates: a.generates as string,
+  }))
+}
+
+/**
+ * openspec's `findTrackedTasksArtifact` (`utils/task-progress.ts`) over a
+ * schema `loadSchema` accepts: the `generates` of the artifact whose
+ * `generates` equals `apply.tracks`, else of the artifact with id `tasks`
+ * when the schema declares no `apply.tracks`. Throws as `loadSchema` does.
+ */
+export function trackedTasksGenerates(name: string, projectRoot: string): string | undefined {
+  const parsed = loadSchemaRecord(name, projectRoot)
+  const artifacts = artifactsOf(parsed)
+  const apply = parsed.apply
+  const tracks = isRecord(apply) ? apply.tracks : undefined
+  if (tracks !== undefined && tracks !== null)
+    return artifacts.find((a) => a.generates === tracks)?.generates
+  return artifacts.find((a) => a.id === 'tasks')?.generates
+}
+
+function loadSchemaRecord(name: string, projectRoot: string): Record<string, unknown> {
   const normalized = name.replace(/\.ya?ml$/, '')
   const dir = schemaDir(normalized, projectRoot)
   if (dir === undefined)
@@ -383,10 +500,7 @@ export function loadSchema(name: string, projectRoot: string): LoadedSchemaArtif
   }
   const problem = schemaProblem(parsed)
   if (problem !== undefined) throw new Error(`Invalid schema at '${path}': ${problem}`)
-  return ((parsed as Record<string, unknown>).artifacts as Record<string, unknown>[]).map((a) => ({
-    id: a.id as string,
-    generates: a.generates as string,
-  }))
+  return parsed as Record<string, unknown>
 }
 
 /** openspec's `relativePathSchema(fieldName)` refinement. */

@@ -15,20 +15,13 @@ read-only verdict surfaced in `status --json`.
 
 ### Requirement: Verification artifact grammar and location
 
-cospec SHALL define a machine-parsed `verification` artifact that generates
-`verification.md` at the change root — never under a directory named `specs/` —
-and SHALL parse it with the existing checkbox lexer: groups written
-`## <N>. <behavior description>` with an optional trailing `[critical]`, and
-rows written `- [<state>] <N>.<M> @<layer> [(<owner>)] <probe> -> <result>`,
-where `<state>` is one of a space (planned), `x` (verified), or `~` (deferred).
-
-Detection of a checkbox-like row SHALL cover every CommonMark list marker — `-`,
-`*`, `+`, `<N>.` and `<N>)` — so a row written with a non-canonical marker is
-reported as `verification/row-grammar` rather than dropped from the parse. A
-line whose bracketed span is immediately followed by `(` or `[` is a markdown
-link, not a checkbox, and SHALL NOT be reported. The conforming row grammar
-itself is unchanged: `- [<state>] <N>.<M> ...` remains the single canonical
-form.
+cospec SHALL define a machine-parsed `verification` artifact generating
+`verification.md` at the change root, never under a `specs/` directory, parsed
+with the checkbox lexer: groups `## <N>. <behavior description>` with optional
+trailing `[critical]`, and rows
+`- [<state>] <N>.<M> @<layer> [(<owner>)] <probe> -> <result>` where `<state>`
+is a space (planned), `x` (verified), or `~` (deferred). That row form SHALL
+stay the single canonical form.
 
 #### Scenario: Well-formed verification file parses
 
@@ -72,6 +65,17 @@ form.
 
 - **WHEN** `verification.md` contains the line `- [Some doc](./doc.md)`
 - **THEN** no `verification/row-grammar` issue is emitted for that line
+
+#### Scenario: Every CommonMark list marker is detected
+
+- **WHEN** a checkbox-like row uses `*`, `+`, `<N>.` or `<N>)` as its marker
+- **THEN** it is reported as `verification/row-grammar` rather than dropped from
+  the parse
+
+#### Scenario: A bracket followed by a link target is not a row
+
+- **WHEN** a line's bracketed span is immediately followed by `(` or `[`
+- **THEN** it is read as a markdown link, not a checkbox, and not reported
 
 ### Requirement: Closed layer vocabulary
 
@@ -147,15 +151,13 @@ for verification.
 
 ### Requirement: Per-type required-row facts
 
-cospec SHALL enforce a distinct required-row rule per change type when
-`verification` is enforced: `feat` requires every `[critical]` group to have at
-least one row whose layer is not `@unit` (`verification/critical-real-layer`);
-`fix` requires at least one `@regression` row (`verification/reproduces-bug`);
-`perf` requires at least one `@benchmark` row and at least one `@equivalence`
-row (`verification/equivalence`); `refactor` requires at least one
-`@equivalence` row (`verification/invariant`); and `revert`/`build`/`ci`, when
-soft-promoted, require a real-layer row (`verification/deploy-real-layer`: a
-`@runtime` row for `build`/`ci`; any layer for `revert`).
+With `verification` enforced, cospec SHALL require: `feat`, a non-`@unit` row in
+each `[critical]` group (`verification/critical-real-layer`); `fix`, a
+`@regression` row (`verification/reproduces-bug`); `perf`, a `@benchmark` and an
+`@equivalence` row (`verification/equivalence`); `refactor`, an `@equivalence`
+row (`verification/invariant`); soft-promoted `revert`/`build`/`ci`, a
+real-layer row (`verification/deploy-real-layer`: `@runtime` for `build`/`ci`,
+any layer for `revert`).
 
 #### Scenario: feat critical group without a real layer
 
@@ -206,15 +208,12 @@ There SHALL be no lite variant of the artifact.
 ### Requirement: Read-only verification verdict in status
 
 `cospec status <slug> --json` SHALL emit a read-only `verification` block
-reporting
 `{ declared, total, verified, deferred, unresolved, ciUncatchable, blockedReasons }`
-derived from the same computation the archive gate uses, plus every
-`verification/*` ERROR that `cospec archive`'s validation raises on
-`verification.md`. The block SHALL NOT be a gate, SHALL NOT introduce a new
-artifact, and SHALL carry no autonomy, exposure, or embargo governance state.
-The `archiveReady` flag of `cospec status` and of `cospec list` SHALL be false
-whenever `blockedReasons` is non-empty, and the two commands SHALL report the
-same value for the same change.
+from the archive gate's computation plus each `verification/*` ERROR archive's
+validation raises on `verification.md`. It SHALL NOT gate, add an artifact, or
+carry autonomy, exposure, or embargo state. `archiveReady` in `status` and
+`list` SHALL be false whenever `blockedReasons` is non-empty, the same value in
+both for a change.
 
 #### Scenario: status reports the verification block
 
@@ -277,26 +276,13 @@ same value for the same change.
 
 ### Requirement: Project-declared layers are read from the config and checked by doctor
 
-cospec SHALL read `verification.layers` from the project's
-`openspec/config.yaml` (else `config.yml`) in every gate that validates
-verification rows — `validate`, `apply`, `archive` and `sync-specs` — and in the
-archive-readiness verdict `status` and `list` report (`archiveReady` and
-`verification.blockedReasons`), and SHALL accept a row whose layer token is one
-of them. An entry MAY be spelled with or without a leading `@`. A missing config
-SHALL yield no extra layer. A config that exists but cannot be read or does not
-parse as YAML SHALL NOT be read as no config: cospec SHALL print the wrapped
-binary's own `Warning: could not parse <path> (<detail>); ignoring it.` line on
-stderr once per invocation, and every ledger those gates and that verdict
-validate SHALL fail with a `verification/config-unreadable` ERROR naming the
-file and the cause, in place of any `verification/layer-unknown` (the vocabulary
-is unknown, so no row is judged outside it). A `verification` that is not a
-mapping, a `layers` that is not a list, and an entry that is not a non-empty
-string without whitespace SHALL yield no extra layer for that entry and SHALL
-NOT fail the gate. `cospec doctor` SHALL emit a `config` WARNING when
-`verification.layers` is present but malformed in any of those ways, and SHALL
-report a config it cannot read as unreadable, naming the error code, rather than
-as one that does not parse. The `verification/layer-unknown` hint SHALL name the
-declared layers when there are any.
+The row-validating gates (`validate`, `apply`, `archive`, `sync-specs`) and the
+`status`/`list` readiness verdict SHALL read `verification.layers` from
+`openspec/config.yaml` (else `config.yml`) and accept a row on one of those
+layers, each spelled with or without `@`. A missing config SHALL add none; an
+unreadable or unparseable one SHALL fail loud; a malformed `verification`,
+`layers`, or entry SHALL add none and not fail. The `verification/layer-unknown`
+hint SHALL name any declared layers.
 
 #### Scenario: A declared layer passes every gate, an undeclared one still fails
 
@@ -348,3 +334,26 @@ declared layers when there are any.
   `verification.blockedReasons`, `cospec list --json` reports
   `archiveReady: false`, and `cospec doctor` reports the directory as a config
   it could not read (`EISDIR`)
+
+#### Scenario: An unreadable config fails every ledger it governs
+
+- **WHEN** `openspec/config.yaml` exists but cannot be read or is not YAML
+- **THEN** cospec prints the binary's
+  `Warning: could not parse <path> (<detail>); ignoring it.` on stderr once per
+  invocation, and every ledger those gates and that verdict validate fails with
+  a `verification/config-unreadable` ERROR naming the file and cause, in place
+  of any `verification/layer-unknown`
+
+#### Scenario: What counts as a malformed declaration
+
+- **WHEN** `verification` is not a mapping, `layers` is not a list, or an entry
+  is not a non-empty string without whitespace
+- **THEN** that entry adds no layer and no gate fails because of it
+
+#### Scenario: Doctor warns on a malformed or unreadable config
+
+- **WHEN** `cospec doctor` runs with a malformed `verification.layers`, or a
+  config it cannot read
+- **THEN** it emits a `config` WARNING for the malformed declaration, and
+  reports the unreadable config as unreadable, naming the error code, rather
+  than as one that does not parse

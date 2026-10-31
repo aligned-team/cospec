@@ -3,8 +3,14 @@ import { basename, join, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
-import { loadSchema, userSchemasDir } from './change-metadata.ts'
-import { artifactOutputExists } from './glob.ts'
+import {
+  LEGACY_SCHEMA_VERSION_KEY,
+  loadSchema,
+  SCHEMA_VERSION_KEY,
+  trackedTasksGenerates,
+  userSchemasDir,
+} from './change-metadata.ts'
+import { artifactOutputExists, resolveArtifactOutputs } from './glob.ts'
 import { openspecPackageDir, printOwnStderrLineOnce } from './openspec.ts'
 import { couldNotParseWarning, readConfigFile } from './project-config-read.ts'
 
@@ -51,6 +57,8 @@ export interface OpenspecYaml {
   created?: string
   /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
   schemaVersion?: number
+  /** the file still carries the legacy `schemaVersion` key (`cospec migrate` rewrites it). */
+  legacyStamp?: boolean
   /**
    * `skip_specs:` — a persisted request that a spec-bearing type accepts no
    * delta files (the durable equivalent of `cospec archive --skip-specs`). A
@@ -65,6 +73,23 @@ export interface OpenspecYaml {
    * `meta/retire-capabilities-type`'s job at validate time, not this reader's.
    */
   retireCapabilities?: boolean
+}
+
+export { LEGACY_SCHEMA_VERSION_KEY, SCHEMA_VERSION_KEY }
+
+/**
+ * The raw stamp value a metadata record carries: the `x-` key when present,
+ * else the legacy `schemaVersion`. `legacy` says the value came from the
+ * legacy key.
+ */
+export function rawSchemaVersionStamp(record: Record<string, unknown>): {
+  value: unknown
+  legacy: boolean
+} {
+  if (record[SCHEMA_VERSION_KEY] !== undefined)
+    return { value: record[SCHEMA_VERSION_KEY], legacy: false }
+  const value = record[LEGACY_SCHEMA_VERSION_KEY]
+  return { value, legacy: value !== undefined }
 }
 
 /**
@@ -97,13 +122,19 @@ export function readOpenspecYaml(changeDir: string): OpenspecYaml | undefined {
   const schema = record.schema
   if (typeof schema !== 'string' || schema.length === 0) return undefined
   const created = typeof record.created === 'string' ? record.created : undefined
-  const schemaVersion = isValidSchemaVersion(record.schemaVersion)
-    ? record.schemaVersion
-    : undefined
+  const stamp = rawSchemaVersionStamp(record)
+  const schemaVersion = isValidSchemaVersion(stamp.value) ? stamp.value : undefined
   const skipSpecs = typeof record.skip_specs === 'boolean' ? record.skip_specs : undefined
   const retireCapabilities =
     typeof record.retire_capabilities === 'boolean' ? record.retire_capabilities : undefined
-  return { schema, created, schemaVersion, skipSpecs, retireCapabilities }
+  return {
+    schema,
+    created,
+    schemaVersion,
+    ...(record[LEGACY_SCHEMA_VERSION_KEY] !== undefined ? { legacyStamp: true } : {}),
+    skipSpecs,
+    retireCapabilities,
+  }
 }
 
 export interface Change {
@@ -114,6 +145,8 @@ export interface Change {
   created?: string
   /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
   schemaVersion?: number
+  /** the stamp is still spelled `schemaVersion` (legacy); see `OpenspecYaml.legacyStamp`. */
+  legacyStamp?: boolean
   /** `skip_specs:` from `.openspec.yaml`, when boolean. */
   skipSpecs?: boolean
   /** `retire_capabilities:` from `.openspec.yaml`, when boolean. */
@@ -155,6 +188,7 @@ function changeAt(dir: string, id: string): Change {
     schema: yaml?.schema ?? '',
     created: yaml?.created,
     schemaVersion: yaml?.schemaVersion,
+    ...(yaml?.legacyStamp === true ? { legacyStamp: true } : {}),
     skipSpecs: yaml?.skipSpecs,
     retireCapabilities: yaml?.retireCapabilities,
   }
@@ -554,4 +588,27 @@ export function describeNestedChange(finding: NestedChangeFinding): string {
     'is reported as a change. Nested paths are supported under openspec/specs/ ' +
     `only. Rename each nested change to a flat name (for example "${example}").`
   )
+}
+
+/**
+ * The task files a change's schema tracks — the binary's
+ * `resolveTaskFilesForChange` with `getTaskProgressDetailForChange`'s
+ * fallback: every file the tracked-tasks artifact's `generates` (selected by
+ * `apply.tracks`) resolves to inside the change, else the change's top-level
+ * `tasks.md` when the schema cannot be loaded, tracks nothing, or matches no
+ * file. A pattern that escapes the change throws, as the binary's does.
+ */
+export function trackedTaskFiles(base: string, change: { dir: string; schema: string }): string[] {
+  let generates: string | undefined
+  if (change.schema.length > 0) {
+    try {
+      generates = trackedTasksGenerates(change.schema, base)
+    } catch (error) {
+      // The binary swallows every schema-resolution failure into the fallback.
+      if (!(error instanceof Error)) throw error
+      generates = undefined
+    }
+  }
+  const files = generates === undefined ? [] : resolveArtifactOutputs(change.dir, generates)
+  return files.length > 0 ? files : [join(change.dir, 'tasks.md')]
 }

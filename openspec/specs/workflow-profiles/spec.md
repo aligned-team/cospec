@@ -16,16 +16,13 @@ a `doctor` report of the explicit profile and delivery.
 
 ### Requirement: A profile applies only when explicitly set
 
-cospec SHALL choose the installed workflow set from a profile only when the
-profile is explicit: `init --profile <core|custom>`, or a `profile` key actually
-present in the machine-global config file (`openspec config path`) whose root is
-a JSON object. The pinned binary's built-in default (`profile: core`) SHALL NOT
-count. With no explicit profile, `cospec init` and `cospec update` SHALL write
-all twelve workflows, as before. A missing, unreadable or invalid file, or a
-non-object root, SHALL count as nothing set. `--profile` SHALL override the
-file's `profile`; the `workflows` list still comes from the file. cospec SHALL
-NOT write the global config, including the one-time `profile: custom` migration
-the pinned binary's `init` and `update` perform.
+cospec SHALL choose the installed workflow set from a profile only when it is
+explicit: `init --profile <core|custom>`, or a `profile` key in the global
+config (`openspec config path`) whose root is a JSON object, never the binary's
+built-in `profile: core`. Otherwise `init` and `update` SHALL write all twelve
+workflows. A missing, unreadable or invalid file, or a non-object root, SHALL
+count as unset. `--profile` SHALL override the file's `profile`, not its
+`workflows`.
 
 #### Scenario: Nothing set installs all twelve
 
@@ -60,17 +57,21 @@ the pinned binary's `init` and `update` perform.
   workflows and a global config with no `profile` key
 - **THEN** the global config file is byte-identical afterwards
 
+#### Scenario: cospec never migrates the global config
+
+- **WHEN** `cospec init` or `cospec update` runs with any profile state
+- **THEN** cospec does not write the global config, including the one-time
+  `profile: custom` migration the pinned binary's `init` and `update` perform
+
 ### Requirement: Core and custom profiles resolve as the pinned binary resolves them
 
-`core` SHALL be the six workflows marked `core: true` in
+`core` SHALL be the six `core: true` workflows in
 `canon/workflows/harness.yaml`: `propose`, `explore`, `apply`, `update`,
-`sync-specs` and `archive`. `custom` SHALL be the global config's `workflows`
-list, read with upstream's spellings (`sync` is `sync-specs`; both are
-accepted), ids outside the twelve dropped, and a value that is not an array read
-as an empty list. When the list holds `archive` or `bulk-archive` without
-`sync-specs`, `sync-specs` SHALL be added immediately before the first of them.
-An explicit `custom` with no `workflows` key SHALL select no workflow. Any
-profile value other than `custom` SHALL select core.
+`sync-specs`, `archive`. `custom` SHALL be the global `workflows` list, read
+with upstream's spellings (`sync` or `sync-specs`), ids outside the twelve
+dropped, a non-array read as empty, `sync-specs` added just before the first
+`archive` or `bulk-archive` when absent. An explicit `custom` without
+`workflows` SHALL select none; any other profile value SHALL select core.
 
 #### Scenario: Archive pulls in sync-specs
 
@@ -94,19 +95,13 @@ profile value other than `custom` SHALL select core.
 
 ### Requirement: Delivery selects the surface a workflow is written to
 
-A `delivery` key present in the global config SHALL select where each workflow
-is written: `skills`, `commands` or `both`; any other value SHALL act as `both`,
-and an unset key SHALL be `both`. cospec SHALL classify each harness row as
-`adapter-backed` (it has a command surface), `skills-invocable` (`codex`) or
-`none`, and SHALL generate skills unless delivery is `commands` and the row is
-not `skills-invocable`, and commands only for an `adapter-backed` row unless
-delivery is `skills`. Under `skills`, an `adapter-backed` row's skill bodies
-SHALL be spelled with skill references. Skills at a root shared by several
-selected rows SHALL be generated when any of them generates them. A row that
-generates nothing under `commands` SHALL be named in the receipt with
-`No skills or commands were generated for <names>: delivery is set to 'commands' but it supports only skills. Run 'cospec config set delivery both' to generate skills.`
-A delivery switch SHALL remove the cospec-managed files of the surface no longer
-generated, and the workflow SHALL stay installed.
+A global `delivery` key SHALL select where workflows are written: `skills`,
+`commands` or `both` (any other value, or unset). Each harness row is
+`adapter-backed` (has a command surface), `skills-invocable` (`codex`) or
+`none`; skills SHALL be generated unless delivery is `commands` and the row is
+not `skills-invocable`, commands only for `adapter-backed` rows unless delivery
+is `skills`. A switch SHALL remove the dropped surface's managed files, the
+workflow staying installed.
 
 #### Scenario: Skills only
 
@@ -139,25 +134,28 @@ generated, and the workflow SHALL stay installed.
 - **WHEN** delivery is `commands` and `cospec init --harness codex` runs
 - **THEN** the skills under `.agents/skills` are written
 
+#### Scenario: Skills delivery details
+
+- **WHEN** delivery is `skills`, or several selected rows share a skills root
+- **THEN** an `adapter-backed` row's skill bodies are spelled with skill
+  references, and shared-root skills are generated when any sharing row
+  generates them
+
+#### Scenario: A row that generates nothing is named
+
+- **WHEN** a row generates nothing under `commands`
+- **THEN** the receipt names it with
+  `No skills or commands were generated for <names>: delivery is set to 'commands' but it supports only skills. Run 'cospec config set delivery both' to generate skills.`
+
 ### Requirement: Optional-workflow conditionals follow the pinned grammar
 
 The renderer SHALL resolve
-`[[opsx:if-workflow <id>]] … [[opsx:else]] … [[opsx:end]]` in each workflow
-body, against the row's effective workflow set, before any dialect
-transformation, using the pinned binary's grammar: a conditional alone on a line
-is resolved whole-line, so an empty branch removes its line; markers cannot
-nest; a block needs the full form. A body SHALL be checked well-formed before
-any branch is chosen, so a malformed block fails for every set. The failures
-SHALL carry the pinned binary's wording verbatim: an unrecognised marker,
-`Malformed optional-workflow conditional: unrecognized marker at '<text>'. Markers are [[opsx:if-workflow <id>]], [[opsx:else]] and [[opsx:end]].`;
-markers out of order or incomplete,
-`Malformed optional-workflow conditional: markers are out of order or a block is incomplete. Each block needs the full [[opsx:if-workflow <id>]] ... [[opsx:else]] ... [[opsx:end]] form, and blocks cannot nest.`;
-and a marker left after resolution,
-`<reason>: '<marker>' is unresolved. Optional-workflow blocks are resolved by getSkillTemplates()/ getCommandTemplates() against the installed workflow set, and each needs the full [[opsx:if-workflow <id>]] ... [[opsx:else]] ... [[opsx:end]] form.`
-with the reason `Malformed optional-workflow conditional` from the resolver and
-`Skill '<name>' was generated without resolving its optional-workflow blocks` or
-`Command '<id>' was generated without resolving its optional-workflow blocks`
-where a file is written. No file SHALL be written when one of these fails.
+`[[opsx:if-workflow <id>]] … [[opsx:else]] … [[opsx:end]]` in each workflow body
+against the row's effective set, before any dialect transform, with the pinned
+binary's grammar: a conditional alone on a line resolves whole-line, so an empty
+branch removes its line; markers cannot nest; a block needs the full form. A
+body SHALL be checked well-formed before any branch is chosen, failures SHALL
+use the binary's wording verbatim, and a failure SHALL write no file.
 
 #### Scenario: A whole-line conditional drops its line
 
@@ -192,16 +190,37 @@ where a file is written. No file SHALL be written when one of these fails.
   installed sets, well-formed and not
 - **THEN** their outputs, or their thrown messages, are identical
 
+#### Scenario: Grammar failures use the binary's sentences
+
+- **WHEN** a body has an unrecognised marker, or markers out of order or
+  incomplete
+- **THEN** it fails with
+  `Malformed optional-workflow conditional: unrecognized marker at '<text>'. Markers are [[opsx:if-workflow <id>]], [[opsx:else]] and [[opsx:end]].`
+  or
+  `Malformed optional-workflow conditional: markers are out of order or a block is incomplete. Each block needs the full [[opsx:if-workflow <id>]] ... [[opsx:else]] ... [[opsx:end]] form, and blocks cannot nest.`
+  respectively
+
+#### Scenario: A marker left after resolution fails with its reason
+
+- **WHEN** a marker remains after resolution
+- **THEN** it fails with
+  `<reason>: '<marker>' is unresolved. Optional-workflow blocks are resolved by getSkillTemplates()/ getCommandTemplates() against the installed workflow set, and each needs the full [[opsx:if-workflow <id>]] ... [[opsx:else]] ... [[opsx:end]] form.`
+  where the reason is `Malformed optional-workflow conditional` from the
+  resolver, and
+  `Skill '<name>' was generated without resolving its optional-workflow blocks`
+  or
+  `Command '<id>' was generated without resolving its optional-workflow blocks`
+  where a file is written
+
 ### Requirement: Every cross-workflow reference is conditional
 
-Every `/cospec:<id>` reference in a canon workflow body SHALL sit inside an
+Every `/cospec:<id>` reference in a canon workflow body SHALL sit in an
 `[[opsx:if-workflow <id>]]` conditional whose else branch is the raw gated
-`cospec` command (or drops the line when the workflow has no CLI counterpart),
-and the init receipt's hint lines SHALL resolve the same way. With all twelve
-workflows installed the rendered bytes of every body SHALL equal what was
-rendered before this requirement, so `cospec update` reports no drift in a repo
-that sets nothing. No rendered body for a narrowed set SHALL name a workflow
-absent from that set, and a marker id SHALL be one of the twelve.
+`cospec` command, or drops the line when the workflow has no CLI counterpart;
+init receipt hints SHALL resolve the same way. With all twelve installed, every
+rendered body SHALL be byte-identical to before, so `cospec update` reports no
+drift. A narrowed set's bodies SHALL name no absent workflow, and a marker id
+SHALL be one of the twelve.
 
 #### Scenario: Core bodies name only core workflows
 
@@ -224,14 +243,13 @@ absent from that set, and a marker id SHALL be one of the twelve.
 
 ### Requirement: update never removes an installed workflow
 
-`cospec update` and a repeated `cospec init` SHALL write, for each selected row,
-the profile's workflows plus every workflow already installed for that row,
-where installed means a cospec-managed skill or command file is on disk (or a
-manifest-tracked frontmatter-less command). Neither SHALL remove a workflow's
-files because the profile no longer lists it; only a delivery switch removes
-files, and only the dropped surface's. This is a cospec policy: the pinned
-binary's `update` removes deselected workflows. `update` SHALL still add a
-profile workflow that is missing.
+`cospec update` and a repeated `cospec init` SHALL write, per selected row, the
+profile's workflows plus every workflow already installed for it (a
+cospec-managed skill or command file on disk, or a manifest-tracked
+frontmatter-less command), and SHALL add a missing profile workflow. Neither
+SHALL remove a workflow because the profile dropped it; only a delivery switch
+removes files, the dropped surface's. This is cospec policy: the binary's
+`update` removes deselected workflows.
 
 #### Scenario: An explicit core profile removes nothing
 
@@ -275,23 +293,13 @@ unchanged.
 
 ### Requirement: init --language writes a directive or refuses
 
-`cospec init --language <lang>` SHALL validate before any write, in this order,
-each failing as `cospec: <message>` with exit 1: a value empty after trimming,
-`The --language option requires a non-empty value.`; a control, bidi-control or
-zero-width/line-separator character,
-`The --language option must be a single line without control or invisible formatting characters.`;
-a directive larger than 50 KB,
-`The --language option is too long for OpenSpec's 50KB project context limit.`
-The directive SHALL be three lines: `Language: <lang>`,
-`All artifacts must be written in <lang>.` and
-`Keep OpenSpec structural headings and SHALL/MUST keywords in English.` When
-neither `openspec/config.yaml` nor `openspec/config.yml` exists, the directive
-SHALL be written as the new file's `context:` and an unwritable or escaping
-destination SHALL fail with
-`Cannot create openspec/config.yaml for --language: <reason>`. When one exists,
-`init` SHALL refuse, writing nothing, unless its `context` already contains the
-directive:
-`--language does not overwrite an existing OpenSpec config. Add the language instruction to its context field instead.`
+`cospec init --language <lang>` SHALL validate before any write, each failure
+printed as `cospec: <message>` with exit 1. The directive SHALL be three lines:
+`Language: <lang>`, `All artifacts must be written in <lang>.` and
+`Keep OpenSpec structural headings and SHALL/MUST keywords in English.` With no
+`openspec/config.yaml` or `.yml`, it SHALL be the new file's `context:`. When
+one exists, `init` SHALL refuse, writing nothing, unless its `context` already
+holds the directive.
 
 #### Scenario: A fresh repo gets the three lines
 
@@ -324,6 +332,24 @@ directive:
 - **THEN** stderr is `cospec: The --language option requires a non-empty value.`
   and nothing is created
 
+#### Scenario: Validation runs in order with the binary's sentences
+
+- **WHEN** `--language` is empty after trimming, holds a control, bidi-control
+  or zero-width/line-separator character, or yields a directive over 50 KB
+- **THEN** it fails, checked in that order, with
+  `The --language option requires a non-empty value.`,
+  `The --language option must be a single line without control or invisible formatting characters.`,
+  or
+  `The --language option is too long for OpenSpec's 50KB project context limit.`
+
+#### Scenario: Config creation and refusal sentences
+
+- **WHEN** the new config cannot be written or its destination escapes, or an
+  existing config's `context` lacks the directive
+- **THEN** the failure is
+  `Cannot create openspec/config.yaml for --language: <reason>`, or
+  `--language does not overwrite an existing OpenSpec config. Add the language instruction to its context field instead.`
+
 ### Requirement: The generated config.yaml documents operations, store and references
 
 The `config.yaml` that `cospec init` writes when none exists SHALL carry
@@ -342,15 +368,11 @@ comments: the file parses with the pinned reader and no warning. An existing
 
 ### Requirement: Doctor reports the explicit profile and delivery
 
-`cospec doctor` SHALL stop describing `profile`, `workflows` and `delivery` as
-inert. Under the unchanged check id `openspec-global-profile` it SHALL report at
-INFO the explicit profile (with its workflows) and the explicit delivery read
-from the global config, and for each selected harness the installed cospec
-workflows that the explicit profile does not list, by name. It SHALL report
-nothing when none of the keys is explicit. The `dangling-ref` check SHALL keep
-reporting a reference to a workflow with neither a skill nor a command file,
-SHALL pass a narrowed install whose bodies name only installed workflows, and
-SHALL report an ERROR for a `[[opsx:` marker left in any file cospec wrote.
+`cospec doctor` SHALL stop calling `profile`, `workflows` and `delivery` inert.
+Under the unchanged check id `openspec-global-profile` it SHALL report at INFO
+the explicit profile with its workflows, the explicit delivery, and per selected
+harness the installed cospec workflows the profile does not list, by name,
+reporting nothing when no key is explicit.
 
 #### Scenario: Explicit core on a twelve-workflow repo
 
@@ -374,3 +396,11 @@ SHALL report an ERROR for a `[[opsx:` marker left in any file cospec wrote.
 
 - **WHEN** a cospec-written skill file contains `[[opsx:if-workflow apply]]`
 - **THEN** doctor reports a `dangling-ref` ERROR naming that file
+
+#### Scenario: The dangling-reference check fits narrowed installs
+
+- **WHEN** `cospec doctor` runs its `dangling-ref` check
+- **THEN** it still reports a reference to a workflow with neither a skill nor a
+  command file, passes a narrowed install whose bodies name only installed
+  workflows, and reports an ERROR for a `[[opsx:` marker left in any file cospec
+  wrote

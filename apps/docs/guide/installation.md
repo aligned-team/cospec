@@ -1,8 +1,8 @@
 ---
 title: Installation
 description:
-  Install cospec via npm, pnpm, or bun, or as a standalone binary, then scaffold
-  a project with cospec init.
+  Install cospec with the install script, mise, Nix, npm, pnpm, or bun, or as a
+  standalone binary, then scaffold a project with cospec init.
 ---
 
 # Installation
@@ -10,6 +10,118 @@ description:
 cospec ships as `@aligned-team/cospec` on npm, and as standalone platform
 binaries on GitHub Releases for environments with no JS runtime at all. Either
 way you get the same CLI.
+
+## Supported platforms
+
+Every release publishes one standalone binary per platform. The install script,
+mise, Nix and the npm launcher all pick from the same set:
+
+| OS      | x64                 | arm64                 |
+| ------- | ------------------- | --------------------- |
+| macOS   | `macos-x64`         | `macos-arm64`         |
+| Linux   | `linux-x64` (glibc) | `linux-arm64` (glibc) |
+| Linux   | `linux-x64-musl`    | `linux-arm64-musl`    |
+| Windows | `windows-x64`       | `windows-arm64`       |
+
+The glibc and musl builds are not interchangeable: a glibc binary does not run
+on Alpine, and the musl binary does not run on Debian or Ubuntu. The musl build
+also links `libstdc++` and `libgcc` dynamically, so on a stock Alpine image
+install them first with `apk add libstdc++ libgcc`.
+
+Each release's assets are named `cospec-<version>-<platform>.tar.gz` (`.zip` on
+Windows), with the binary at the archive root, and a `SHA256SUMS` file lists the
+SHA-256 of every archive and of both install scripts.
+
+## Install script
+
+The install scripts download the binary for your OS, architecture and libc from
+a GitHub release, check it against that release's `SHA256SUMS`, and install it.
+If the checksum does not match, they stop before writing anything, and an
+existing `cospec` is left as it was. Neither script uses `sudo` or needs
+administrator rights.
+
+::: code-group
+
+```sh [macOS / Linux]
+curl -fsSL https://github.com/aligned-team/cospec/releases/latest/download/install.sh | sh
+```
+
+```powershell [Windows]
+irm https://github.com/aligned-team/cospec/releases/latest/download/install.ps1 | iex
+```
+
+:::
+
+| Variable                | Effect                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `COSPEC_VERSION`        | Install this release (for example `0.12.0`) instead of the latest; `latest` or unset means the latest.                                |
+| `COSPEC_INSTALL_DIR`    | Install directory. Default `~/.local/bin` (macOS, Linux) or `%LOCALAPPDATA%\cospec\bin` (Windows).                                    |
+| `COSPEC_RELEASE_BASE`   | Release root to download from, for a mirror. A local directory laid out like the GitHub release (`download/v<version>/…`) also works. |
+| `COSPEC_NO_MODIFY_PATH` | Windows only. Set to `1` to keep `install.ps1` from adding the install directory to your user `PATH`.                                 |
+
+`install.sh` never edits your shell profile. If the install directory is not on
+your `PATH`, it says so and you add it yourself. `install.ps1` adds the
+directory to your user `PATH` unless `COSPEC_NO_MODIFY_PATH=1`; open a new
+terminal to pick it up.
+
+`install.sh` is POSIX `sh` and needs `curl` or `wget`, `tar`, and `sha256sum` or
+`shasum`. `install.ps1` runs on Windows PowerShell 5.1 and PowerShell 7. On
+Apple silicon, a shell running under Rosetta still gets the native arm64 binary,
+and on Windows on Arm an emulated x64 PowerShell still gets the arm64 one.
+
+To read the script before running it, download it, inspect it, then run it:
+
+```sh
+curl -fsSLO https://github.com/aligned-team/cospec/releases/latest/download/install.sh
+less install.sh
+COSPEC_VERSION=0.12.0 sh install.sh
+```
+
+The `SHA256SUMS` of the same release lists `install.sh` and `install.ps1` too,
+so you can check the script itself with `sha256sum --check --ignore-missing`.
+
+## Via Nix
+
+The repository is a Nix flake that wraps the release binaries. It exposes
+`packages.default` and `overlays.default` for `x86_64-linux`, `aarch64-linux`,
+`x86_64-darwin` and `aarch64-darwin`:
+
+```sh
+nix run github:aligned-team/cospec -- --version
+nix profile install github:aligned-team/cospec
+```
+
+In your own flake, apply the overlay to get `pkgs.cospec`:
+
+```nix
+{
+  inputs.cospec.url = "github:aligned-team/cospec";
+
+  outputs = { nixpkgs, cospec, ... }: {
+    nixosConfigurations.example = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        (
+          { pkgs, ... }:
+          {
+            nixpkgs.overlays = [ cospec.overlays.default ];
+            environment.systemPackages = [ pkgs.cospec ];
+          }
+        )
+      ];
+    };
+  };
+}
+```
+
+The flake fetches the release archive with the SHA-256 published in that
+release's `SHA256SUMS`, so it never builds from source. On Linux it patches the
+glibc binary to use the Nix store's loader. The flake on `main` always wraps the
+latest release: the release workflow pins it in a follow-up commit,
+`chore(release): pin the nix flake to v<version>`, once that release is live. To
+stay on one release, lock your input to that commit
+(`github:aligned-team/cospec/<commit>`). A release tag does not carry its own
+pin, because the archive hashes only exist after the tag is cut.
 
 ## Via mise
 
@@ -53,11 +165,13 @@ bun run cospec init
 
 ## Standalone binary
 
-Download the binary for your platform from the
-[GitHub releases](https://github.com/aligned-team/cospec/releases) page. It is
-fully self-contained — no JS runtime, no `node_modules`, no separate install
-step. The binary embeds a pinned build of the OpenSpec CLI and runs it with its
-own bundled runtime, so every wrapped command (`new`, `validate`, `apply`,
+Download the archive for your platform from the
+[GitHub releases](https://github.com/aligned-team/cospec/releases) page and put
+the `cospec` binary on your `PATH`; the [install script](#install-script) does
+the same and checks the archive's checksum for you. The binary is fully
+self-contained — no JS runtime, no `node_modules`, no separate install step. The
+binary embeds a pinned build of the OpenSpec CLI and runs it with its own
+bundled runtime, so every wrapped command (`new`, `validate`, `apply`,
 `archive`, …) works out of the box. Run `cospec doctor` to see which OpenSpec
 build is actually in effect, including when it's the embedded one.
 

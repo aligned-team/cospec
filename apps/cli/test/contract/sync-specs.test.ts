@@ -350,7 +350,7 @@ describe('11. a failed scratch run leaves nothing in the real tree', () => {
       })
     writeFiles(root, {
       [`openspec/changes/archive/${formatLocalDate()}-${name}/.openspec.yaml`]:
-        'schema: feat\ncreated: 2026-10-05\nschemaVersion: 2\n',
+        'schema: feat\ncreated: 2026-10-05\nx-cospec-schema-version: 2\n',
     })
     const changes = hashTree(join(root, 'openspec/changes'))
     const specs = specsOf(root)

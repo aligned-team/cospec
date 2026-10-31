@@ -49,6 +49,23 @@ export interface NamedCollision {
   ) => string | undefined
 }
 
+/** Upstream's `install.scope` vocabulary (`core/version-check.js` `getCliInstallInfo`). */
+const INSTALL_SCOPES: ReadonlySet<string | null> = new Set([
+  'global',
+  'temporary',
+  'project',
+  'standalone',
+  'source',
+  null,
+])
+/** Upstream's `update.status` vocabulary (`checkForCliUpdate`). */
+const UPDATE_STATUSES: ReadonlySet<string> = new Set([
+  'available',
+  'current',
+  'disabled',
+  'offline',
+])
+
 /**
  * The named collision list. Every other key both tools emit must carry the
  * binary's value, and `compareDocuments` fails on any collision not named here.
@@ -73,6 +90,39 @@ export const NAMED_COLLISIONS: readonly NamedCollision[] = [
       return undefined
     },
   },
+  // `cospec version --json` keeps upstream's `version --json` shape but describes cospec:
+  // its install and its update check are cospec's own, and the wrapped binary's facts sit
+  // under `openspec`, a key upstream never uses (design decision 2).
+  ...(['location', 'packageManager', 'scope'] as const).map(
+    (key): NamedCollision => ({
+      path: `install.${key}`,
+      reason: `\`install.${key}\` describes how cospec is installed, not the wrapped binary (whose facts sit under \`openspec\`)`,
+      check: (_up, cs) => {
+        const value = cs[key]
+        if (value !== null && typeof value !== 'string')
+          return `install.${key} is ${JSON.stringify(value)}, neither a string nor null`
+        if (key === 'scope' && !INSTALL_SCOPES.has(value as string | null))
+          return `install.scope ${JSON.stringify(value)} is outside upstream's vocabulary`
+        return undefined
+      },
+    }),
+  ),
+  ...(['status', 'latest', 'command'] as const).map(
+    (key): NamedCollision => ({
+      path: `update.${key}`,
+      reason: `\`update.${key}\` reports cospec's own update check against its npm registry entry; the binary's checks OpenSpec's (and is disabled under cospec's wrapped env)`,
+      check: (_up, cs) => {
+        const value = cs[key]
+        if (key === 'status')
+          return UPDATE_STATUSES.has(value as string)
+            ? undefined
+            : `update.status ${JSON.stringify(value)} is outside upstream's vocabulary`
+        if (value !== null && typeof value !== 'string')
+          return `update.${key} is ${JSON.stringify(value)}, neither a string nor null`
+        return undefined
+      },
+    }),
+  ),
   {
     path: 'status[].fix',
     reason:

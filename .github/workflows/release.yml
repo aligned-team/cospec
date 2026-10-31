@@ -2,7 +2,8 @@
 # `@aligned-team/cospec` npm release and its compiled-binary GitHub release.
 #
 # Flow: dispatch → version → bump (commit to main via the GitHub API) → build +
-# stage-npm → publish → cleanup.
+# stage-npm → smoke-musl + smoke-windows → publish → pin-flake (+ docs) → cleanup
+# on failure.
 #
 #   1. version    — compute the next semver with cocogitto (`cog bump
 #                   --dry-run`, no manifest edit, no commit), derive the tag
@@ -34,7 +35,7 @@
 #                   NOTE: unlike GITHUB_TOKEN writes, app-token commits DO
 #                   trigger other workflows — the bump commit gets a normal
 #                   `ci.yml` run on main (see docs/release.md).
-#   3. build      — cross-compile the 7 bun targets (all on ubuntu-latest —
+#   3. build      — cross-compile the 8 bun targets (all on ubuntu-latest —
 #                   bun's `--compile --target=<t>` cross-compiles from one
 #                   host). Each leg emits TWO artifacts from the one binary: a
 #                   GitHub release archive named for mise github-backend
@@ -43,6 +44,14 @@
 #                   `@aligned-team/cospec-<platform>` npm tarball. The
 #                   linux-x64 (gnu) leg additionally runs the compiled binary
 #                   and asserts `--version` matches.
+#      smoke-musl,
+#      smoke-windows
+#                 — run the binaries the ubuntu leg cannot: the musl archives
+#                   in an Alpine container (x64 + arm64 runners) and the
+#                   Windows archives on windows x64 + arm64 runners, each
+#                   installed through scripts/install/install.{sh,ps1} from a
+#                   local copy of the release, so the installers and the
+#                   binaries are proven together before anything is public.
 #   4. stage-npm  — `mise run test:pack` (which includes the
 #                   `npm publish --dry-run` tarball validation), then the
 #                   bun-less standalone smoke (`mise run test:pack:standalone`):
@@ -50,14 +59,15 @@
 #                   platform tarballs with bun stripped from PATH, run cospec on
 #                   Node only. Then `bun pm pack` the EXACT main tarball
 #                   `publish` ships.
-#   5. publish    — only after build + stage-npm succeed: download the release
-#                   archives + the eight npm tarballs, generate SHA256SUMS over
-#                   the archives (mise-verifiable), write AI-generated notes via
+#   5. publish    — only after build + stage-npm + both smoke jobs succeed:
+#                   download the eight release archives + the nine npm
+#                   tarballs, add install.sh/install.ps1, generate SHA256SUMS
+#                   over all of them (mise-verifiable), write AI-generated notes via
 #                   `communique` (no GitHub side effect), create a DRAFT release
 #                   with those notes + the archives + SHA256SUMS attached, flip
 #                   it to published by RELEASE ID (NOT by tag — draft releases
 #                   aren't addressable by tag via `gh release edit`), and ONLY
-#                   THEN `npm publish` all eight packages (the seven platform
+#                   THEN `npm publish` all nine packages (the eight platform
 #                   packages first, the main package LAST), as the job's last
 #                   step — authenticated via npm trusted publishing (OIDC,
 #                   `id-token: write`, no npm token) with `--provenance`.
@@ -72,7 +82,13 @@
 #                   the tag + release and resumes publishing only the gaps + the
 #                   main package. main and the bump commit are left intact
 #                   (never force-pushed).
-#   7. build-docs,
+#   7. pin-flake  — after publish: rewrite nix/release.json from the published
+#                   SHA256SUMS (`release:flake-pin`) and commit it to main via
+#                   the same app-token createCommitOnBranch path as `bump`, so
+#                   the flake on main always wraps the latest release. Not in
+#                   cleanup's needs: npm is already live, so a failure here is
+#                   fixed by re-running this job, never by rolling back.
+#   8. build-docs,
 #      deploy-docs — needs: [bump, publish], so they only run once the GitHub
 #                   release and every npm package for this version are live.
 #                   Builds from `needs.bump.outputs.sha` so the deployed site
@@ -367,7 +383,7 @@ jobs:
   #      windows, binary at the archive root);
   #   2. an `@aligned-team/cospec-<platform>` npm tarball (the binary dropped
   #      into the checked-in template package, packed as `npm publish` ships it).
-  # bun cross-compiles all seven targets from this one ubuntu host. Linux is
+  # bun cross-compiles all eight targets from this one ubuntu host. Linux is
   # libc-split — verified empirically (bun 1.3.14, docker): the glibc build
   # fails on Alpine, and the "musl" build is NOT static (it needs the musl
   # loader + libstdc++/libgcc, failing on Debian/Ubuntu), so one Linux binary
@@ -411,6 +427,10 @@ jobs:
           - target: bun-windows-x64
             npm: win32-x64
             asset: windows-x64
+            archive: zip
+          - target: bun-windows-arm64
+            npm: win32-arm64
+            asset: windows-arm64
             archive: zip
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -499,6 +519,118 @@ jobs:
           path: npm-dist/*.tgz
           if-no-files-found: error
 
+  # ── Run the binaries the ubuntu build leg cannot, through the installers ───
+  # The musl archives are dynamically linked against the musl loader and do not
+  # run on the glibc build host, and nothing else executes the Windows
+  # binaries. Each leg lays the downloaded archives out like a GitHub release
+  # (download/v<version>/ + a SHA256SUMS computed here), installs through the
+  # real installer from that local copy, and runs the installed binary.
+  smoke-musl:
+    name: Smoke ${{ matrix.asset }} (Alpine)
+    needs: [version, bump, build]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            asset: linux-x64-musl
+          - runner: ubuntu-24.04-arm
+            asset: linux-arm64-musl
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+
+      - name: Download the musl archive
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: archive-${{ matrix.asset }}
+          path: release/download/v${{ needs.version.outputs.version }}
+
+      # `docker run`, not a job `container:` — GitHub's JavaScript actions
+      # (download-artifact above) cannot run inside an Alpine container on the
+      # arm64 runner. Alpine 3.22, pinned by its multi-arch index digest.
+      - name: Install with install.sh and run cospec in Alpine
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          ( cd "release/download/v${VERSION}" && sha256sum -- * > SHA256SUMS )
+          docker run --rm \
+            -v "${PWD}:/work:ro" \
+            -e VERSION -e ASSET \
+            alpine@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f \
+            sh -euc '
+              apk add --no-cache libstdc++ libgcc jq >/dev/null
+              COSPEC_RELEASE_BASE=/work/release COSPEC_VERSION="${VERSION}" \
+                sh /work/scripts/install/install.sh 2>/tmp/install.log ||
+                { cat /tmp/install.log >&2; exit 1; }
+              cat /tmp/install.log
+              grep -qx "cospec-install: selected asset cospec-${VERSION}-${ASSET}.tar.gz" /tmp/install.log
+              ACTUAL="$(~/.local/bin/cospec --version)"
+              [ "${ACTUAL}" = "${VERSION}" ] || {
+                echo "musl binary reports ${ACTUAL}, expected ${VERSION}" >&2; exit 1; }
+              ~/.local/bin/cospec version --json > /tmp/version.json
+              jq -e ".install.type == \"standalone\"" /tmp/version.json >/dev/null || {
+                echo "cospec version did not report install type standalone:" >&2
+                cat /tmp/version.json >&2; exit 1; }
+              ~/.local/bin/cospec --help >/dev/null
+              echo "${ASSET}: cospec ${ACTUAL} installed and running on Alpine"
+            '
+
+  smoke-windows:
+    name: Smoke ${{ matrix.asset }}
+    needs: [version, bump, build]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            asset: windows-x64
+          - runner: windows-11-arm
+            asset: windows-arm64
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+
+      - name: Download the Windows archive
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: archive-${{ matrix.asset }}
+          path: release/download/v${{ needs.version.outputs.version }}
+
+      - name: Install with install.ps1 and run cospec.exe
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          $dir = "release/download/v$env:VERSION"
+          $sums = Get-ChildItem -LiteralPath $dir -File | ForEach-Object {
+            "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          }
+          Set-Content -LiteralPath "$dir/SHA256SUMS" -Value ($sums -join "`n")
+          $env:COSPEC_RELEASE_BASE = (Resolve-Path release).Path
+          $env:COSPEC_VERSION = $env:VERSION
+          $env:COSPEC_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'cospec-bin'
+          $env:COSPEC_NO_MODIFY_PATH = '1'
+          ./scripts/install/install.ps1 *>&1 | Tee-Object -Variable log
+          if (-not ($log -match "selected asset cospec-$env:VERSION-$env:ASSET\.zip")) {
+            throw "install.ps1 did not select cospec-$env:VERSION-$env:ASSET.zip"
+          }
+          $actual = & (Join-Path $env:COSPEC_INSTALL_DIR 'cospec.exe') --version
+          if ($LASTEXITCODE -ne 0 -or $actual -ne $env:VERSION) {
+            throw "$env:ASSET binary reports '$actual' (exit $LASTEXITCODE), expected '$env:VERSION'"
+          }
+          Write-Host "$env:ASSET`: cospec $actual installed and running"
+
   # ── Pack + smoke-test the exact npm tarball `publish` will ship ────────────
   stage-npm:
     name: Stage npm tarball
@@ -551,7 +683,7 @@ jobs:
   # ── Collect artifacts, generate notes, publish atomically ──────────────────
   publish:
     name: Publish release
-    needs: [version, bump, build, stage-npm]
+    needs: [version, bump, build, stage-npm, smoke-musl, smoke-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -559,7 +691,7 @@ jobs:
       # token from this permission and exchanges it with the registry per
       # package — no long-lived npm token anywhere. The same identity signs the
       # provenance attestations. Requires a trusted publisher configured on npm
-      # for EACH of the eight packages (repo aligned-team/cospec, workflow
+      # for EACH of the nine packages (repo aligned-team/cospec, workflow
       # release.yml) — see docs/release.md.
       id-token: write
     steps:
@@ -573,8 +705,10 @@ jobs:
       # (which would resolve latest upstream and make the release non-reproducible).
       - uses: ./.github/actions/setup-mise
 
-      # GitHub release assets: the per-platform archives (for mise + direct
-      # download). SHA256SUMS covers exactly these, so mise can verify them.
+      # GitHub release assets: the eight per-platform archives (for mise, the
+      # installers, the Nix flake, and direct download) plus the two installer
+      # scripts. SHA256SUMS covers all of them, so mise and the installers can
+      # verify the archives and users can verify the installers.
       - name: Download release archives
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
@@ -582,7 +716,7 @@ jobs:
           path: dist/
           merge-multiple: true
 
-      # npm packages: the seven platform tarballs (npm-<platform>) plus the main
+      # npm packages: the eight platform tarballs (npm-<platform>) plus the main
       # launcher tarball (npm-tarball). Kept out of dist/ so they are NOT
       # attached to the GitHub release — they ship to npm.
       - name: Download npm tarballs
@@ -592,9 +726,32 @@ jobs:
           path: npm-dist/
           merge-multiple: true
 
+      - name: Add the installer scripts
+        run: cp scripts/install/install.sh scripts/install/install.ps1 dist/
+
+      # The archive set is a public contract (installers, flake, mise): fail
+      # before anything is published if a build leg went missing.
+      - name: Assert the release asset set
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          missing=0
+          for asset in linux-x64 linux-x64-musl linux-arm64 linux-arm64-musl \
+            macos-x64 macos-arm64; do
+            [ -f "dist/cospec-${VERSION}-${asset}.tar.gz" ] || { echo "::error::missing cospec-${VERSION}-${asset}.tar.gz"; missing=1; }
+          done
+          for asset in windows-x64 windows-arm64; do
+            [ -f "dist/cospec-${VERSION}-${asset}.zip" ] || { echo "::error::missing cospec-${VERSION}-${asset}.zip"; missing=1; }
+          done
+          COUNT=$(find dist -maxdepth 1 -name 'cospec-*' | wc -l)
+          if [ "${COUNT}" -ne 8 ]; then
+            echo "::error::expected 8 platform archives, found ${COUNT}"; missing=1
+          fi
+          exit "${missing}"
+
       - name: List assets
         run: |
-          echo "release archives:"; ls -lh dist/
+          echo "release assets:"; ls -lh dist/
           echo "npm tarballs:"; ls -lh npm-dist/
 
       - name: Generate SHA256SUMS
@@ -629,7 +786,8 @@ jobs:
             --verify-tag \
             --title "${TAG}" \
             --notes-file RELEASE_NOTES.md \
-            dist/cospec-*.tar.gz dist/cospec-*.zip dist/SHA256SUMS
+            dist/cospec-*.tar.gz dist/cospec-*.zip dist/SHA256SUMS \
+            dist/install.sh dist/install.ps1
 
       - name: Publish the draft (by release id — drafts aren't addressable by tag)
         env:
@@ -678,7 +836,7 @@ jobs:
           echo "npm ${NPM_VERSION} supports trusted publishing — OK"
 
       # This is deliberately the LAST step in the job — see the comment above
-      # "Create draft release" for why nothing fallible may follow it. The seven
+      # "Create draft release" for why nothing fallible may follow it. The eight
       # platform packages are published FIRST so the main package's
       # optionalDependencies resolve the instant it goes live; the main package
       # is published LAST.
@@ -693,7 +851,7 @@ jobs:
             exit 1
           fi
 
-          # Publishing 8 packages is NOT atomic — npm publish is irreversible and
+          # Publishing 9 packages is NOT atomic — npm publish is irreversible and
           # per-package, so a mid-loop failure (transient 5xx, per-package
           # token/OIDC hiccup) can leave the first N packages live while the rest,
           # and the main package, never ship. Make each publish idempotent so a
@@ -734,6 +892,76 @@ jobs:
             fi
           done
           publish_if_absent "${MAIN}"
+
+  # ── Pin the Nix flake to the release that just went live ──────────────────
+  # flake.nix wraps the release binaries through fetchurl with the hashes in
+  # nix/release.json. They only exist once `build` has run, so they cannot ride
+  # the bump commit; this job lands them on main in a follow-up commit through
+  # the same signed createCommitOnBranch path as `bump`. It is deliberately NOT
+  # in cleanup's needs: npm is live by now, so a failure here (main moved under
+  # expectedHeadOid, API hiccup) is recovered by re-running this job — or by
+  # `mise run release:flake-pin -- <version>` in a PR — never by a rollback.
+  pin-flake:
+    name: Pin the Nix flake
+    needs: [version, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+
+      - name: Rewrite nix/release.json from the published SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          SUMS="$(mktemp)"
+          gh release download "${TAG}" --repo "${{ github.repository }}" --pattern SHA256SUMS --output "${SUMS}" --clobber
+          bash scripts/mise-tasks/release/flake-pin "${VERSION}" --sums "${SUMS}"
+
+      - name: Mint app installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Commit the flake pin via the GitHub API
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          if git diff --quiet -- nix/release.json; then
+            echo "nix/release.json already pins ${TAG} — nothing to commit."
+            exit 0
+          fi
+          PAYLOAD_FILE=$(mktemp)
+          jq -n \
+            --arg repo "${{ github.repository }}" \
+            --arg headOid "$(git rev-parse HEAD)" \
+            --arg headline "chore(release): pin the nix flake to ${TAG}" \
+            --arg contents "$(base64 -w0 nix/release.json)" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {
+                input: {
+                  branch: { repositoryNameWithOwner: $repo, branchName: "main" },
+                  message: { headline: $headline },
+                  expectedHeadOid: $headOid,
+                  fileChanges: { additions: [{ path: "nix/release.json", contents: $contents }] }
+                }
+              }
+            }' > "${PAYLOAD_FILE}"
+          RESPONSE=$(gh api graphql --input "${PAYLOAD_FILE}")
+          rm -f "${PAYLOAD_FILE}"
+          if echo "${RESPONSE}" | jq -e '.errors' >/dev/null 2>&1; then
+            echo "::error::createCommitOnBranch failed: $(echo "${RESPONSE}" | jq -c '.errors')" >&2
+            exit 1
+          fi
+          echo "Flake pin commit: $(echo "${RESPONSE}" | jq -r '.data.createCommitOnBranch.commit.oid')"
 
   # ── Build + deploy the docs site, synced to this release ────────────────────
   # Builds apps/docs (VitePress 2.0.0-alpha.18) and publishes
@@ -842,7 +1070,7 @@ jobs:
   #   determined solely by npm state, since that is the irreversible half.
   cleanup:
     name: Roll back on failure
-    needs: [version, bump, build, stage-npm, publish]
+    needs: [version, bump, build, smoke-musl, smoke-windows, stage-npm, publish]
     if: failure()
     runs-on: ubuntu-latest
     # contents: write is for the GITHUB_TOKEN release deletion below; the tag
@@ -860,7 +1088,7 @@ jobs:
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       # Single source of truth for "is it safe to delete": has ANY of the
-      # eight packages (main + seven platform packages, matching the
+      # nine packages (main + eight platform packages, matching the
       # `build` job's matrix) for this version reached npm? `npm view` is a
       # public read, no token needed. Checked once here and passed to both
       # delete steps below so they never disagree with each other. This
@@ -884,6 +1112,7 @@ jobs:
             "@aligned-team/cospec-darwin-x64"
             "@aligned-team/cospec-darwin-arm64"
             "@aligned-team/cospec-win32-x64"
+            "@aligned-team/cospec-win32-arm64"
           )
           LIVE=""
           if [ -n "${VERSION}" ]; then

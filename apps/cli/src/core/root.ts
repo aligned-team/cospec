@@ -345,39 +345,54 @@ function hasPlanningShape(base: string): boolean {
   )
 }
 
+/** What `cospec init` may do at a target (`initPointerCheck`). */
+export type InitPointerCheck =
+  | { refusal: string }
+  | { refusal?: undefined; integrationsOnly: false }
+  | { refusal?: undefined; integrationsOnly: true; store: string; pointerFile: string }
+
 /**
- * `cospec init`'s pointer guard, a port of the binary's (`core/init.js`, which runs before
- * its legacy cleanup, language check and every write): the nearest ancestor of `target`
+ * `cospec init`'s pointer guard, a port of the binary's (`core/init.js`, 1.15.0, which runs
+ * before its legacy cleanup, language check and every write): the nearest ancestor of `target`
  * (itself included) with an `openspec/` directory, when that directory has no planning shape,
- * is a config-only pointer dir. Init refuses it, rather than grow a root there or in a
- * subdirectory of it. Returns the refusal's text, spelled `cospec`, or undefined when init may
- * go on. A directory with a planning shape is a real root: its `store:` line is ignored.
+ * is a config-only pointer dir. A malformed `store:` line there is refused. A valid one is
+ * refused below the pointer repo's root, and at the root itself init installs integrations
+ * only — the store must still resolve, as the binary resolves it, and the pointer's config and
+ * planning tree are left alone. A directory with a planning shape is a real root: its `store:`
+ * line is ignored.
  */
-export function initPointerRefusal(target: string): string | undefined {
-  let dir = canonicalStart(target)
+export async function initPointerCheck(target: string): Promise<InitPointerCheck> {
+  const start = canonicalStart(target)
+  let dir = start
   while (!isDirectory(join(dir, 'openspec'))) {
     const parent = dirname(dir)
-    if (parent === dir) return undefined
+    if (parent === dir) return { integrationsOnly: false }
     dir = parent
   }
-  if (hasPlanningShape(dir)) return undefined
+  if (hasPlanningShape(dir)) return { integrationsOnly: false }
   const pointer = configStorePointer(dir)
-  if (pointer.filePath === null) return undefined
+  if (pointer.filePath === null) return { integrationsOnly: false }
   if (pointer.malformed !== undefined) {
     const problem =
       pointer.malformed === 'unparseable'
         ? 'the config file could not be read as YAML'
         : 'the store key must be a single store id string'
-    return (
-      `The store declaration in ${pointer.filePath} is invalid (${problem}). ` +
-      'Fix or remove the store: line before running cospec init.'
-    )
+    return {
+      refusal:
+        `The store declaration in ${pointer.filePath} is invalid (${problem}). ` +
+        'Fix or remove the store: line before running cospec init.',
+    }
   }
-  if (pointer.value === undefined) return undefined
-  return (
-    `This repo's planning is externalized to store '${pointer.value}' (${pointer.filePath}). ` +
-    'Remove the store: line first to convert this repo to a local OpenSpec root.'
-  )
+  if (pointer.value === undefined) return { integrationsOnly: false }
+  if (dir !== start)
+    return {
+      refusal:
+        `This repo's planning is externalized to store '${pointer.value}' (${pointer.filePath}). ` +
+        'Run cospec init from the pointer repo root to install integrations.',
+    }
+  // The binary resolves the root here, so an unregistered store fails init.
+  await selectRoot(start, undefined, true)
+  return { integrationsOnly: true, store: pointer.value, pointerFile: pointer.filePath }
 }
 
 /**

@@ -365,21 +365,59 @@ describe('the fragment replaces each body’s own grounding (design D3, task 8.2
 })
 
 describe('ported provenance in harness.yaml (design D10, task 8.3)', () => {
-  const PINNED = '1.13.1'
+  const PINNED = '1.15.0'
   const entry = (passage: string, file: string) => ({
     passage,
     file: `dist/core/templates/workflows/${file}`,
     pin: PINNED,
   })
   const OWN: Record<string, string[][]> = {
-    propose: [['inspect-before-drafting', 'propose.js']],
-    ff: [['inspect-before-drafting', 'ff-change.js']],
-    explore: [['ascii-diagrams', 'explore.js']],
-    apply: [['operation-inputs-precedence', 'apply-change.js']],
-    archive: [['archive-inputs-lookup', 'archive-change.js']],
+    propose: [
+      ['inspect-before-drafting', 'propose.js'],
+      ['glob-output-path-check', 'propose.js'],
+    ],
+    continue: [
+      ['partial-glob-artifact', 'continue-change.js'],
+      ['glob-output-path-check', 'continue-change.js'],
+    ],
+    ff: [
+      ['inspect-before-drafting', 'ff-change.js'],
+      ['glob-output-path-check', 'ff-change.js'],
+      ['ask-when-critically-unclear', 'ff-change.js'],
+    ],
+    update: [
+      ['glob-new-file-exception', 'update-change.js'],
+      ['skipped-artifacts-untouched', 'update-change.js'],
+    ],
+    apply: [
+      ['operation-inputs-precedence', 'apply-change.js'],
+      ['verify-before-archive', 'apply-change.js'],
+    ],
+    verify: [
+      ['delta-section-coverage', 'verify-change.js'],
+      ['removed-baseline-exact-name', 'verify-change.js'],
+      ['artifacts-by-output-path', 'verify-change.js'],
+      ['skipped-checks-not-passing', 'verify-change.js'],
+      ['schema-aware-task-progress', 'archive-change.js'],
+    ],
+    archive: [
+      ['archive-inputs-lookup', 'archive-change.js'],
+      ['schema-aware-task-progress', 'archive-change.js'],
+      ['stop-on-blocking-sync', 'archive-change.js'],
+    ],
     'bulk-archive': [
       ['archive-inputs-lookup', 'bulk-archive-change.js'],
       ['collision-resolution', 'bulk-archive-change.js'],
+      ['schema-aware-task-progress', 'bulk-archive-change.js'],
+      ['stop-on-blocking-sync', 'bulk-archive-change.js'],
+    ],
+    explore: [
+      ['ascii-diagrams', 'explore.js'],
+      ['schema-defined-capture-targets', 'explore.js'],
+    ],
+    onboard: [
+      ['task-breakdown-approval', 'onboard.js'],
+      ['task-groups-own-tests-docs', 'onboard.js'],
     ],
   }
 
@@ -427,7 +465,7 @@ describe('ported provenance in harness.yaml (design D10, task 8.3)', () => {
 
   test('an entry missing its file or pin fails the read, naming the workflow', () => {
     const yaml = readFileSync(join(CANON, 'harness.yaml'), 'utf8').replace(
-      /        pin: 1\.13\.1\n/,
+      /        pin: 1\.15\.0\n/,
       '',
     )
     const dir = canonWith({ 'harness.yaml': yaml })

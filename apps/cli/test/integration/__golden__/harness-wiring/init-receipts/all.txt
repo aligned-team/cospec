@@ -2,9 +2,9 @@ cospec initialized in <TMP>  (state A)
 
 Schemas: 11 types in openspec/schemas/
 Config:  openspec/config.yaml (schema: feat)
-Files:   866 created
-Harness: claude, codex, opencode, agents, amazon-q, antigravity, auggie, bob, cline, command-code, codeartsagent, devin, forgecode, codebuddy, continue, costrict, crush, cursor, factory, gemini, github-copilot, hermes, iflow, junie, kilocode, kimi, kiro, lingma, minimax-code, vibe, oh-my-pi, pi, codeassistant, qoder, qwen, rovodev, roocode, trae, zed, zcode
-         skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for codex)
+Files:   1010 created
+Harness: claude, codex, opencode, agents, amazon-q, amp, antigravity, atomcode, auggie, bob, cline, command-code, codeartsagent, dsh, devin, forgecode, codebuddy, codestudio, continue, costrict, crush, cursor, easycode, factory, gemini, github-copilot, gigacode, grok, gsd, hermes, iflow, junie, kilocode, kimi, kiro, lingma, minimax-code, vibe, oh-my-pi, pi, codeassistant, qoder, qwen, rovodev, roocode, trae, veai, warp, zed, zcode
+         skills for codex/agents/amp/antigravity/gsd/zed share the .agents/skills root (one tree, written for codex)
 Permissions: merged Bash(cospec *) into .claude/settings.json
 
 Skipped GitHub Copilot cloud files (opt-in). Enable with 'cospec init --copilot-cloud'.
@@ -13,6 +13,8 @@ Restart Claude Code to pick up /cospec commands.
 Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.
 OpenCode: reload the project to pick up /cospec- commands.
 Shared .agents/skills — read by Codex ($cospec-*), Zed, Antigravity and other AGENTS.md-aware assistants; start a new session to load the skills. No slash commands are generated for this target.
+Amp reads the shared .agents/skills; start a new session to load the skills. No slash commands are generated for this target.
+GSD reads the shared .agents/skills and picks a skill by its description; ask it to use a cospec skill by name. No slash commands are generated for this target.
 Setup required for Hermes Agent: Hermes only loads skills from ~/.hermes/skills by default. Add this project's .hermes/skills directory to skills.external_dirs in ~/.hermes/config.yaml so Hermes picks up the generated OpenSpec skills.
 Zed Agent reads the shared .agents/skills; start a new session to load the skills. No slash commands are generated for this target.
 Restart your IDE to refresh commands.

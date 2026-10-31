@@ -47,6 +47,7 @@ import {
 import { readConfigFile } from '../core/project-config-read.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
+import { configRulesIssues } from '../core/rules/config.ts'
 import {
   adapterFor,
   commandPath,
@@ -426,6 +427,14 @@ async function checkConfig(root: Root, cwd: string, findings: Finding[]): Promis
   }
   const doc = read.doc
   await checkRuleKeys(root, rel, doc, findings)
+  for (const issue of configRulesIssues(doc, rel)) {
+    findings.push({
+      level: 'WARNING',
+      check: 'config',
+      message: issue.message,
+      remedy: issue.hint ?? 'quote the rules item',
+    })
+  }
   const schema =
     doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).schema : undefined
   if (typeof schema === 'string' && !(COSPEC_TYPES as readonly string[]).includes(schema)) {
@@ -634,11 +643,24 @@ function checkChangeSchemas(cwd: string, findings: Finding[]): void {
   }
 }
 
-/** `cospec doctor` lists active changes still on `schemaVersion` 1 (DESIGN §5). */
+/**
+ * `cospec doctor` lists active changes still on `schemaVersion` 1 (DESIGN §5),
+ * and current ones still stamped under the legacy `schemaVersion` key, which
+ * OpenSpec 1.14+ reports as an unknown key.
+ */
 function checkSchemaVersions(cwd: string, findings: Finding[]): void {
   for (const change of listChanges(cwd)) {
     if (!isCospecType(change.schema)) continue
-    if ((change.schemaVersion ?? 1) >= 2) continue
+    if ((change.schemaVersion ?? 1) >= 2) {
+      if (change.legacyStamp === true)
+        findings.push({
+          level: 'INFO',
+          check: 'schema-version',
+          message: `change '${change.id}' still carries the legacy \`schemaVersion\` stamp`,
+          remedy: `run \`cospec migrate ${change.id}\` to rewrite it as \`x-cospec-schema-version\``,
+        })
+      continue
+    }
     findings.push({
       level: 'INFO',
       check: 'schema-version',

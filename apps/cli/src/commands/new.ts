@@ -14,7 +14,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { userSchemasDir } from '../core/change-metadata.ts'
+import { SCHEMA_VERSION_KEY, userSchemasDir } from '../core/change-metadata.ts'
 import {
   CHANGE_ID_RE,
   changesDir,
@@ -36,12 +36,12 @@ import { closest } from './apply.ts'
 /** The schemaVersion `cospec new` stamps into every newly created change (DESIGN §5). */
 export const NEW_SCHEMA_VERSION = 2
 
-/** Stamp `schemaVersion: 2` into a freshly created change's `.openspec.yaml`,
+/** Stamp `x-cospec-schema-version: 2` into a freshly created change's `.openspec.yaml`,
  * preserving the `schema:`/`created:` fields openspec already wrote. */
 function stampSchemaVersion(changeDir: string): void {
   const path = join(changeDir, '.openspec.yaml')
   const doc = (parseYaml(readFileSync(path, 'utf8')) ?? {}) as Record<string, unknown>
-  doc.schemaVersion = NEW_SCHEMA_VERSION
+  doc[SCHEMA_VERSION_KEY] = NEW_SCHEMA_VERSION
   writeFileSync(path, stringifyYaml(doc, { lineWidth: 0 }))
 }
 

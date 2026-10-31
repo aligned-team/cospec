@@ -17,8 +17,14 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers, syncBlockers, type ParsedBlockers } from '../core/blockers.ts'
 import {
+  readUnknownChangeMetadataKeys,
+  unknownMetadataKeysMessage,
+  UPSTREAM_UNKNOWN_KEYS_RE,
+} from '../core/change-metadata.ts'
+import {
   listChanges,
   openspecDir,
+  projectVerificationLayers,
   readArchiveIndex,
   resolveChange,
   resolveSchema,
@@ -45,6 +51,7 @@ import {
   type CospecType,
 } from '../core/rules/type-facts.ts'
 import { resolveRootOrDocument } from '../core/upstream-keys.ts'
+import { readVerificationVerdict } from '../core/verification-verdict.ts'
 import type { VerificationVerdict } from '../core/verification.ts'
 import type { ArchiveWarning } from './status.ts'
 import { readValidateContext, validateChange } from './validate.ts'
@@ -170,6 +177,33 @@ export function isArchiveReady(input: {
     gate.state === 'clear' &&
     verdict.blockedReasons.length === 0
   )
+}
+
+/**
+ * The verify workflow, as an agent invokes it. The CLI cannot tell which
+ * harness is reading, so the Claude Code spelling stands as the example.
+ */
+export const VERIFY_WORKFLOW = 'the verify workflow (/cospec:verify in Claude Code)'
+
+/** The next command once every tracked task is checked: strict validation, then verify. */
+export function tasksCompleteNext(changeId: string): string {
+  return `cospec validate ${changeId} --strict`
+}
+
+/**
+ * What `apply` and `status` say once every tracked task is checked (OpenSpec
+ * 1.15.0 parity): the tasks are complete and verification comes next. It
+ * names archive only once `archiveReady` — never while the ledger still
+ * refuses.
+ */
+export function tasksCompleteGuidance(changeId: string, archiveReady: boolean): string {
+  const lead =
+    `All tracked tasks are complete. Next: run ${VERIFY_WORKFLOW} and ` +
+    `\`${tasksCompleteNext(changeId)}\`.`
+  return archiveReady
+    ? `${lead} Once verification passes, archive with \`cospec archive ${changeId}\`.`
+    : `${lead} The change is not ready to archive yet: \`cospec archive\` refuses until the ` +
+        'verification ledger and every other archive gate pass.'
 }
 
 /** Whether an artifact's generated file exists (mirrors openspec detectCompleted). */
@@ -373,7 +407,20 @@ async function applyInstructions(
   // `cospec archive` relays them, so `--json` stdout remains the one document.
   if (answer.stderr.length > 0) process.stderr.write(answer.stderr)
   if ('refused' in answer) return relayRefusal(ctx, answer.refused, warnings)
-  return relayApplyInstructions(answer.instructions, change.id)
+  return withMetadataWarning(relayApplyInstructions(answer.instructions, change.id), change)
+}
+
+/**
+ * The payload with the binary's unknown-metadata-key warning replaced by
+ * cospec's (`change/unknown-metadata-key`), which does not count cospec's own
+ * legacy `schemaVersion` stamp as unknown.
+ */
+function withMetadataWarning(instr: ApplyInstructionsJson, change: Change): ApplyInstructionsJson {
+  const keys = readUnknownChangeMetadataKeys(change.dir)
+  const kept = (instr.warnings ?? []).filter((w) => !UPSTREAM_UNKNOWN_KEYS_RE.test(w))
+  const all = keys.length === 0 ? kept : [unknownMetadataKeysMessage(keys), ...kept]
+  const { warnings: _warnings, ...rest } = instr
+  return all.length === 0 ? rest : { ...rest, warnings: all }
 }
 
 /** Legacy schema: no cospec gate — delegate to openspec and exit per its state. */
@@ -588,8 +635,28 @@ async function apply(ctx: CommandContext): Promise<number> {
   const softAcknowledged = allowSoft ? gate.soft.map((s) => s.slug) : []
 
   // Step 5: fetch the apply payload from openspec; its refusal is the answer.
-  const instr = await applyInstructions(ctx, root, change, warnings)
-  if (typeof instr === 'number') return instr
+  const fetched = await applyInstructions(ctx, root, change, warnings)
+  if (typeof fetched === 'number') return fetched
+
+  // Every tracked task checked: verification is next, and archive is named only
+  // once its gates would pass.
+  const tasksDone = fetched.state === 'all_done'
+  const archiveReady =
+    tasksDone &&
+    isArchiveReady({
+      requiredDone: true,
+      tasks: { total: fetched.progress.total, complete: fetched.progress.complete },
+      gate,
+      verdict: readVerificationVerdict(
+        change.dir,
+        { id: change.id, schema: change.schema },
+        applyRequires,
+        projectVerificationLayers(base),
+      ),
+    })
+  const instr = tasksDone
+    ? { ...fetched, instruction: tasksCompleteGuidance(change.id, archiveReady) }
+    : fetched
 
   // Step 6: merged clear-gate output.
   if (flags.json) {
@@ -600,6 +667,7 @@ async function apply(ctx: CommandContext): Promise<number> {
           type: change.schema,
           ...warningsKey(warnings),
           gate: { state: 'clear', hardBlockers: [], softAcknowledged, synced: heal.synced },
+          ...(tasksDone ? { next: tasksCompleteNext(change.id), archiveReady } : {}),
           apply: instr,
         },
         null,

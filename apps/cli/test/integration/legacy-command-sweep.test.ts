@@ -52,7 +52,8 @@ function plantEntries(): Planted {
     for (const pattern of [entry.pattern].flat()) {
       const content = pattern.includes('/opsx-') ? ROOT_GUARD : MARKED
       planted.leftovers.set(pattern.replaceAll('*', 'proposal'), content)
-      planted.decoys.set(pattern.replaceAll('*', 'notes'), USER_TEXT)
+      // An exact-name pattern (Kilo's) has no same-shaped user file to plant beside it.
+      if (pattern.includes('*')) planted.decoys.set(pattern.replaceAll('*', 'notes'), USER_TEXT)
     }
   }
   return planted

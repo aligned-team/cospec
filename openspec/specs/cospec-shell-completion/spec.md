@@ -20,22 +20,13 @@ press.
 
 ### Requirement: Completion scripts are generated from cospec's own command table
 
-`cospec completion [bash|zsh|fish|powershell]` and its upstream spelling
-`cospec completion generate [shell]` SHALL print a shell completion script for
-the `cospec` binary to stdout and exit 0, deriving every command name, summary,
-positional source and flag from cospec's own command table
-(`apps/cli/src/core/command-table.ts`) and the global-flag list rather than from
-the wrapped binary's registry. Printing SHALL have no side effects: neither
-spelling SHALL write to, read, or offer to modify any shell rc file or
-completions directory, and no generated script SHALL emit any instruction that
-invokes bare `openspec`. The product name "OpenSpec" inside a flag or command
-description copied from the command table is prose, not an invocation, and is
-allowed. Hidden command entries SHALL be excluded from the generated script.
-Flags marked pending in the table SHALL be excluded from completion until the
-change that implements them lands. Because the completion spec, `--help` and the
-argv parser read the same table rows, a flag the parser accepts SHALL always
-complete, and a flag that completes SHALL always parse. Writing a script into a
-user's home is the job of `completion install` alone.
+`cospec completion [bash|zsh|fish|powershell]` and
+`cospec completion generate [shell]` SHALL print a completion script for
+`cospec` to stdout and exit 0, deriving every command, summary, positional
+source and flag from cospec's command table and global-flag list, never the
+wrapped registry. Printing SHALL have no side effects on rc files or completion
+directories, and SHALL exclude hidden commands and pending flags. A flag that
+parses SHALL complete, and one that completes SHALL parse.
 
 #### Scenario: Every non-hidden command appears in each shell's script
 
@@ -64,20 +55,28 @@ user's home is the job of `completion install` alone.
 - **THEN** no generated script offers that flag, and it reappears in completion
   the moment its marking changes to handled
 
+#### Scenario: Generated scripts never invoke bare openspec
+
+- **WHEN** any shell's script is generated
+- **THEN** no line invokes bare `openspec`, while the product name "OpenSpec"
+  inside a description copied from the command table is allowed as prose
+
+#### Scenario: Only install writes into the home
+
+- **WHEN** either printing spelling runs
+- **THEN** it neither reads, writes, nor offers to modify any shell rc file or
+  completions directory; writing into a user's home is the job of
+  `completion install` alone
+
 ### Requirement: Completion shell resolution and its refusals
 
-`cospec completion`, `cospec completion generate`, `cospec completion install`
-and `cospec completion uninstall` invoked with no shell argument SHALL detect
-the shell from the basename of `$SHELL`, stripping a leading `-`, and, when
-`$SHELL` is unset and `PSModulePath` is set, SHALL resolve `powershell`. No
-spelling SHALL fork a process to probe its parent. A shell argument SHALL be
-read case-insensitively. An undetectable or unsupported shell SHALL exit 1 with
-a message naming the supported shells (`bash`, `zsh`, `fish`, `powershell`) and
-the explicit `cospec completion <shell>` form of the operation that was asked.
-`cospec completion --json`, and the same flag on any completion subcommand,
-SHALL exit 1 with a one-document error envelope, because a shell script is not a
-JSON document and emitting it under `--json` would break the single-document
-invariant.
+Every completion spelling given no shell SHALL detect it from the basename of
+`$SHELL`, stripping a leading `-`, or resolve `powershell` when `$SHELL` is
+unset and `PSModulePath` is set, never forking to probe its parent. A shell
+argument SHALL be case-insensitive. An undetectable or unsupported shell SHALL
+exit 1 naming the supported shells and the explicit `cospec completion <shell>`
+form. `--json` on any completion spelling SHALL exit 1 with a one-document error
+envelope.
 
 #### Scenario: Shell is detected from the environment
 
@@ -103,20 +102,20 @@ invariant.
 - **WHEN** `cospec completion` runs with `SHELL` unset and `PSModulePath` set
 - **THEN** the PowerShell script is printed and the command exits 0
 
+#### Scenario: Shell argument is case-insensitive
+
+- **WHEN** `cospec completion ZSH` runs
+- **THEN** it prints the zsh script exactly as `cospec completion zsh` does
+
 ### Requirement: The dynamic completion source fails silently
 
-`cospec __complete <changes|specs|types|schemas|archived-changes>` SHALL be a
-hidden command emitting one tab-separated id and description pair per line on
-stdout, and SHALL exit 1 with **no output on stdout or stderr** on any failure —
-an unresolvable root, a wrapped-call error, an unknown source name — because a
-Tab press must never be corrupted by an error message. The source name SHALL be
-matched case-insensitively, as the wrapped binary matches it. `changes` and
-`specs` SHALL be sourced from the existing typed wrapped list calls; `types`
-SHALL be sourced from `COSPEC_TYPES` with no wrapped spawn at all; `schemas`
-SHALL be sourced from `openspec schemas --json`, one line per schema name
-described by its `description`; `archived-changes` SHALL list the non-dot
-directories under the resolved root's `openspec/changes/archive/`, sorted, each
-described `archived change`, with no wrapped spawn.
+Hidden `cospec __complete <changes|specs|types|schemas|archived-changes>` SHALL
+emit one tab-separated id and description per line on stdout, and on any failure
+(unresolvable root, wrapped-call error, unknown source) SHALL exit 1 with no
+output on stdout or stderr. The source name SHALL match case-insensitively.
+`changes`/`specs` SHALL come from the typed wrapped list calls, `types` from
+`COSPEC_TYPES`, `schemas` from `openspec schemas --json`, `archived-changes`
+from the archive directory.
 
 #### Scenario: Change ids complete inside a repo
 
@@ -150,6 +149,14 @@ described `archived change`, with no wrapped spawn.
 - **THEN** stdout lists both directory names, as
   `openspec __complete archived-changes` does
 
+#### Scenario: Source details
+
+- **WHEN** `cospec __complete` serves `types`, `schemas` or `archived-changes`
+- **THEN** `types` spawns no wrapped binary; `schemas` prints one line per
+  schema name described by its `description`; `archived-changes` lists the
+  non-dot directories under `openspec/changes/archive/`, sorted, each described
+  `archived change`, with no wrapped spawn
+
 ### Requirement: Generated scripts complete schema names
 
 The bash, zsh and fish scripts `cospec completion` generates SHALL complete the
@@ -166,29 +173,12 @@ complete schema names. No generated script SHALL call the `openspec` binary.
 ### Requirement: Completion install wires a shell to cospec's script
 
 `cospec completion install [shell] [--verbose]` SHALL write the script
-`cospec completion <shell>` prints to the shell's completions location and wire
-the shell to load it, and SHALL exit 0 reporting the reload command. The
-locations, derived from the home directory (`os.homedir()`) and never from
-`ZDOTDIR` or `XDG_CONFIG_HOME`, are: zsh `~/.zsh/completions/_cospec`, or
-`${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/completions/_cospec` when Oh My Zsh
-is present (`$ZSH` set, or `~/.oh-my-zsh` a directory); bash
-`~/.local/share/bash-completion/completions/cospec`; fish
-`~/.config/fish/completions/cospec.fish`; PowerShell `CospecCompletion.ps1`
-beside `$PROFILE` (else `~/.config/powershell/` or, on Windows,
-`~/Documents/PowerShell/`). Wiring SHALL edit `~/.zshrc` (standard zsh only),
-`~/.bashrc` or `$PROFILE` inside a block bracketed by `# COSPEC:START` and
-`# COSPEC:END`, and SHALL NOT edit any rc file for fish or Oh My Zsh. A missing
-rc file SHALL be created holding the bare block; a zsh or bash block SHALL be
-inserted at the top followed by one blank line; a PowerShell block SHALL be
-appended; an existing block SHALL be replaced in place; a start marker without
-its end marker, or the reverse, SHALL NOT be edited and SHALL be reported. Every
-name and line cospec writes SHALL invoke `cospec` and SHALL NOT contain
-`openspec` as a command token, and no rc block line and no file name SHALL
-contain the token `openspec` at all. With `OPENSPEC_NO_AUTO_CONFIG=1` the rc
-file SHALL NOT be edited and the lines to add SHALL be printed instead. With
-`--verbose` the installed path, the backup path when one was made, and the rc
-file configured SHALL be printed. A script that cannot be written SHALL fail
-with `✗ <reason>` on stderr and exit 1, leaving every rc file untouched.
+`cospec completion <shell>` prints to the shell's completions location under
+`os.homedir()` (never `ZDOTDIR`/`XDG_CONFIG_HOME`), wire the shell to load it in
+a `# COSPEC:START`/`# COSPEC:END` rc block, and exit 0 reporting the reload
+command. Nothing written SHALL contain the token `openspec`. An unwritable
+script SHALL fail with `✗ <reason>` on stderr, exit 1, and leave every rc file
+untouched.
 
 #### Scenario: Install and uninstall round-trip under a temporary home
 
@@ -223,6 +213,44 @@ with `✗ <reason>` on stderr and exit 1, leaving every rc file untouched.
   `PROFILE` under a temporary directory and with `ZSH`, `ZSH_CUSTOM` and
   `PSModulePath` removed, and a test whose resolved home is outside that
   directory fails
+
+#### Scenario: Install locations per shell
+
+- **WHEN** the script is installed
+- **THEN** zsh writes `~/.zsh/completions/_cospec`, or
+  `${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/completions/_cospec` when Oh My
+  Zsh is present (`$ZSH` set, or `~/.oh-my-zsh` a directory); bash writes
+  `~/.local/share/bash-completion/completions/cospec`; fish writes
+  `~/.config/fish/completions/cospec.fish`; PowerShell writes
+  `CospecCompletion.ps1` beside `$PROFILE` (else `~/.config/powershell/` or, on
+  Windows, `~/Documents/PowerShell/`)
+
+#### Scenario: Rc block editing rules
+
+- **WHEN** install wires `~/.zshrc` (standard zsh only), `~/.bashrc` or
+  `$PROFILE`
+- **THEN** a missing rc file is created holding the bare block; a zsh or bash
+  block is inserted at the top followed by one blank line; a PowerShell block is
+  appended; an existing block is replaced in place; and a start marker without
+  its end marker, or the reverse, is not edited and is reported
+
+#### Scenario: Written names and lines invoke cospec
+
+- **WHEN** install writes files and rc lines
+- **THEN** every name and line invokes `cospec`, none contains `openspec` as a
+  command token, and no rc block line or file name contains `openspec` at all
+
+#### Scenario: Verbose install reports its paths
+
+- **WHEN** `cospec completion install --verbose` succeeds
+- **THEN** it prints the installed path, the backup path when one was made, and
+  the rc file configured
+
+#### Scenario: An unwritable script leaves rc files untouched
+
+- **WHEN** the completion script cannot be written
+- **THEN** stderr carries `✗ <reason>`, the exit code is 1, and no rc file is
+  modified
 
 ### Requirement: Completion install is idempotent and backs up a changed script
 
@@ -265,13 +293,12 @@ file or an `# OPENSPEC:START` … `# OPENSPEC:END` block the wrapped binary's
 
 ### Requirement: Completion uninstall confirms before removing
 
-`cospec completion uninstall [shell] [-y|--yes]` SHALL remove the script and the
-rc block independently, answering `✗ Completion script is not installed` on
-stderr with exit 1 only when neither exists. Without `-y` it SHALL ask for
-confirmation on a terminal, remove only on `y` or `yes`, and otherwise print
-`Uninstall cancelled.` and exit 0 having removed nothing. Without `-y` and
-without a terminal on stdin it SHALL refuse with exit 1, naming `-y`, and remove
-nothing. A marker error in the rc file SHALL be a failure (exit 1).
+`cospec completion uninstall [shell] [-y|--yes]` SHALL remove the script and rc
+block independently, failing with `✗ Completion script is not installed` on
+stderr and exit 1 only when neither exists. Without `-y` it SHALL confirm on a
+terminal, remove only on `y`/`yes`, and otherwise print `Uninstall cancelled.`
+and exit 0; with no terminal on stdin it SHALL exit 1 naming `-y` and remove
+nothing. An rc marker error SHALL exit 1.
 
 #### Scenario: A non-interactive uninstall needs -y
 
@@ -300,17 +327,13 @@ nothing. A marker error in the rc file SHALL be a failure (exit 1).
 
 ### Requirement: PowerShell completion registers cospec
 
-`cospec completion powershell` SHALL print a PowerShell script rendered from the
-same command table as the other shells that registers a native argument
-completer for `cospec`
-(`Register-ArgumentCompleter -Native -CommandName cospec`), completing commands,
-subcommands, flags, the closed shell values and the dynamic sources through
-`cospec __complete`. The script SHALL be ASCII only, SHALL have no line where
-`openspec` is a command token, and SHALL quote every string so that no summary
-or description can expand in PowerShell. `cospec completion install powershell`
-SHALL wire the profile as the install requirement describes, reading and writing
-the profile in the encoding it already has (UTF-8, UTF-8 with a BOM, or UTF-16
-LE) and refusing a UTF-16 BE profile.
+`cospec completion powershell` SHALL print a script, rendered from the shared
+command table, registering
+`Register-ArgumentCompleter -Native -CommandName cospec` over commands,
+subcommands, flags, shell values and `cospec __complete` sources. It SHALL be
+ASCII only, never use `openspec` as a command token, and quote every string so
+none expands. `cospec completion install powershell` SHALL keep the profile's
+encoding (UTF-8, UTF-8 BOM, UTF-16 LE) and refuse UTF-16 BE.
 
 #### Scenario: The PowerShell script is cospec's
 
@@ -336,23 +359,12 @@ LE) and refusing a UTF-16 BE profile.
 ### Requirement: A one-shot completion tip
 
 After a command's own output, cospec SHALL print
-`Tip: Run 'cospec completion install' for shell completions`, preceded by a
-blank line, once, on stderr. The tip SHALL be recorded as shown by writing
-`completionTipSeen: true` into `<config dir>/openspec/config.json` (the
-machine-global config the wrapped binary reads: `$XDG_CONFIG_HOME`, else
-`%APPDATA%` on Windows, else `~/.config`), before the message prints. The write
-SHALL re-read the file, change only that key, and replace the file atomically
-with owner-only permissions. A missing config SHALL be treated as empty; a
-config that is not valid JSON, or whose root is not an object, SHALL be left
-unmodified and SHALL NOT tip. The tip SHALL NOT print, and SHALL leave the
-config unmodified (deferred, not consumed), when `--json` was given, the command
-is `completion` (any subcommand), `help`, or a hidden command, or stderr is not
-a terminal. It SHALL NOT print, and SHALL NOT read the config, when `CI` is set
-to anything but `''`, `false`, `0`, `no` or `off` (trimmed, case-insensitive) or
-`OPENSPEC_NO_COMPLETIONS` is `1`. When the shell is undetected or unsupported,
-or the shell's script is already installed, it SHALL record the flag without
-printing. It SHALL NOT print after a help request, a parse refusal or an unknown
-command. A write that fails SHALL leave the tip unprinted.
+`Tip: Run 'cospec completion install' for shell completions` once on stderr,
+preceded by a blank line, recording it first as `completionTipSeen: true` in the
+wrapped binary's global `<config dir>/openspec/config.json` by an atomic,
+owner-only rewrite that re-reads the file and changes only that key. A missing
+config SHALL count as empty; invalid JSON or a non-object root SHALL be left
+unmodified and not tip; a failed write SHALL not tip.
 
 #### Scenario: The tip shows once on a terminal
 
@@ -393,3 +405,45 @@ command. A write that fails SHALL leave the tip unprinted.
 
 - **WHEN** the shell's script is installed and a command runs on a terminal
 - **THEN** no tip is printed and `completionTipSeen` is recorded
+
+#### Scenario: Config directory resolution
+
+- **WHEN** the tip config path is resolved
+- **THEN** the config dir is `$XDG_CONFIG_HOME`, else `%APPDATA%` on Windows,
+  else `~/.config`
+
+#### Scenario: Deferred runs leave the config unmodified
+
+- **WHEN** `--json` was given, the command is `completion` (any subcommand),
+  `help` or a hidden command, or stderr is not a terminal
+- **THEN** the tip does not print and the config is left unmodified, so the tip
+  stays owed
+
+#### Scenario: Opted-out environments never read the config
+
+- **WHEN** `CI` is set to anything but `''`, `false`, `0`, `no` or `off`
+  (trimmed, case-insensitive), or `OPENSPEC_NO_COMPLETIONS` is `1`
+- **THEN** the tip does not print and the config is not read
+
+#### Scenario: Undetectable shell records without printing
+
+- **WHEN** the shell is undetected or unsupported, or its script is already
+  installed
+- **THEN** the flag is recorded and the tip is not printed
+
+#### Scenario: No tip after help, refusals or unknown commands
+
+- **WHEN** the run was a help request, a parse refusal or an unknown command
+- **THEN** no tip prints
+
+### Requirement: Dynamic completion stays inside a startup budget
+
+`cospec __complete` SHALL load only the modules completion needs, record no
+telemetry, and SHALL have its startup time measured against a recorded budget by
+an advisory CI benchmark that reports but never gates.
+
+#### Scenario: Tab press
+
+- **WHEN** the benchmark runs `cospec __complete changes` 20 times
+- **THEN** the median is reported against the recorded budget, and an overrun is
+  surfaced in the benchmark report without failing CI

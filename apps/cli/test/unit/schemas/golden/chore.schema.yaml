@@ -40,11 +40,21 @@ artifacts:
       description. Reserve a separate verification task for integration or system
       behavior that spans several implementation tasks, not for checking one task
       you just wrote.
+      Each task group lands the tests and documentation its own work calls for. Do
+      NOT collect testing or documentation into a final group — when a late group
+      first exercises an early group's work, the failures cascade back through every
+      group in between. A group whose work calls for neither, such as scaffolding or
+      dependency setup, carries neither, and a final group is only for integration
+      checks.
       Archiving is not a task: `cospec archive` validates the change and moves it, and a task
       describing it can only be completed by the step that refuses it while the change is open.
       End the list at the last implementation or documentation task. Where the repo's flow lands
       the archive as a commit after the last task, end that task's description with "The archive
       commit follows this one" so it can be ticked before the archive.
+      Steps that can only happen once the change is archived go in an optional
+      `## Workflow follow-up` section at the end of tasks.md, as plain bullets with
+      no checkbox: they are reference only, outside tracked progress, for example
+      `- Verify the archived result.`
     requires: [proposal]
 apply:
   requires: [proposal, blocking-changes, tasks]

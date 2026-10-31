@@ -38,14 +38,12 @@ namespace-folder marking.
 
 ### Requirement: Validate bulk and standalone-spec modes
 
-`cospec validate` SHALL accept `--all`, `--specs`, and `--changes` flags that
-delegate the bulk and standalone-spec validation paths to `openspec validate`,
-merging delegated spec issues into cospec's existing issue-reporting shape via
-the existing delegated-issue mapping. Any of those flags SHALL select its bulk
-scope even when an item name is also given, and the name SHALL then be ignored,
-as the wrapped binary ignores it. Single-change validation (an item name and no
-bulk flag) SHALL continue to run cospec's own rules. A bulk run SHALL exit 1 if
-any item fails.
+`cospec validate` SHALL accept `--all`, `--specs`, and `--changes`, delegating
+bulk and standalone-spec validation to `openspec validate` and merging delegated
+spec issues into cospec's issue shape via the existing mapping. A bulk flag
+SHALL select its scope even beside an item name, which is then ignored as the
+binary ignores it. A name with no bulk flag SHALL still run cospec's own rules.
+A bulk run SHALL exit 1 if any item fails.
 
 #### Scenario: Validate --specs delegates and surfaces spec issues
 
@@ -74,14 +72,12 @@ any item fails.
 
 ### Requirement: Validate --archived delegates archived-change validation
 
-`cospec validate` SHALL accept `--archived`, which validates archived changes by
-pure delegation to `openspec validate --archived`, threading the resolved root's
-store arguments and the non-interactive/JSON flags the other delegated modes
-use. cospec's own change-centric rules SHALL NOT run for this mode, since they
-are written against active changes. The delegated envelope SHALL be rendered
-through cospec's existing issue-reporting shape, and the run SHALL exit 1 when
-the delegated call reports any failed item. Single-change and bulk validation
-behavior SHALL be unchanged when `--archived` is absent.
+`cospec validate --archived` SHALL validate archived changes by pure delegation
+to `openspec validate --archived`, threading the root's store arguments and the
+non-interactive/JSON flags the other delegated modes use, and running none of
+cospec's change-centric rules. The delegated envelope SHALL render through
+cospec's issue shape, exiting 1 when any item fails. Validation without
+`--archived` SHALL be unchanged.
 
 #### Scenario: An invalid archived change is surfaced
 
@@ -109,20 +105,12 @@ behavior SHALL be unchanged when `--archived` is absent.
 
 ### Requirement: Each validation lane keeps its own severities
 
-`cospec validate` SHALL give a finding the severity of the lane that owns the
-change. A cospec-typed change SHALL keep cospec's severities, including where
-cospec is stricter than the wrapped binary: `deltas/requirement-shape` stays an
-ERROR for a body missing SHALL/MUST, where the binary warns. A legacy-lane
-change, with a schema cospec does not type, SHALL receive every finding the
-wrapped binary reports for it, at the binary's own level and with its message
-unchanged, and cospec SHALL add no native rule from the change-rule families to
-it.
-
-A contract test SHALL act as the severity oracle for the legacy lane. On a
-`spec-driven` fixture that trips the binary's SHALL/MUST, skipped-header,
-empty-section, cross-section and task-numbering findings, every issue the pinned
-binary reports SHALL appear in cospec's report with the same level and message,
-and cospec SHALL report no further issue beyond its own classification INFO.
+`cospec validate` SHALL give a finding the severity of the lane owning the
+change. A cospec-typed change SHALL keep cospec's severities even where stricter
+than the binary (`deltas/requirement-shape` stays an ERROR for a body missing
+SHALL/MUST). A legacy-lane change, with a schema cospec does not type, SHALL get
+every finding the binary reports, at its level with its message unchanged, and
+no native rule from the change-rule families.
 
 #### Scenario: Legacy-lane severities match the binary
 
@@ -138,16 +126,24 @@ and cospec SHALL report no further issue beyond its own classification INFO.
 - **THEN** cospec reports `deltas/requirement-shape` at ERROR, not the binary's
   WARNING
 
+#### Scenario: A contract test is the legacy-lane severity oracle
+
+- **WHEN** the contract suite validates a `spec-driven` fixture tripping the
+  binary's SHALL/MUST, skipped-header, empty-section, cross-section and
+  task-numbering findings
+- **THEN** every issue the pinned binary reports appears in cospec's report with
+  the same level and message, and cospec reports nothing further beyond its own
+  classification INFO
+
 ### Requirement: List sorts as the binary sorts
 
-`cospec list` SHALL accept `--sort <order>`. `name` SHALL order rows by change
-name; any other value, and no flag, SHALL order them most recently modified
-first, by the latest modification time of any file in the change, as the wrapped
-binary orders them. The order, the rows' `name`, `completedTasks`, `totalTasks`,
-`lastModified`, `status` and `nested` keys, and the document's `root` and
-`warnings` SHALL come from one delegated `openspec list --json` call, merged
-into cospec's rows by name. cospec's `--blocked` filter SHALL apply after the
-merge.
+`cospec list` SHALL accept `--sort <order>`: `name` orders rows by change name;
+any other value, or none, orders them most recently modified first by the latest
+file modification in the change, as the binary does. The order, the rows'
+`name`, `completedTasks`, `totalTasks`, `lastModified`, `status` and `nested`,
+and the document's `root` and `warnings` SHALL come from one delegated
+`openspec list --json`, merged into cospec's rows by name, before `--blocked`
+filters.
 
 #### Scenario: Default order is most recent first
 
@@ -163,20 +159,12 @@ merge.
 
 ### Requirement: List answers read failures as the binary does
 
-`cospec list` SHALL NOT crash on a read failure. An unreadable
-`openspec/changes/archive/`, which the binary never reads when listing, SHALL
-leave the listing as the binary's. cospec's gate column SHALL then be computed
-from an empty archive index, and a warning naming the directory SHALL be printed
-on stderr, or added to `warnings` as `{code: "archive_unreadable", message}`
-under `--json`. A read failure the binary itself refuses (an unreadable change
-directory, or a `tasks.md` its runtime's `realpath` refuses) SHALL be answered
-with the binary's refusal: its `list_error` document under `--json`, its message
-on stderr otherwise, and exit 1. An unreadable `tasks.md` the binary lists past
-SHALL count as no tasks, as the binary counts it, with a warning naming the file
-on stderr, or in `warnings` as `{code: "tasks_unreadable", message}` under
-`--json`. A read failure only cospec's columns reach (an unreadable
-`blocking-changes.md`) SHALL become that row's `error`, with the other rows
-listed, and exit 1.
+`cospec list` SHALL NOT crash on a read failure. A failure the binary refuses
+(an unreadable change directory, or a `tasks.md` its `realpath` refuses) SHALL
+get the binary's refusal: its `list_error` document under `--json`, else its
+message on stderr, and exit 1. A failure only cospec's columns reach (an
+unreadable `blocking-changes.md`) SHALL become that row's `error`, the other
+rows listed, exit 1.
 
 #### Scenario: An unreadable archive still lists
 
@@ -201,28 +189,28 @@ listed, and exit 1.
   names the file with `tasks_unreadable`, and the command exits 0, as
   `openspec list --json` does
 
+#### Scenario: An unreadable archive leaves the binary's listing
+
+- **WHEN** `openspec/changes/archive/` is unreadable
+- **THEN** the listing is the binary's, the gate column is computed from an
+  empty archive index, and a warning naming the directory is printed on stderr,
+  or added to `warnings` as `{code: "archive_unreadable", message}` under
+  `--json`
+
+#### Scenario: A tasks file the binary lists past counts as no tasks
+
+- **WHEN** a `tasks.md` is unreadable but the binary lists past it
+- **THEN** it counts as no tasks, with a warning naming the file on stderr, or
+  in `warnings` as `{code: "tasks_unreadable", message}` under `--json`
+
 ### Requirement: Validate resolves one item as the binary does
 
-`cospec validate <name>` SHALL resolve the name as the wrapped binary does.
-
-- `--type change|spec`, matched case-insensitively, SHALL force the kind. Any
-  other value SHALL be ignored.
-- Without a forced kind, a name that is both an active change and a living spec
-  SHALL be refused with
-  `Ambiguous item '<name>' matches both a change and a spec.` and the fix
-  `Pass --type change|spec.`, exit 1. Under `--json` this is one
-  `ambiguous_item` document.
-- A name that is neither SHALL be refused with
-  `Unknown item '<name>'. Did you mean: <up to five nearest ids>?`, by edit
-  distance over the change ids then the spec ids, duplicates kept, or
-  `Unknown item '<name>'.` when there is no candidate, exit 1. Under `--json`
-  this is one `unknown_item` document.
-- A forced kind SHALL first reject a name the binary rejects (empty, `.`/`..`,
-  or containing a path separator, checked per segment for a spec) with the
-  binary's `invalid_item` message. A forced kind naming nothing on disk SHALL be
-  reported as that item with one `meta/item-missing` ERROR.
-- The noun-form alternative in the binary's text refusal SHALL be left out, as
-  cospec has no noun-form commands.
+`cospec validate <name>` SHALL resolve the name as the wrapped binary does:
+`--type change|spec` (case-insensitive) forces the kind and other values are
+ignored; an unforced name that is both a change and a spec, or neither, SHALL be
+refused with the binary's message and exit 1, as one `ambiguous_item` or
+`unknown_item` document under `--json`. The binary's noun-form alternative SHALL
+be left out of the text refusal, as cospec has no noun-form commands.
 
 #### Scenario: An ambiguous name is refused
 
@@ -243,22 +231,35 @@ listed, and exit 1.
 - **WHEN** `cospec validate gamma --type spec` runs
 - **THEN** only the living spec `gamma` is validated
 
+#### Scenario: Refusal texts match the binary
+
+- **WHEN** an unforced name is ambiguous or unknown
+- **THEN** the ambiguous refusal is
+  `Ambiguous item '<name>' matches both a change and a spec.` with the fix
+  `Pass --type change|spec.`, and the unknown refusal is
+  `Unknown item '<name>'. Did you mean: <up to five nearest ids>?` by edit
+  distance over change ids then spec ids, duplicates kept, or
+  `Unknown item '<name>'.` when there is no candidate
+
+#### Scenario: A forced kind checks the name first
+
+- **WHEN** `--type` is given with a name the binary rejects (empty, `.`/`..`, or
+  containing a path separator, checked per segment for a spec)
+- **THEN** it is refused with the binary's `invalid_item` message
+
+#### Scenario: A forced kind naming nothing is item-missing
+
+- **WHEN** `--type` names an item absent from disk
+- **THEN** that item is reported with one `meta/item-missing` ERROR
+
 ### Requirement: Validate --report selects the full or the findings report
 
-`cospec validate` SHALL accept `--report <full|findings>`. Before resolving the
-root it SHALL refuse, exit 1, with the fix
-`Use --report full|findings with --all, --changes, --specs, or --archived, without an item name. Do not combine archived and active scopes.`:
-an unknown value (`Unknown validation report '<value>'.`), an item name
-(`A validation report cannot be combined with an item name.`), `--archived` with
-a bulk flag (`A validation report cannot combine archived and active scopes.`),
-and no bulk scope (`A validation report requires an explicit bulk scope.`).
-These SHALL go to stderr as `Error: <message>` and `Fix: <fix>`, or under
-`--json` as one `invalid_validation_report_request` document. `full` SHALL be
-the report cospec prints today. `findings` SHALL keep only the items with at
-least one issue, under the binary's `report` object
-(`kind: "validation-findings"`, `scope`, `returnedItems`, `totalItems`),
-`itemFindings`, `summary` and `root`, inside cospec's `version: 1` envelope. Its
-exit code SHALL always be the one `full` would give.
+`cospec validate` SHALL accept `--report <full|findings>`, refusing before root
+resolution, exit 1, an unknown value, an item name, `--archived` with a bulk
+flag, or no bulk scope, as `Error: <message>` and `Fix: <fix>` on stderr or one
+`invalid_validation_report_request` document under `--json`. `full` SHALL be
+today's report. `findings` SHALL keep only items with an issue, in the binary's
+shape inside cospec's `version: 1` envelope, and SHALL exit as `full` would.
 
 #### Scenario: A report without a bulk scope is refused
 
@@ -271,6 +272,22 @@ exit code SHALL always be the one `full` would give.
 - **WHEN** `cospec validate --all --report findings` and
   `cospec validate --all --report full` run on a root with one failing change
 - **THEN** both exit 1, and the findings report lists only items with issues
+
+#### Scenario: Report refusal messages
+
+- **WHEN** a `--report` request is refused
+- **THEN** the message is `Unknown validation report '<value>'.`,
+  `A validation report cannot be combined with an item name.`,
+  `A validation report cannot combine archived and active scopes.`, or
+  `A validation report requires an explicit bulk scope.`, and the fix is
+  `Use --report full|findings with --all, --changes, --specs, or --archived, without an item name. Do not combine archived and active scopes.`
+
+#### Scenario: Findings report shape
+
+- **WHEN** `--report findings --json` runs
+- **THEN** the document carries the binary's `report` object
+  (`kind: "validation-findings"`, `scope`, `returnedItems`, `totalItems`),
+  `itemFindings`, `summary` and `root`
 
 ### Requirement: Validate --concurrency bounds the change validations
 
@@ -294,18 +311,13 @@ item order SHALL NOT depend on N.
 
 ### Requirement: An unreadable artifact is a validation error
 
-`cospec validate` SHALL report a change artifact it cannot read (a proposal,
-blockers, tasks, verification or design file, a delta or unread spec file, or
-`.openspec.yaml`) as a `meta/unreadable-artifact` ERROR naming the file and its
-error code, and SHALL run no other rule on that change and delegate nothing for
-it. The command SHALL never throw on such a file. Under `--json` the report
-SHALL still be one document.
-
-An unreadable `openspec/changes/archive/` is not a change artifact: the binary's
-`validate` and `instructions apply` never read it, so `cospec validate` and
-`cospec apply` SHALL answer as they do with it empty, carrying an
-`{code: "archive_unreadable", message}` warning naming the directory under
-`--json`, or printing it on stderr. `cospec archive` SHALL still refuse.
+`cospec validate` SHALL report an unreadable artifact (proposal, blockers,
+tasks, verification, design, delta or unread spec file, or `.openspec.yaml`) as
+a `meta/unreadable-artifact` ERROR naming the file and error code, running no
+other rule and delegating nothing for it; it SHALL never throw, and `--json`
+stays one document. An unreadable `openspec/changes/archive/` SHALL leave
+`validate` and `apply` answering as if empty, with an `archive_unreadable`
+warning; `archive` SHALL refuse.
 
 #### Scenario: An unreadable archive leaves validate and apply answering
 
@@ -322,15 +334,21 @@ An unreadable `openspec/changes/archive/` is not a change artifact: the binary's
 - **THEN** that change carries one `meta/unreadable-artifact` ERROR naming
   `tasks.md` and `EACCES`, every other item is reported, and the command exits 1
 
+#### Scenario: The archive warning's shape
+
+- **WHEN** `cospec validate` or `cospec apply` meets an unreadable archive
+  directory
+- **THEN** the warning names the directory, as
+  `{code: "archive_unreadable", message}` under `--json` or printed on stderr
+
 ### Requirement: Validate relays are spelled through cospec
 
-Every issue message `cospec validate` relays from the wrapped binary, and each
-message and fix of the failure document the binary answers `--archived` with,
-SHALL have each allowlisted upstream remedy spelled through cospec, with every
-other byte unchanged. That failure document SHALL be the answer: under `--json`
-that one document with the binary's exit code, in text `cospec: <message>` on
-stderr. Whether the binary is too old for `--archived` SHALL be read from its
-version, never inferred from its answer.
+Every issue message `cospec validate` relays from the binary, and each message
+and fix of the failure document the binary answers `--archived` with, SHALL
+spell each allowlisted upstream remedy through cospec, every other byte
+unchanged. That failure document SHALL be the answer: one document with the
+binary's exit code under `--json`, else `cospec: <message>` on stderr. Whether
+the binary is too old for `--archived` SHALL be read from its version.
 
 #### Scenario: An unreadable archive's --archived failure is the binary's
 
@@ -346,3 +364,82 @@ version, never inferred from its answer.
   `Tip: run "openspec change show <change-id> --json --deltas-only"` sentence
 - **THEN** cospec's report carries that sentence in its cospec spelling and no
   bare `openspec` command
+
+### Requirement: List browses archived changes
+
+`cospec list --archived` SHALL list archived changes and `cospec list --all`
+SHALL list active and archived changes, both honouring `--sort` and `--json` as
+the pinned binary does. Each row SHALL also carry the change's commit type and
+archive date, and the `--json` document SHALL be additive over upstream's.
+
+#### Scenario: Archived listing
+
+- **WHEN** a user runs `cospec list --archived --json`
+- **THEN** every upstream key is present and each item adds `type` and
+  `archivedOn`
+
+#### Scenario: All with sort
+
+- **WHEN** a user runs `cospec list --all --sort name`
+- **THEN** active and archived changes appear together in name order, each
+  marked active or archived
+
+### Requirement: Over-long requirements warn
+
+A requirement description over 500 characters, in a living spec or an ADDED or
+MODIFIED requirement in a change, SHALL be a WARNING with a stable rule ID whose
+message explains how to split it without losing scenarios, so
+`cospec validate --strict` fails on it.
+
+#### Scenario: Strict fails
+
+- **WHEN** a change ADDs a requirement whose description is 620 characters
+- **THEN** `cospec validate <slug> --strict` exits nonzero naming the
+  requirement and the rule ID
+
+### Requirement: Text archive would drop is a warning
+
+`cospec validate` and `cospec archive` SHALL warn when a delta spec holds text
+archive does not carry: a `## ` section other than Purpose and the four delta
+sections, text above the first `## ` header, or prose before the first
+requirement in ADDED or MODIFIED.
+
+#### Scenario: Foreign section
+
+- **WHEN** a delta spec contains `## Notes` with prose
+- **THEN** validate warns that the section will not reach the main spec and
+  `--strict` fails
+
+### Requirement: Scenario-loss message names what changed
+
+When the MODIFIED scenario-loss guard fires, the message SHALL state the
+scenario count on each side and name up to three scenarios the block introduces.
+The guard's verdict and exit code SHALL be unchanged.
+
+#### Scenario: Rename looks like a rename
+
+- **WHEN** a MODIFIED block drops scenario "Old" and adds "New"
+- **THEN** the message names "Old" as omitted, "New" as introduced, and the
+  counts 1 and 1
+
+### Requirement: Non-string rules items are located
+
+A `rules:` entry in `openspec/config.yaml` that is not a string SHALL be
+reported with its artifact, index, the parsed shape, and the quoting fix.
+
+#### Scenario: Unquoted colon
+
+- **WHEN** a rules item reads `- Use: tabs` unquoted
+- **THEN** the warning names the index, says it parsed as a mapping, and shows
+  the quoted form
+
+### Requirement: No redraw on a zero-width terminal
+
+cospec SHALL draw no spinner or progress redraw when stdout reports zero
+columns, when `CI` is set, or when `OPEN_SPEC_INTERACTIVE=0`, and SHALL pass the
+same environment to every wrapped call.
+
+#### Scenario: Hook-runner pty
+
+- **WHEN** `cospec validate --all` runs under a pty with `columns === 0`
+- **THEN** it completes with plain output in bounded time

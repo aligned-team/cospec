@@ -405,3 +405,66 @@ describe('apply gate: cospec/wrapped task-count reconciliation (W21)', () => {
     expect(payload.apply.progress.complete).toBe(cospecCount.items.filter((t) => t.checked).length)
   })
 })
+
+describe('apply --json once every tracked task is checked', () => {
+  async function authorDone(root: string, ledgerRow: string): Promise<void> {
+    const c = 'openspec/changes/all-done'
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: 'schema: feat\ncreated: 2026-07-05\nx-cospec-schema-version: 2\n',
+      [`${c}/proposal.md`]: FEAT_PROPOSAL,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/specs/widget/spec.md`]: SPEC_DELTA,
+      [`${c}/tasks.md`]: TASKS_DONE,
+      [`${c}/verification.md`]: `## 1. Widget works end to end [critical]\n${ledgerRow}\n`,
+    })
+  }
+
+  test('relays each task source location from the binary', async () => {
+    const root = await initRepo()
+    await authorDone(root, '- [ ] 1.1 @e2e drive the real flow -> observe the widget')
+    const res = await cospec(['apply', 'all-done', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    const payload = JSON.parse(res.stdout) as {
+      apply: { tasks: { sourcePath: string; line: number }[] }
+    }
+    expect(payload.apply.tasks).toHaveLength(1)
+    expect(payload.apply.tasks[0]!.sourcePath).toEndWith('/all-done/tasks.md')
+    expect(payload.apply.tasks[0]!.line).toBe(3)
+  })
+
+  test('with the ledger still open, the next step is verification and archive is not ready', async () => {
+    const root = await initRepo()
+    await authorDone(root, '- [ ] 1.1 @e2e drive the real flow -> observe the widget')
+    const res = await cospec(['apply', 'all-done', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    const payload = JSON.parse(res.stdout) as {
+      next: string
+      archiveReady: boolean
+      apply: { state: string; instruction: string }
+    }
+    expect(payload.apply.state).toBe('all_done')
+    expect(payload.next).toBe('cospec validate all-done --strict')
+    expect(payload.archiveReady).toBe(false)
+    expect(payload.apply.instruction).toContain('/cospec:verify')
+    expect(payload.apply.instruction).not.toContain('archive with `cospec archive')
+
+    const status = await cospec(['status', '--change', 'all-done', '--json'], { cwd: root })
+    const doc = JSON.parse(status.stdout) as { next: string; archiveReady: boolean }
+    expect(doc.next).toBe('cospec validate all-done --strict')
+    expect(doc.archiveReady).toBe(false)
+  })
+
+  test('with the ledger resolved, archive is named after verification', async () => {
+    const root = await initRepo()
+    await authorDone(root, '- [x] 1.1 @e2e drive the real flow -> widget returned the result')
+    const res = await cospec(['apply', 'all-done', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    const payload = JSON.parse(res.stdout) as {
+      archiveReady: boolean
+      apply: { instruction: string }
+    }
+    expect(payload.archiveReady).toBe(true)
+    expect(payload.apply.instruction).toContain('/cospec:verify')
+    expect(payload.apply.instruction).toContain('cospec archive all-done')
+  })
+})

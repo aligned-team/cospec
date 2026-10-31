@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.11.2
-  contentHash: sha256:f8ee617d91393764b3df71ae897306792a81d0f19201bf9a34d0bc4e596c064e
+  contentHash: sha256:8c655d08de6262ba3d3c02aa4f3f3ed401d3e60fbcef4625f9a79a11cd3daf36
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -124,7 +124,16 @@ Loop until every artifact in `apply.requires` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
    `verification.md` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the `instruction` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
+
+Ask the user only when the context is critically unclear — when a wrong guess
+would change what gets built. Otherwise keep going, and state the assumption you
+made in the artifact it shapes.
 
 For `blocking-changes.md`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft

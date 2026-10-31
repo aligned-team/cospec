@@ -13,8 +13,8 @@ import { hasHomeSkillEvidence } from './home-root.ts'
 import { readWorkflowManifest } from './render.ts'
 
 // One skills root can hold one rendered variant of each skill. When several rows resolve to
-// the same project skills root (`codex`, `agents`, `antigravity` and `zed` all use
-// `.agents/skills`), exactly one of them writes it. This is a port of the pinned binary's
+// the same project skills root (`amp`, `antigravity`, `codex`, `gsd`, `zed` and `agents` all
+// use `.agents/skills`), exactly one of them writes it. This is a port of the pinned binary's
 // `core/shared-skill-target.js`, with two deliberate differences: the marker is
 // `.cospec-target` (upstream's `.openspec-target` names the owner of OpenSpec's own
 // `openspec-*` skills, never cospec's), and content inference is replaced by cospec's
@@ -30,15 +30,17 @@ const NEUTRAL_ID = 'agents'
 const DUAL_SPELLING_ID = 'codex'
 
 /**
- * The rows that share `.agents/skills`, in the pinned binary's `AI_TOOLS` order (antigravity,
- * codex, zed, agents). Upstream sorts each shared root's group by that order before its
- * arbiter reads `group[0]` or finds the first row with legacy skills, so cospec's table order
- * (agents ahead of zed) would pick a different writer. A row not listed sorts after, in table
+ * The rows that share `.agents/skills`, in the pinned binary's `AI_TOOLS` order (amp,
+ * antigravity, codex, gsd, zed, agents). Upstream sorts each shared root's group by that order
+ * before its arbiter reads `group[0]` or finds the first row with legacy skills, so cospec's
+ * table order (agents ahead of zed) would pick a different writer. A row not listed sorts after, in table
  * order. The contract test `harness-matrix.test.ts` holds this list to the pinned dist.
  */
 export const SHARED_ROOT_UPSTREAM_ORDER: readonly string[] = [
+  'amp',
   'antigravity',
   'codex',
+  'gsd',
   'zed',
   'agents',
 ]

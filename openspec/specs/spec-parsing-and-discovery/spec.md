@@ -13,24 +13,13 @@ finding for the same defect.
 
 ### Requirement: Delta and living-spec parsing tolerances
 
-cospec's delta/living-spec parser SHALL normalise its input before scanning for
-requirement and scenario headers: it SHALL strip a leading UTF-8 BOM, normalise
-`\r\n` and bare `\r` to `\n`, mask HTML comment spans (including one left
-unterminated to end of file), and compute code-fence state with upstream's
-`buildCodeFenceMask` semantics — both ```and`~~~` fences, where a closing fence
-MUST use the same marker character as the opening fence and be at least as long.
-Masking SHALL blank content in place so every reported line number is unchanged.
-Requirement and scenario headers inside a masked span SHALL NOT be counted by
-any rule or by either hard archive gate.
-
-The canonical requirement header's `Requirement:` keyword SHALL be matched
-case-insensitively, mirroring OpenSpec 1.13.1's `REQUIREMENT_HEADER_REGEX`
-(`src/core/parsers/requirement-blocks.ts`) and `REQUIREMENT_HEADER`
-(`src/core/parsers/spec-structure.ts`). The keyword's case SHALL NOT affect the
-parsed requirement name, the operation the block records, or which block a
-following scenario belongs to. Case tolerance SHALL stop there: the bulleted
-REMOVED form and the `FROM:`/`TO:` rename lines — keywords and their embedded
-`Requirement:` alike — remain case-sensitive, because the wrapped binary's are.
+cospec's delta/living-spec parser SHALL normalise input before scanning for
+headers: strip a leading UTF-8 BOM, fold `\r\n` and bare `\r` to `\n`, mask HTML
+comment spans (an unterminated one runs to end of file), and compute fence state
+with upstream's `buildCodeFenceMask` semantics. Masking SHALL blank in place,
+keeping line numbers, and masked headers SHALL NOT count for any rule or either
+hard archive gate. The `Requirement:` keyword SHALL be matched
+case-insensitively.
 
 #### Scenario: BOM-prefixed spec is parsed
 
@@ -95,18 +84,32 @@ REMOVED form and the `FROM:`/`TO:` rename lines — keywords and their embedded
 - **THEN** no operation is recorded, matching the wrapped binary, which parses
   no delta from either form
 
+#### Scenario: Fence state follows buildCodeFenceMask
+
+- **WHEN** a spec contains both backtick and `~~~` fences
+- **THEN** both are honoured, and a closing fence MUST use the opening fence's
+  marker character and be at least as long
+
+#### Scenario: Keyword case tolerance mirrors the binary and stops there
+
+- **WHEN** a requirement header spells `Requirement:` in another case
+- **THEN** it is matched as OpenSpec 1.13.1's `REQUIREMENT_HEADER_REGEX`
+  (`src/core/parsers/requirement-blocks.ts`) and `REQUIREMENT_HEADER`
+  (`src/core/parsers/spec-structure.ts`) match it, the case affects neither the
+  parsed name, the recorded operation, nor which block owns a following
+  scenario; the bulleted REMOVED form and the `FROM:`/`TO:` rename lines,
+  keywords and embedded `Requirement:` alike, stay case-sensitive as the
+  binary's are
+
 ### Requirement: Recursive capability discovery
 
 cospec SHALL discover capability spec files through one shared module
-(`core/spec-paths.ts`) used by `cospec validate`, the scenario-preservation
-gate, and the post-archive spot check. Discovery SHALL recurse into nested
-directories, skip dot-directories, emit posix-style ids sorted by id, and derive
-a delta or living file's capability from the file's **immediate parent
-directory** rather than the first path segment. It SHALL resolve a symlinked
-`spec.md` that stays inside its capability directory, reject a link resolving
-outside it, and skip a dangling link. It SHALL swallow only `ENOENT` while
-reading a directory and SHALL propagate every other error rather than silently
-returning a short list.
+(`core/spec-paths.ts`) used by `cospec validate`, the scenario-preservation gate
+and the post-archive spot check. Discovery SHALL recurse, skip dot-directories,
+emit posix-style ids sorted by id, and take a file's capability from its
+immediate parent directory, not the first path segment. Reading a directory, it
+SHALL swallow only `ENOENT` and propagate every other error rather than return a
+short list.
 
 #### Scenario: Nested capability resolves to its own directory
 
@@ -135,6 +138,12 @@ returning a short list.
 - **THEN** the error propagates and the command fails loudly instead of
   proceeding with a partial capability list
 
+#### Scenario: Symlinked spec files are confined to their capability
+
+- **WHEN** a capability's `spec.md` is a symlink
+- **THEN** discovery resolves it when it stays inside its capability directory,
+  rejects it when it resolves outside, and skips it when it dangles
+
 ### Requirement: Root-level specs/spec.md is refused
 
 cospec SHALL raise a named ERROR when a change places a delta at `specs/spec.md`
@@ -151,11 +160,11 @@ capability literally named `spec.md`. The message SHALL name the expected
 ### Requirement: Placeholder Purpose is flagged
 
 The `specs/purpose-tbd` rule SHALL fire both for the archive-generated
-`TBD - created by archiving` text it matches today and for a `## Purpose`
-section whose first non-blank line opens with a `TBD` or `TODO` marker at a word
-boundary. The rule id and its WARNING severity (ERROR under `--strict`) SHALL be
-unchanged, an empty `## Purpose` SHALL keep its existing handling, and the two
-placeholder forms SHALL NOT both fire for one spec.
+`TBD - created by archiving` text and for a `## Purpose` section whose first
+non-blank line opens with a placeholder marker: `TBD`/`TODO` in capitals
+whatever follows, or any other casing only when followed by the end of the
+Purpose, a line break, or marker punctuation. Rule id, severity, empty-Purpose
+handling, and single reporting SHALL be unchanged.
 
 #### Scenario: Leading TODO purpose is flagged
 
@@ -175,100 +184,19 @@ placeholder forms SHALL NOT both fire for one spec.
 - **THEN** the issues reported for that spec are unchanged from before this
   change
 
+#### Scenario: Ordinary word Todo is not a marker
+
+- **WHEN** a spec's Purpose begins "Todo el flujo de pago…" or "Todo o fluxo…"
+- **THEN** `specs/purpose-tbd` does not fire, while `todo -` and `tbd.` still do
+
 ### Requirement: Delegated duplicates are suppressed
 
-When cospec merges delegated OpenSpec issues into its own report, it SHALL
-suppress a delegated issue that duplicates a native cospec issue already
-reported for the same file and the same defect — the placeholder `Purpose`, a
-root-level `specs/spec.md`, scenario loss in a MODIFIED delta, an
-archive-precondition failure the wrapped binary dry-runs during validate, a
-delta-shaped file cospec's own discovery skips, a change whose tracked task
-files carry no checkbox at all, a `RENAMED` `FROM:`/`TO:` line that formed no
-pair, a delta file whose sections parse to no entries, a non-requirement `###`
-header the delta reader skips, a requirement missing SHALL/MUST, its requirement
-text or a scenario, an `## ADDED` name the same delta file also removes or
-modifies, a `## MODIFIED` name it also removes, a duplicate `## ADDED` name, two
-`RENAMED` pairs sharing a source or a target, a `RENAMED` target the same delta
-ADDs, a skipped header that splits a requirement the archive refuses, a living
-spec the archive refuses as structurally invalid, a `## MODIFIED` of a `RENAMED`
-source, a `## MODIFIED` or `## RENAMED` on a capability with no living spec, a
-requirement outside every delta section, a delta with no delta section, a
-duplicate `## MODIFIED` or `## REMOVED` name, and a `## REMOVED` of a `RENAMED`
-source. Suppression SHALL apply only when the native rule actually fired; when
-cospec's own rule is silent, the delegated issue SHALL still be reported so
-nothing is lost.
-
-Each of those later pairings SHALL be keyed so that a second real finding
-survives. The empty-sections message SHALL pair with `archive/no-ops` on the
-same delta file, and the change-level no-deltas message with `archive/no-ops`
-fired anywhere on the item, because the wrapped binary raises it only when no
-delta file parsed an entry. The two skipped-header messages (a non-requirement
-header, and a `### Requirement:` with no name) SHALL pair with
-`deltas/skipped-header` on the same file and the same header text, and both (a
-`### Scenario:` header included) SHALL also pair with
-`archive/split-requirement` on the same file and the same header text. A skipped
-`### Scenario:` header SHALL pair with `deltas/scenario-depth` on the same file
-and the same header text, so a `### Scenario:` written inside an HTML comment,
-which cospec's advisory reader masks, keeps its delegated INFO beside a real one
-with different text in the same file; a commented and a real `### Scenario:`
-with the same text SHALL both pair with the real one's finding. The keyword and
-missing-text messages SHALL pair with `deltas/requirement-shape` on the same
-file, operation and requirement name (the missing-text message with either of
-that rule's two wordings for an empty statement), the name read off the header
-as written — a trailing HTML comment included, as the wrapped binary reads it;
-so SHALL the missing-scenario message, with or without the binary's
-empty-scenario hint. The two cross-section messages (`ADDED and REMOVED`,
-`MODIFIED and ADDED`) SHALL pair with `archive/added-exists` on the same file
-and requirement name, and so SHALL the duplicate-ADDED, duplicate-RENAMED-target
-and RENAMED-target-collides-with-ADDED messages. The `MODIFIED and REMOVED` and
-duplicate-RENAMED-source messages SHALL pair with `archive/target-missing`'s "no
-longer exists" finding on the same file and requirement name. The dry-run's
-structurally-invalid-target message SHALL pair with `archive/target-invalid` on
-the same file and capability, and only when every defect it lists is a delta
-header, a requirement outside `## Requirements` or a duplicate requirement. The
-MODIFIED-references-old-name message SHALL pair with `archive/target-missing` on
-the same file and the rename's TO name, which cospec's message names. The
-dry-run's target-spec-does-not-exist message SHALL pair with
-`archive/new-spec-non-added` on the same file and capability. The
-orphaned-requirement message SHALL pair with `deltas/orphaned-requirement` on
-the same file and requirement name, never the section text. The
-no-delta-sections message SHALL pair with `deltas/header-present` on the same
-file, and the change-level no-deltas message with it fired anywhere on the item.
-The duplicate-MODIFIED, duplicate-REMOVED and RENAMED-and-REMOVED messages SHALL
-pair with `archive/op-conflict` on the same file and requirement name, the
-RENAMED FROM for the last. For a requirement a delta writes inside an HTML
-comment, the missing-text, keyword-only-in-the-header and missing-scenario
-messages SHALL pair with `archive/rebuilt-spec-invalid`'s finding on that
-block's delta line, on the same file and requirement name. A header key SHALL
-match an empty header text, so a blank-titled `###` header pairs too. Each
-pairing SHALL be covered by a contract test whose delegated message is read from
-the pinned binary, never typed by hand, and a sweep over every report the parity
-suite produces SHALL find no relayed finding naming the same requirement or
-header as a cospec finding on the same file.
-
-The archive-precondition family SHALL be paired one entry per upstream
-precondition shape, because a duplicate class carries a single native rule id
-and the family spans two — a `MODIFIED` target not found, a `REMOVED` target not
-found, and a `RENAMED` source not found pair with `archive/target-missing`; a
-`RENAMED` target that already exists, an `ADDED` name that already exists, and
-their two case-or-spacing variants pair with `archive/added-exists`. Each
-pairing SHALL capture the requirement name for comparison against the native
-issue's own key, and that capture SHALL stop before the conditional
-`, but "…" exists` and `… and differs only in case or spacing` tails the wrapped
-binary appends, or it can never match. A precondition shape with no cospec twin
-— a `MODIFIED` header mismatch in content — SHALL NOT be suppressed.
-
-No suppression entry SHALL be added for scenario preservation, because the
-wrapped binary skips a spec whose path has already produced an ERROR and its own
-scenario-loss check emits one on that same path, so the scenario blocker never
-becomes a dry-run issue. The existing scenario-loss pairing is unchanged. This
-same path-keying bounds the dry-run family: at most one archive-precondition
-dry-run issue can be reported per delta file per run.
-
-Every suppression regex SHALL be anchored through a clause that distinguishes it
-from the other delegated messages it shares a prefix with, not through the
-shared prefix alone. Suppression SHALL NOT move a verdict or an exit code: the
-dry-run issues arrive at INFO, which is counted and rendered but never scored.
+When merging delegated OpenSpec issues into its report, cospec SHALL suppress a
+delegated issue that duplicates a native cospec issue on the same file for the
+same defect, and only when that native rule actually fired; otherwise the
+delegated issue SHALL still be reported. Each pairing SHALL be keyed so a second
+real finding survives and contract-tested with the pinned binary's real message.
+Suppression SHALL NOT move a verdict or an exit code.
 
 #### Scenario: One diagnostic per defect
 
@@ -404,24 +332,131 @@ dry-run issues arrive at INFO, which is counted and rendered but never scored.
 - **THEN** the delegated issue is not suppressed and appears in the merged
   report
 
+#### Scenario: Suppression patterns are anchored on a distinguishing clause
+
+- **WHEN** two delegated messages share a prefix
+- **THEN** each suppression regex is anchored through a clause that
+  distinguishes it from the other, never through the shared prefix alone
+
+#### Scenario: The suppressed defect classes
+
+- **WHEN** a delegated issue duplicates a native one for the same file
+- **THEN** the classes suppressed are: the placeholder `Purpose`; a root-level
+  `specs/spec.md`; scenario loss in a MODIFIED delta; an archive-precondition
+  failure the binary dry-runs during validate; a delta-shaped file cospec's
+  discovery skips; tracked task files with no checkbox at all; an unpaired
+  `RENAMED` `FROM:`/`TO:` line; a delta file whose sections parse to no entries;
+  a non-requirement `###` header the delta reader skips; a requirement missing
+  SHALL/MUST, its text or a scenario; an `## ADDED` name the same delta also
+  removes or modifies; a `## MODIFIED` name it also removes; a duplicate
+  `## ADDED` name; two `RENAMED` pairs sharing a source or a target; a `RENAMED`
+  target the same delta ADDs; a skipped header splitting a requirement the
+  archive refuses; a living spec the archive refuses as structurally invalid; a
+  `## MODIFIED` of a `RENAMED` source; a `## MODIFIED` or `## RENAMED` on a
+  capability with no living spec; a requirement outside every delta section; a
+  delta with no delta section; a duplicate `## MODIFIED` or `## REMOVED` name;
+  and a `## REMOVED` of a `RENAMED` source
+
+#### Scenario: Section and header pairing keys
+
+- **WHEN** an empty-section, no-deltas, no-delta-sections or skipped-header
+  message is relayed
+- **THEN** the empty-sections message pairs with `archive/no-ops` on the same
+  delta file and the change-level no-deltas message with `archive/no-ops` fired
+  anywhere on the item (the binary raises it only when no delta file parsed an
+  entry); the no-delta-sections message pairs with `deltas/header-present` on
+  the same file, and the change-level no-deltas message with it fired anywhere
+  on the item; both skipped-header messages (a non-requirement header, and a
+  `### Requirement:` with no name) pair with `deltas/skipped-header` on the same
+  file and header text, and both, a `### Scenario:` header included, also pair
+  with `archive/split-requirement` on the same file and header text; a header
+  key matches an empty header text, so a blank-titled `###` header pairs too
+
+#### Scenario: Skipped scenario headers pair on their text
+
+- **WHEN** the binary skips a `### Scenario:` header
+- **THEN** it pairs with `deltas/scenario-depth` on the same file and header
+  text, so one inside an HTML comment, which cospec's advisory reader masks,
+  keeps its delegated INFO beside a real one with different text in the same
+  file, and a commented and a real `### Scenario:` with the same text both pair
+  with the real one's finding
+
+#### Scenario: Requirement-shape pairing keys
+
+- **WHEN** a keyword, missing-text or missing-scenario message is relayed
+- **THEN** it pairs with `deltas/requirement-shape` on the same file, operation
+  and requirement name, read off the header as written, a trailing HTML comment
+  included as the binary reads it; the missing-text message pairs with either of
+  that rule's two empty-statement wordings, and the missing-scenario message
+  pairs with or without the binary's empty-scenario hint
+
+#### Scenario: Commented requirement pairing keys
+
+- **WHEN** a delta writes a requirement inside an HTML comment
+- **THEN** the missing-text, keyword-only-in-the-header and missing-scenario
+  messages pair with `archive/rebuilt-spec-invalid`'s finding on that block's
+  delta line, on the same file and requirement name
+
+#### Scenario: Cross-section and conflict pairing keys
+
+- **WHEN** a cross-section, duplicate or rename-conflict message is relayed
+- **THEN** `ADDED and REMOVED`, `MODIFIED and ADDED`, duplicate-ADDED,
+  duplicate-RENAMED-target and RENAMED-target-collides-with-ADDED pair with
+  `archive/added-exists` on the same file and requirement name;
+  `MODIFIED and REMOVED` and duplicate-RENAMED-source pair with
+  `archive/target-missing`'s "no longer exists" finding on the same file and
+  requirement name; duplicate-MODIFIED, duplicate-REMOVED and
+  RENAMED-and-REMOVED pair with `archive/op-conflict` on the same file and
+  requirement name, the RENAMED FROM for the last
+
+#### Scenario: Target and structure pairing keys
+
+- **WHEN** a target, orphan or structurally-invalid message is relayed
+- **THEN** the dry-run's structurally-invalid-target message pairs with
+  `archive/target-invalid` on the same file and capability only when every
+  defect it lists is a delta header, a requirement outside `## Requirements` or
+  a duplicate requirement; MODIFIED-references-old-name pairs with
+  `archive/target-missing` on the same file and the rename's TO name; the
+  dry-run's target-spec-does-not-exist pairs with `archive/new-spec-non-added`
+  on the same file and capability; and the orphaned-requirement message pairs
+  with `deltas/orphaned-requirement` on the same file and requirement name,
+  never the section text
+
+#### Scenario: The archive-precondition family pairs per upstream shape
+
+- **WHEN** an archive-precondition dry-run message is relayed
+- **THEN** it is paired by one entry per upstream shape, since one class carries
+  one native rule id: `MODIFIED` target, `REMOVED` target and `RENAMED` source
+  not found pair with `archive/target-missing`; a `RENAMED` target or `ADDED`
+  name that already exists, and their two case-or-spacing variants, pair with
+  `archive/added-exists`; the name capture stops before the binary's
+  `, but "…" exists` and `… and differs only in case or spacing` tails; and a
+  `MODIFIED` header mismatch in content, with no cospec twin, is not suppressed
+
+#### Scenario: Scenario preservation needs no suppression entry
+
+- **WHEN** a MODIFIED delta drops a scenario
+- **THEN** no suppression entry is added for scenario preservation, because the
+  binary skips a path that already produced an ERROR and its own scenario-loss
+  check emits one there, the existing scenario-loss pairing is unchanged, and at
+  most one archive-precondition dry-run issue is reported per delta file per run
+
+#### Scenario: The parity sweep finds no doubled finding
+
+- **WHEN** every report the parity suite produces is swept
+- **THEN** no relayed finding names the same requirement or header as a cospec
+  finding on the same file, and the dry-run issues arrive at INFO, counted and
+  rendered but never scored
+
 ### Requirement: Requirement-block retention and scenario-name identity
 
-cospec's delta and living-spec parsers SHALL retain, for every
-`### Requirement:` block, the verbatim source text of that block — the header
-line through the last line before the next `### Requirement:` header, the next
-level-2 `##` section header, or end of input — taken from the unmasked
-(BOM-stripped, LF-normalised) source view, with fenced content included
-verbatim. Comparison of two retained blocks SHALL use OpenSpec's own
-normalisation — CRLF folding plus a single outer trim — and nothing further, so
-cospec can never call a genuine collision identical. Each parser SHALL
-additionally extract the ordered list of scenario names in a block, where a
-scenario is any non-fenced level-4 header carrying a body — at least one
-non-blank line before the next level-1-to-4 header or end of input — and its
-name is the header text with an optional CommonMark closing `#` run and an
-optional case-insensitive `Scenario:` prefix removed, then trimmed. Scenario
-names SHALL be compared case-sensitively, matching OpenSpec's `scenarioNameAt`.
-A living-spec requirement's scope SHALL end at the next level-2 section header,
-so content in a later section is credited to no requirement.
+cospec's delta and living-spec parsers SHALL retain each `### Requirement:`
+block's verbatim text, from its header to the line before the next
+`### Requirement:`, level-2 `##` header, or end of input, and compare blocks
+with OpenSpec's normalisation alone: CRLF folding plus one outer trim. Each
+SHALL extract a block's ordered scenario names, compared case-sensitively as
+OpenSpec's `scenarioNameAt` does. A living requirement's scope SHALL end at the
+next level-2 header.
 
 #### Scenario: Identical blocks compare equal across line endings
 
@@ -466,6 +501,20 @@ so content in a later section is credited to no requirement.
 - **THEN** it yields no scenario name and is not counted as a scenario, on the
   delta side and on the living side alike
 
+#### Scenario: Retained text comes from the unmasked view
+
+- **WHEN** a requirement block is retained
+- **THEN** its text is taken from the unmasked (BOM-stripped, LF-normalised)
+  source view, with fenced content included verbatim
+
+#### Scenario: What counts as a scenario and its name
+
+- **WHEN** scenario names are extracted from a block
+- **THEN** a scenario is a non-fenced level-4 header with at least one non-blank
+  line before the next level-1-to-4 header or end of input, and its name is the
+  header text minus an optional CommonMark closing `#` run and an optional
+  case-insensitive `Scenario:` prefix, trimmed
+
 ### Requirement: Delta operation bullets accept every CommonMark marker
 
 cospec's delta parser SHALL recognise a `REMOVED` bullet and a `RENAMED`
@@ -494,14 +543,13 @@ nothing, so masking continues to win over recognition.
 
 ### Requirement: Unpaired rename lines are refused
 
-cospec SHALL pair `FROM:` and `TO:` rename lines within a single
-`## RENAMED Requirements` section and SHALL record a `RENAMED` operation only
-when both sides are present, so a half-built operation can never reach the
-archive preconditions. Every unpaired line SHALL be retained on the parse result
-with its side, name and line number, and reported as an ERROR with rule id
-`deltas/unpaired-rename` naming the missing side. A `FROM:` line SHALL NOT be
-paired with a `TO:` line in a different section, and a second `FROM:` SHALL NOT
-overwrite an earlier unpaired one.
+cospec SHALL pair `FROM:` and `TO:` lines within one `## RENAMED Requirements`
+section, recording `RENAMED` only when both sides exist, so a half-built
+operation never reaches the archive preconditions. Each unpaired line SHALL be
+kept on the parse result with its side, name and line, and reported as the ERROR
+`deltas/unpaired-rename` naming the missing side. Lines in different sections
+SHALL NOT pair, and a second `FROM:` SHALL NOT overwrite an earlier unpaired
+one.
 
 #### Scenario: A dangling FROM is an error, not a phantom rename
 
@@ -581,16 +629,12 @@ written before the current delta format legally carry this shape.
 ### Requirement: Delta-shaped files at unread paths are reported
 
 cospec SHALL report a named ERROR for a markdown file under a change's `specs/`
-tree that carries a delta section header but sits at a path cospec's own delta
-discovery skips — a file not named `spec.md`, or one at a depth that is not
-`specs/<capability-path>/spec.md`. The discovery filter itself SHALL be
-unchanged: restricting delta files to `spec.md` is what lets an author keep
-companion notes beside a delta, and those notes SHALL stay unreported. What
-changes is that a genuinely delta-shaped file is no longer skipped in silence.
-
+tree that carries a delta section header at a path delta discovery skips: not
+named `spec.md`, or not at `specs/<capability-path>/spec.md`. Discovery SHALL
+stay restricted to `spec.md`, so companion notes beside a delta stay unreported.
 `cospec archive`'s zero-delta leniency SHALL NOT treat a change carrying only
-such files as a true no-op, so a misplaced delta cannot be archived as though
-the change touched no spec.
+such files as a no-op, so a misplaced delta cannot be archived as though the
+change touched no spec.
 
 #### Scenario: A misnamed delta file is reported
 
@@ -621,31 +665,13 @@ the change touched no spec.
 
 ### Requirement: Skipped delta headers are reported
 
-cospec SHALL report, as the INFO `deltas/skipped-header`, every level-three
-header inside an `## ADDED Requirements` or `## MODIFIED Requirements` section
-that the delta reader ignores and the archive keeps: a non-fenced `### <text>`
-line that is not a named `### Requirement:` header, whether it sits above the
-first requirement block or inside one without splitting it. A header inside a
-block that leaves a piece of it with no scenario is refused by the archive, and
-SHALL be reported as `archive/split-requirement` instead (see
-archive-integrity), never as both. The lines reported by the two rules together
-SHALL be the lines the wrapped binary's delta reader records as skipped, with
-the same line numbers, except a header this rule's advisory reader masks inside
-an HTML comment: it SHALL NOT report one, while the wrapped binary's own reader
-doesn't mask comments and keeps reporting it — above the first requirement that
-delegated INFO SHALL still reach the report unsuppressed, because no cospec rule
-has a twin to raise there. A header that is `### Requirement:` with no name
-SHALL get its own message, saying the name is missing and giving
-`### Requirement: <name>` as the fix. Any other header's hint SHALL name
-`### Requirement: <text>` as the spelling to use if the block is meant to be
-validated. A `### Scenario:` line that `deltas/scenario-depth` already reports
-SHALL NOT also be reported by this rule.
-
-The rule SHALL run on every cospec-typed change that carries delta files,
-whether or not cospec delegates the change to the wrapped binary. A header that
-splits its requirement SHALL be left to `archive/split-requirement` only when
-the archive-precondition family runs; under `--fast` this rule SHALL report it.
-INFO SHALL never move `valid` or the exit code, with or without `--strict`.
+cospec SHALL report as INFO `deltas/skipped-header` each non-fenced `### <text>`
+line in an `## ADDED` or `## MODIFIED` section that is not a named
+`### Requirement:` header, above the first block or inside one without splitting
+it. A header splitting a block into a scenario-less piece SHALL be
+`archive/split-requirement` instead, never both. The rule SHALL run on every
+cospec-typed change with deltas, delegated or not. INFO SHALL never move `valid`
+or the exit code.
 
 #### Scenario: A stray divider is reported
 
@@ -702,15 +728,40 @@ INFO SHALL never move `valid` or the exit code, with or without `--strict`.
 - **THEN** no `deltas/skipped-header` issue is raised for it, and the wrapped
   binary's own INFO for that header reaches the merged report unsuppressed
 
+#### Scenario: Reported lines match the binary's skipped lines
+
+- **WHEN** this rule and `archive/split-requirement` report skipped headers
+- **THEN** together they report the lines the binary's delta reader ignores,
+  records as skipped and the archive keeps, with the same line numbers, except a
+  header this rule's reader masks inside an HTML comment, which it does not
+  report; above the first requirement the binary, which does not mask comments,
+  keeps reporting it and that delegated INFO reaches the report unsuppressed,
+  having no cospec twin
+
+#### Scenario: Messages and hints per header kind
+
+- **WHEN** a skipped header is reported
+- **THEN** a nameless `### Requirement:` gets its own message saying the name is
+  missing with `### Requirement: <name>` as the fix, any other header's hint
+  names `### Requirement: <text>` as the spelling to use if the block is meant
+  to be validated, and a `### Scenario:` line `deltas/scenario-depth` already
+  reports is not reported again
+
+#### Scenario: Splitting headers go to the archive rule only when it runs
+
+- **WHEN** a header splits its requirement
+- **THEN** it is left to `archive/split-requirement` only when the
+  archive-precondition family runs, and under `--fast` this rule reports it;
+  with or without `--strict`, INFO never changes `valid` or the exit code
+
 ### Requirement: A header-only SHALL/MUST carries the body hint
 
-When an `## ADDED` or `## MODIFIED` requirement's body lacks SHALL or MUST and
-its `### Requirement:` header contains one, the `deltas/requirement-shape` ERROR
-SHALL carry the wrapped binary's hint: move the SHALL/MUST statement to the line
-immediately after the `### Requirement: ...` header. The ERROR's level, rule id
-and message SHALL stay as they are for a cospec-typed change, except that the
-message names the requirement by its header as written, a trailing HTML comment
-included. A requirement whose header lacks SHALL/MUST too SHALL get no hint.
+When an `## ADDED` or `## MODIFIED` requirement's body lacks SHALL/MUST but its
+`### Requirement:` header has one, the `deltas/requirement-shape` ERROR SHALL
+carry the binary's hint: move the SHALL/MUST statement to the line right after
+the header. Its level, rule id and message SHALL be unchanged for a cospec-typed
+change, except the message names the requirement by its header as written,
+trailing HTML comment included. A header without SHALL/MUST SHALL get no hint.
 
 #### Scenario: The keyword only in the header
 
@@ -734,18 +785,11 @@ included. A requirement whose header lacks SHALL/MUST too SHALL get no hint.
 ### Requirement: An empty statement is refused however its scenarios read
 
 An `## ADDED` or `## MODIFIED` requirement's statement SHALL be read as the
-wrapped binary's `extractRequirementBody` reads it: the lines between its
-`### Requirement:` header and the first header under it, blank and fenced lines
-skipped, an HTML comment kept as text, and `**Key**: value` metadata lines
-counted only when nothing else is there. An empty statement SHALL be the ERROR
-`deltas/requirement-shape` even when a scenario step holds SHALL or MUST,
-because the binary refuses an empty one in its validate and its archive; the
-message SHALL be `<OP> "<name>" is missing requirement text`, or the header-only
-wording and hint when the header itself holds SHALL/MUST, so it pairs with the
-binary's finding and a change cospec never delegates is refused too. SHALL/MUST
-SHALL count in the statement alone — never in a scenario step, a fenced example
-or the header — so a statement written inside an HTML comment is a statement,
-and one that is only a comment has no keyword.
+binary's `extractRequirementBody` reads it. An empty statement SHALL be the
+ERROR `deltas/requirement-shape` even when a scenario step holds SHALL/MUST,
+worded `<OP> "<name>" is missing requirement text`, or the header-only wording
+and hint when the header holds SHALL/MUST. SHALL/MUST SHALL count in the
+statement alone, never in a scenario step, fenced example or header.
 
 #### Scenario: A SHALL only in a scenario step, on a change never delegated
 
@@ -783,16 +827,29 @@ and one that is only a comment has no keyword.
 - **THEN** `cospec validate` reports `deltas/requirement-shape` at ERROR, as the
   binary warns
 
+#### Scenario: The empty-statement ERROR pairs and stands alone
+
+- **WHEN** a statement is empty, on a delegated change or one never delegated
+- **THEN** the ERROR pairs with the binary's finding as one, and a change cospec
+  never delegates is refused too
+
+#### Scenario: How the statement is read
+
+- **WHEN** a delta requirement's statement is read
+- **THEN** it is the lines between its `### Requirement:` header and the first
+  header under it, blank and fenced lines skipped, an HTML comment kept as text,
+  and `**Key**: value` metadata lines counted only when nothing else is there,
+  so a statement written inside a comment is a statement and one that is only a
+  comment has no keyword
+
 ### Requirement: Delegated duplicate matching is linear and covers quoted headers
 
 Each `DUPLICATE_CLASSES` pattern SHALL match a delegated message in time linear
-in the message's length, whatever text a spec author puts in a requirement
-header. A pattern that reads a list of defect lines SHALL match the fixed head
-once and then each line on its own, with no repeated group around a quantified
-span. The `archive/target-invalid` pairing SHALL recognise a
-structurally-invalid-target message whose quoted header text itself contains
-`"`, so a header such as `### Requirement: Widget "quoted" name` is reported
-once, by cospec's rule.
+in its length, whatever a requirement header holds. A pattern reading a list of
+defect lines SHALL match the fixed head once, then each line on its own, with no
+repeated group around a quantified span. The `archive/target-invalid` pairing
+SHALL recognise a structurally-invalid-target message whose quoted header
+contains `"`, so `### Requirement: Widget "quoted" name` is reported once.
 
 #### Scenario: A quoted header is reported once
 
@@ -807,3 +864,47 @@ once, by cospec's rule.
   quote-heavy defect lines followed by a line that doesn't match
 - **THEN** it finishes within the unit test's bound, a bound the previous
   pattern exceeds on the same input
+
+### Requirement: Symlinked layouts inside the project are accepted
+
+`list --specs`, `show`, `validate`, `sync-specs`, and `archive` SHALL accept a
+symlinked `openspec/`, `openspec/changes`, or `openspec/specs` wherever it
+resolves. A symlinked `specs/<capability>/spec.md` SHALL be accepted only when
+its realpath stays inside the project, and refused otherwise. An `archive/`
+directory SHALL be accepted only when it resolves inside `changes/`.
+
+#### Scenario: Linked spec file
+
+- **WHEN** `openspec/specs/auth/spec.md` is a symlink to `docs/auth-spec.md`
+- **THEN** `cospec validate --strict` and `cospec archive` treat it as a normal
+  spec
+
+#### Scenario: Escaping link
+
+- **WHEN** a symlinked `specs/<capability>/spec.md` resolves outside the project
+  root
+- **THEN** cospec refuses with an error naming the path
+
+#### Scenario: Linked directories resolve anywhere
+
+- **WHEN** `openspec/specs` is a symlink to a directory outside the project
+- **THEN** `cospec validate --strict` and `cospec archive` accept it and read
+  the specs through the link
+
+#### Scenario: Archive directory escaping changes
+
+- **WHEN** `openspec/changes/archive` resolves outside `openspec/changes/`
+- **THEN** `cospec archive` refuses with an error naming the path
+
+### Requirement: Glob patterns are bounded
+
+An artifact `generates` or `apply.tracks` pattern that nests braces or
+parentheses more than 16 levels, or brace-expands to more than 1024 paths, SHALL
+be rejected with a clear error before matching. Brace-expanded paths SHALL stay
+confined to the change directory.
+
+#### Scenario: Deep nesting
+
+- **WHEN** a schema declares a `generates` pattern with 17 nested brace levels
+- **THEN** `cospec status` exits with an error naming the artifact and limit,
+  not a stack overflow

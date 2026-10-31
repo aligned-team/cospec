@@ -1,0 +1,110 @@
+[
+  {
+    "path": ".grok/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "grok",
+    "contentHash": "sha256:6ade88390b64d12c9831b7ca4345b5a42d830d3c62d822c3e61b28a862a5ccf5",
+    "bytes": 6445,
+    "sha256": "13ff84babbe99c105b4051b53bb3d5f23a69d01a96b9d3441e3a0640cd6dd238"
+  },
+  {
+    "path": ".grok/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "grok",
+    "contentHash": "sha256:ad51857402ba10f85454dfe91c5548485adeddf1a0927c3111fec632b34ef863",
+    "bytes": 8449,
+    "sha256": "2f6b89ea247ac8d029138183eeea2a9e27fa4a1734c526082e8f1f9575a0a83c"
+  },
+  {
+    "path": ".grok/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "grok",
+    "contentHash": "sha256:a1bb5fd1dd5f85eb57967778573003ef0cee66003204237bc8bc710a86913ac3",
+    "bytes": 13438,
+    "sha256": "1268615fc96b5fce2a1f0248dba288bcf20db6810c9249d056f8d52970da0989"
+  },
+  {
+    "path": ".grok/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "grok",
+    "contentHash": "sha256:c4b77434cfc7d7a0427232bb7ac534bf46f3c20f5e02b6015cbc3cda621aa965",
+    "bytes": 6212,
+    "sha256": "50ee58436d8e749bed225041d0afbfdff107c78c807bbdc020266f0ea318f850"
+  },
+  {
+    "path": ".grok/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "grok",
+    "contentHash": "sha256:86da332d5c3724b161e5678bc32b63efa5b4d314033c4056dbe94db096a851e0",
+    "bytes": 10108,
+    "sha256": "496e2f3bdebda073c8439b43c03fadaa56102345ce6d22c1c02350fe0d3f9fea"
+  },
+  {
+    "path": ".grok/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "grok",
+    "contentHash": "sha256:5736cf38e7c3513544ce80e72edd45357fb09d41c22e66fa3b3779b53e2cd953",
+    "bytes": 8043,
+    "sha256": "f538c7a9e45f22868aabe19836cc33c6d8ec637b80135505c8f2e753f4d42313"
+  },
+  {
+    "path": ".grok/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "grok",
+    "contentHash": "sha256:2452dffe305e67c129647655e56748e85881cd1413142ee36e7acb22ecdee87b",
+    "bytes": 6094,
+    "sha256": "7005156e92050dc82a53f95c26bed34bf97d6be92ab45ce05cf6b2dac5227ef2"
+  },
+  {
+    "path": ".grok/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "grok",
+    "contentHash": "sha256:7a4a60b2ad76402f661314a45c6767c1d3fdfd5a035dff0c96931a806522b9a6",
+    "bytes": 6285,
+    "sha256": "19374286420240ef54cbb547643d5673291b2fd0edf437d4ff644465032aae25"
+  },
+  {
+    "path": ".grok/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "grok",
+    "contentHash": "sha256:3f9f22442891e27e6febfd6eb84eb683a8a4a031e057b249722821304e7c4dbe",
+    "bytes": 10713,
+    "sha256": "96068a4c9295a88ee6c7a5b2a5a8fd8814cf72b6ea999c5581e7c87683d32627"
+  },
+  {
+    "path": ".grok/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "grok",
+    "contentHash": "sha256:9cc123a3d5f4d9e9a7cb5cd72aaadd61b75a26cdd97b1f7370bb26295f50caf4",
+    "bytes": 5807,
+    "sha256": "bc8e2385499147c03b7ae738ec629eec9708b37064ff550582f4b3c33f129b40"
+  },
+  {
+    "path": ".grok/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "grok",
+    "contentHash": "sha256:5d6de4e01dda4f45b2822d8151cae068a37cdb38bbefcb7746ebf498752a650a",
+    "bytes": 8509,
+    "sha256": "a3755ba7c6354a5ecfdde08a9bf4e99528b169078abf001bd9019f5828a3d83d"
+  },
+  {
+    "path": ".grok/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "grok",
+    "contentHash": "sha256:cda160f54f6e10c55fa4f960bd3840e1f265cd4ffce377ef8baf323d61786fb0",
+    "bytes": 9527,
+    "sha256": "8d21f5f0110e6b2012c7bbbaf5d296233bc10171a3f78a474605ed19320ee203"
+  }
+]

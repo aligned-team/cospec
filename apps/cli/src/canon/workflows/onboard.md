@@ -51,6 +51,13 @@ cospec instructions <artifact> --change <slug> --json
 Explain what the instructions ask for, write the artifact, show the user what
 you wrote, and pause before moving to the next artifact.
 
+For `tasks.md`, explain that each task group carries the tests and documentation
+for its own work, and the last group is only for integration checks. Draft the
+breakdown, show it, and ask "Does this task breakdown look right?" Wait for the
+user's approval or feedback, and save the file only after they approve. Then ask
+separately whether they are ready to implement, and wait for that answer before
+moving on.
+
 ## 6. Validate
 
 ```

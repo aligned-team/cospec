@@ -19,8 +19,9 @@ its own.
 forwarding `--type`/`--json`/`--deltas-only`/`--requirements`/
 `--no-scenarios`/`-r` and `--store`. On `--json`, the command SHALL verify the
 wrapped call emitted exactly one parseable JSON document before returning
-success. `cospec view` SHALL wrap `openspec view` as a thin dashboard
-passthrough and SHALL exit 1 if no `openspec/` root resolves.
+success. `cospec view` SHALL be cospec's native dashboard (see "View dashboard
+shows workflow and gate state"), not a passthrough, and SHALL exit 1 if no
+`openspec/` root resolves.
 
 #### Scenario: Show a change as JSON
 
@@ -44,32 +45,12 @@ passthrough and SHALL exit 1 if no `openspec/` root resolves.
 
 ### Requirement: Context passthrough with code-workspace post-condition
 
-`cospec context` SHALL wrap `openspec context`, threading `--store`/`--json`/
-`--code-workspace <path>`/`--force`. When `--code-workspace <path>` is given and
-the wrapped call exits 0, the command SHALL verify `<path>` exists on disk
-before reporting success; without `--force`, an existing file at `<path>` SHALL
-cause a refusal rather than a silent overwrite.
-
-The wrapped call SHALL always run with `--json`, and cospec SHALL spell the
-binary's reference block through cospec structurally: in the parsed document,
-only `members[].fetch`, `members[].status[].fix` and `status[].fix` are
-rewritten, through the shared field-map helper, and each only where its whole
-value is one of the pinned binary's own reference remedies (the fetch recipe,
-the store-doctor, register, clone and list-the-rest fixes), the remedy's ids,
-paths and remote re-emitted unread; every other byte — a path, an id, a message,
-a root label — is the binary's. A `--json` caller SHALL receive that rewritten
-document, serialized as the binary serializes it. A text caller SHALL receive
-cospec's rendering of the rewritten document, laid out as the binary's human
-listing (`Working context for …`, `OpenSpec root`, `Referenced stores` with
-`Fetch:` lines, the empty-set line, `Not available on this machine` with `Fix:`
-and `Note:` lines); the listing SHALL never be produced by rewriting the
-binary's text. With `--code-workspace` in text mode the listing SHALL be
-rendered from the writing call's document on stdout and its `Wrote …` summary
-relayed on stderr, as the binary prints them; when the binary refuses the write,
-the listing SHALL come from a call that writes nothing, followed by the refusal
-as the binary's `Error:`/`Fix:` lines on stderr. Any other failed call SHALL be
-relayed through the allowlist, a text caller getting the binary's own text
-answer.
+`cospec context` SHALL wrap `openspec context`, threading `--store`, `--json`,
+`--code-workspace <path>` and `--force`, always calling the binary with
+`--json`. After a successful `--code-workspace` call it SHALL verify `<path>`
+exists before reporting success; without `--force` an existing `<path>` SHALL be
+refused, not overwritten. Only the binary's own reference remedies SHALL be
+spelled through cospec, structurally; every other byte SHALL be the binary's.
 
 #### Scenario: JSON brief lists working-set members
 
@@ -114,47 +95,55 @@ answer.
 - **THEN** each fetch and fix names `cospec` in command position only, and every
   id and the remote are printed as the binary printed them
 
+#### Scenario: Only whole reference remedies are rewritten
+
+- **WHEN** the context document is relayed
+- **THEN** only `members[].fetch`, `members[].status[].fix` and `status[].fix`
+  are rewritten, through the shared field-map helper, each only where its whole
+  value is one of the pinned binary's reference remedies (the fetch recipe, the
+  store-doctor, register, clone and list-the-rest fixes), with the remedy's ids,
+  paths and remote re-emitted unread; paths, ids, messages and root labels stay
+  the binary's
+
+#### Scenario: JSON callers get the rewritten document
+
+- **WHEN** `cospec context --json` succeeds
+- **THEN** stdout is the rewritten document, serialized as the binary serializes
+  it
+
+#### Scenario: Text is rendered from the rewritten document
+
+- **WHEN** `cospec context` runs without `--json`
+- **THEN** stdout is cospec's rendering of the rewritten document laid out as
+  the binary's human listing (`Working context for …`, `OpenSpec root`,
+  `Referenced stores` with `Fetch:` lines, the empty-set line,
+  `Not available on this machine` with `Fix:` and `Note:` lines), never produced
+  by rewriting the binary's text
+
+#### Scenario: Text-mode code-workspace output
+
+- **WHEN** `cospec context --code-workspace <path>` runs in text mode
+- **THEN** the listing is rendered from the writing call's document on stdout
+  and its `Wrote …` summary relayed on stderr, as the binary prints them; when
+  the binary refuses the write, the listing comes from a call that writes
+  nothing, followed by the refusal as the binary's `Error:`/`Fix:` lines on
+  stderr
+
+#### Scenario: Other failures are relayed through the allowlist
+
+- **WHEN** the wrapped context call fails any other way
+- **THEN** the failure is relayed through the allowlist, a text caller getting
+  the binary's own text answer
+
 ### Requirement: Workset group passthrough with a terminal-handover exec
 
-`cospec workset create|list|remove` SHALL wrap the corresponding
-`openspec workset` subcommand, preserving `--member`/`--tool`/`--yes`/`--json`
-and the JSON one-document failure mirror. A missing, unknown or option-shaped
-subcommand, a subcommand after a `--`, and every failed answer SHALL be the
-binary's own, delegated with the user's argv (the `--` kept) and `--json`
-threaded when the caller asked for it, and relayed with the binary's sentences
-spelled through cospec — one `unknown_workset_subcommand` document under
-`--json`. A successful `workset create` or `workset list` SHALL be relayed as
-the binary wrote it except the whole lines the binary prints as its next step
-(`Open it any time with: …`, `No worksets saved. Create one with: …`), each
-spelled through cospec.
-
-`cospec workset open` SHALL be a terminal-handover exec, the founding member of
-cospec's **terminal-handover class**: a wrapped call whose child owns the
-terminal because it spawns an editor or drives an interactive prompt. Every
-member of that class SHALL version-assert the wrapped binary first, spawn it
-with inherited stdio and `shell: false` (array argv, no shell interpolation),
-propagate the child process's exit code unchanged — including `130`, which the
-wrapped binary sets when a prompt is cancelled — emit no JSON of its own, and
-declare no `RunExpectation`, which is the documented exception to wrapped-call
-discipline because inherited stdio leaves no captured stdout for a deny-list to
-inspect. `cospec workset open` SHALL NOT thread `--json` or `--no-color`, and
-SHALL spawn with `OPENSPEC_TELEMETRY=0` and `OPENSPEC_NO_COMPLETIONS=1`. The
-class's other members are the interactive `cospec config` subcommands, whose
-obligations are specified by the config passthrough capability.
-
-Before handing the terminal over, every member of the class SHALL pre-validate:
-its argv is parsed against the command table, and a refusal commander would
-raise is answered on cospec's own streams exactly as the binary answers it;
-under `--json` the call is never handed over (`workset open` relays the binary's
-`workset_open_json_unsupported` document from a piped call); when the child
-could not be interactive by the binary's own test (for `workset open`, no TTY on
-stdin, `CI` set, or `OPEN_SPEC_INTERACTIVE=0`) the call runs piped and its
-answer is relayed through the allowlist; and `workset open` reads the saved
-worksets with a read-only `workset list --json` and, for a name that is not
-saved or a workset none of whose member folders exists, answers through the
-piped call, which the binary refuses before launching anything. A `--cwd` that
-is not a directory SHALL be answered with the resolver's `directory not found`
-refusal before anything is spawned.
+`cospec workset create|list|remove` SHALL wrap `openspec workset`, keeping
+`--member`/`--tool`/`--yes`/`--json` and the one-document failure mirror.
+`cospec workset open` SHALL found the **terminal-handover class**: wrapped calls
+whose child owns the terminal for an editor or prompt. Each member SHALL
+version-assert first, spawn with inherited stdio and `shell: false`, propagate
+the child's exit code unchanged (`130` included), emit no JSON, and declare no
+`RunExpectation`.
 
 #### Scenario: Create then list shows the workset
 
@@ -219,16 +208,69 @@ refusal before anything is spawned.
   and `No worksets saved. Create one with: cospec workset create`, and every
   other line is the binary's
 
+#### Scenario: Bad subcommands and failures are the binary's
+
+- **WHEN** the workset subcommand is missing, unknown, option-shaped or after a
+  `--`, or any workset call fails
+- **THEN** the answer is the binary's own, delegated with the user's argv (the
+  `--` kept) and `--json` threaded when asked, relayed with its sentences
+  spelled through cospec, as one `unknown_workset_subcommand` document under
+  `--json` for a bad subcommand
+
+#### Scenario: Successful create and list are relayed verbatim
+
+- **WHEN** `workset create` or `workset list` succeeds
+- **THEN** the output is relayed as the binary wrote it, except whole next-step
+  lines (`Open it any time with: …`, `No worksets saved. Create one with: …`),
+  each spelled through cospec
+
+#### Scenario: Why a handover declares no run expectation
+
+- **WHEN** a terminal-handover call is reviewed against wrapped-call discipline
+- **THEN** its missing `RunExpectation` is the documented exception, because
+  inherited stdio leaves no captured stdout for a deny-list to inspect; `130` is
+  the code the binary sets when a prompt is cancelled
+
+#### Scenario: Open's spawn environment
+
+- **WHEN** `cospec workset open` hands over the terminal
+- **THEN** it threads neither `--json` nor `--no-color` and spawns with
+  `OPENSPEC_TELEMETRY=0` and `OPENSPEC_NO_COMPLETIONS=1`; the class's other
+  members are the interactive `cospec config` subcommands, specified by the
+  config passthrough capability
+
+#### Scenario: Every handover pre-validates
+
+- **WHEN** a terminal-handover member is invoked
+- **THEN** its argv is parsed against the command table and a refusal commander
+  would raise is answered on cospec's streams exactly as the binary answers it;
+  under `--json` the call is never handed over (`workset open` relays the
+  binary's `workset_open_json_unsupported` document from a piped call); and a
+  `--cwd` that is not a directory gets the resolver's `directory not found`
+  refusal before anything spawns
+
+#### Scenario: A child that cannot be interactive runs piped
+
+- **WHEN** the child could not be interactive by the binary's own test (for
+  `workset open`: no TTY on stdin, `CI` set, or `OPEN_SPEC_INTERACTIVE=0`)
+- **THEN** the call runs piped and its answer is relayed through the allowlist
+
+#### Scenario: Open checks the saved worksets first
+
+- **WHEN** `cospec workset open` names an unsaved workset, or one none of whose
+  member folders exists, per a read-only `workset list --json`
+- **THEN** it answers through the piped call, which the binary refuses before
+  launching anything
+
 ### Requirement: Schema and template inspection are read-only passthroughs
 
 `cospec schemas` and `cospec templates` SHALL be read-only passthroughs listing
-resolvable schemas and per-artifact template paths, with `--json` producing
-exactly one parseable JSON document. `cospec schema which` and
-`cospec schema validate` SHALL be read-only passthroughs forwarding
-`--json`/`--all`/`--verbose`; `cospec schema fork` and `cospec schema init`
-SHALL NOT be wired to the wrapped binary — invoking either SHALL print guidance
-pointing at cospec's canon-managed workflow and exit 1, because custom schema
-authoring conflicts with cospec's canon-managed 11-schema model.
+resolvable schemas and per-artifact template paths, `--json` giving exactly one
+JSON document. `cospec schema which` and `cospec schema validate` SHALL be
+read-only passthroughs forwarding `--json`/`--all`/`--verbose`.
+`cospec schema fork` and `cospec schema init` SHALL NOT be wired to the binary:
+either SHALL print guidance toward cospec's canon-managed 11-schema workflow and
+exit 1.
 
 #### Scenario: Schemas lists the eleven cospec types
 
@@ -250,52 +292,12 @@ authoring conflicts with cospec's canon-managed 11-schema model.
 
 ### Requirement: Artifact instructions are a disciplined passthrough
 
-`cospec instructions [artifact]`'s generic branch SHALL route through the same
-disciplined-passthrough runner every other wrapped read surface uses, gaining
-the exit-code allow-list, the stdout deny-list, exit-code normalisation, and the
-guaranteed single-JSON-document invariant for `--json` callers. It SHALL forward
-every flag the command table marks handled for the command, `--change` and
-`--schema <name>` included, to the wrapped call. With no `--change`, or no
-artifact, it SHALL add no refusal of its own: the wrapped binary's own answer
-(its `Missing required option --change. Available changes: …` or
-`Missing required argument <artifact>. Valid artifacts: …` message) SHALL be
-relayed, as one JSON document under `--json`, so a `--json` caller gets exactly
-one document on every path past the parse. `instructions apply` with no
-`--change` SHALL answer the same way; with `--change <id>` it SHALL always be
-the cospec-native `apply` gate, unchanged, whatever the id and the working
-directory: `apply`'s own refusals (no `openspec/` directory, an unknown change,
-an id outside cospec's change-id grammar) SHALL answer for it, and the wrapped
-binary's ungated `instructions apply` SHALL never be relayed in its place.
-`--schema` given with `instructions apply --change <id>` SHALL be refused before
-the gate runs, exit 1 — on stderr, or as one
-`{status: [{severity, code: "schema_not_applicable", message}]}` document under
-`--json` — because the binary would answer from that schema's apply requirements
-while the gate enforces the change's own. `archive` SHALL be listed among the
-artifacts the command advertises and SHALL pass through read-only — it SHALL NOT
-be aliased to `cospec archive`, because the wrapped `instructions archive`
-neither gates nor moves anything.
-
-For any other artifact, cospec SHALL call the wrapped binary with `--json` and
-build its answer from that document. It SHALL respell, through the shared
-structural respell helper, only the command-bearing fields the binary writes
-itself: each `references[].fetch` and each `references[].status[].fix`, each
-rewritten only where its whole value is one of the pinned binary's allowlisted
-remedy sentences, the names in it re-emitted unread. When the change's schema
-resolves from the pinned package (upstream's built-in `spec-driven`), the
-`instruction` and `template` fields SHALL have each of that schema's own lines
-that names a bare `openspec <command>` spelled through cospec, matched as a
-whole line against the pinned schema's text; a schema resolved from the project
-or the user's data directory SHALL stay verbatim. Every other field — `context`,
-`rules`, dependencies, paths, store ids, spec summaries — SHALL be relayed as
-the binary wrote it. A `--json` caller SHALL get the rewritten document; a human
-caller SHALL get text rendered from it by a port of the binary's instruction
-printer, byte-identical to the binary's stdout wherever no field was rewritten.
-A failed call SHALL be answered from the binary's own `--json` failure document,
-its `status[].message` and `status[].fix` each rewritten only where its whole
-value is one allowlisted remedy: re-printed for a `--json` caller, and rendered
-for a human caller as the binary renders it (`✖ Error:` and its `Fix:` line),
-with the binary's exit code; every change name the binary lists SHALL be relayed
-as written.
+`cospec instructions [artifact]` SHALL use the shared disciplined-passthrough
+runner (exit allow-list, stdout deny-list, exit normalisation, one `--json`
+document), forwarding every flag the table marks handled, `--change` and
+`--schema` included. `instructions apply --change <id>` SHALL always be cospec's
+`apply` gate, never the binary's ungated answer. `archive` SHALL be advertised
+and pass through read-only, never aliased to `cospec archive`.
 
 #### Scenario: A failure lists change names as written
 
@@ -399,30 +401,80 @@ as written.
   `openspec/schemas/`
 - **THEN** that copy's text is relayed verbatim
 
+#### Scenario: Missing argument answers are the binary's
+
+- **WHEN** `cospec instructions` runs with no `--change` or no artifact, or
+  `instructions apply` runs with no `--change`
+- **THEN** cospec adds no refusal of its own and relays the binary's
+  `Missing required option --change. Available changes: …` or
+  `Missing required argument <artifact>. Valid artifacts: …`, so a `--json`
+  caller gets exactly one document on every path past the parse
+
+#### Scenario: The apply gate answers for any id
+
+- **WHEN** `instructions apply --change <id>` runs for any id and working
+  directory
+- **THEN** `apply`'s own refusals (no `openspec/` directory, an unknown change,
+  an id outside cospec's change-id grammar) answer for it
+
+#### Scenario: Schema override on apply is refused with a document
+
+- **WHEN** `--schema` is given with `instructions apply --change <id>`
+- **THEN** it is refused before the gate, exit 1, on stderr or as one
+  `{status: [{severity, code: "schema_not_applicable", message}]}` document
+  under `--json`, because the binary would answer from that schema's apply
+  requirements while the gate enforces the change's own
+
+#### Scenario: Only binary-written command fields are respelled
+
+- **WHEN** any other artifact's instructions are relayed
+- **THEN** cospec calls the binary with `--json` and builds its answer from that
+  document, respelling through the shared structural helper only each
+  `references[].fetch` and `references[].status[].fix`, each only where its
+  whole value is an allowlisted remedy, the names in it re-emitted unread; and
+  relays `context`, `rules`, dependencies, paths, store ids and spec summaries
+  as written
+
+#### Scenario: Built-in schema lines are respelled, project schemas are not
+
+- **WHEN** the change's schema resolves from the pinned package (upstream's
+  built-in `spec-driven`)
+- **THEN** each `instruction` and `template` line naming a bare
+  `openspec <command>`, matched as a whole line against the pinned schema's
+  text, is spelled through cospec; a schema resolved from the project or the
+  user's data directory stays verbatim
+
+#### Scenario: Output is rendered from the rewritten document
+
+- **WHEN** the instructions call succeeds
+- **THEN** a `--json` caller gets the rewritten document and a human caller gets
+  text from a port of the binary's instruction printer, byte-identical to the
+  binary's stdout wherever no field was rewritten
+
+#### Scenario: Failures come from the binary's failure document
+
+- **WHEN** the wrapped instructions call fails
+- **THEN** the answer is built from the binary's `--json` failure document, its
+  `status[].message` and `status[].fix` each rewritten only where its whole
+  value is one allowlisted remedy, re-printed for `--json` or rendered as the
+  binary renders it (`✖ Error:` and its `Fix:` line), with the binary's exit
+  code and every listed change name as written
+
+#### Scenario: Archive instructions are not the archive command
+
+- **WHEN** `cospec instructions archive` runs
+- **THEN** it passes through read-only, because the wrapped
+  `instructions archive` neither gates nor moves anything
+
 ### Requirement: Relayed wrapped guidance never instructs bare openspec
 
-Guidance cospec relays out of the wrapped binary — a blocked-apply remedy, an
-apply warning, or any other instructional string cospec re-emits rather than
-authors — SHALL NOT reach a user or an agent naming a bare `openspec` command,
-because an agent that follows such an instruction bypasses every cospec gate the
-routing discipline exists to enforce. cospec SHALL rewrite the wrapped binary's
-command name to its own on every relay path, in the human transcript and in
-`--json` alike.
-
-The rewrite SHALL be anchored to a backtick-delimited command span whose first
-word is the wrapped binary's name, and SHALL NOT be a substitution over the
-whole string. Warning text embeds an absolute metadata path ending
-`.openspec.yaml`, and upstream prose names the product as well as the command; a
-token-level substitution corrupts both. The rewrite SHALL apply only to verbs
-cospec actually wraps, so it can never invent a command that does not exist; a
-span naming any other verb SHALL be relayed unchanged rather than rewritten into
-a wrong instruction.
-
-The guard SHALL apply on every path a relay is reachable from, including the
-legacy apply path that runs no cospec gate, a change grandfathered to an earlier
-schema version whose narrower enforced requirements clear cospec's own gate
-while the wrapped binary still reports it blocked, and a change whose tracked
-task file exists but contains no task.
+Guidance cospec relays from the wrapped binary (a blocked-apply remedy, an apply
+warning, any instructional string it re-emits rather than authors) SHALL NOT
+name a bare `openspec` command: cospec SHALL rewrite the command name to its own
+on every relay path, text and `--json` alike. The rewrite SHALL be anchored to a
+backtick-delimited span whose first word is the binary's name, never a
+whole-string substitution, and SHALL apply only to verbs cospec wraps, relaying
+other verbs unchanged.
 
 #### Scenario: A blocked remedy names cospec, not openspec
 
@@ -450,3 +502,54 @@ task file exists but contains no task.
 - **WHEN** a relayed string names a wrapped-binary command cospec does not wrap
 - **THEN** the span is left as the wrapped binary wrote it rather than rewritten
   into a cospec command that does not exist
+
+#### Scenario: Why the rewrite is span-anchored
+
+- **WHEN** warning text embeds an absolute metadata path ending
+  `.openspec.yaml`, or upstream prose names the product
+- **THEN** both survive, because only a command span is rewritten; a token-level
+  substitution would corrupt them, and an agent following a bare `openspec`
+  instruction would bypass every cospec gate
+
+#### Scenario: The guard covers every relay path
+
+- **WHEN** a relay is reached from the legacy apply path that runs no cospec
+  gate, from a change grandfathered to an earlier schema version that clears
+  cospec's gate while the binary still reports it blocked, or from a change
+  whose tracked task file exists but holds no task
+- **THEN** the relayed guidance still names cospec, not bare `openspec`
+
+### Requirement: View dashboard shows workflow and gate state
+
+`cospec view` SHALL list only active changes in its main section and archived
+changes in a separate section. Each active change SHALL show its schema and
+which artifacts are done, ready, blocked, or skipped, plus cospec's gate state,
+verification-ledger progress, and archive readiness. Progress bars SHALL align
+for names up to 48 characters.
+
+#### Scenario: Archived changes kept out of the way
+
+- **WHEN** a project has 3 active and 40 archived changes
+- **THEN** the active section lists 3 changes and the archived section is shown
+  separately
+
+#### Scenario: Workflow load failure
+
+- **WHEN** a change's schema cannot be loaded
+- **THEN** that change still shows task progress and names the load failure
+
+#### Scenario: Gate state column
+
+- **WHEN** an active change has an unshipped `Blocked by` entry
+- **THEN** its row shows `blocked` and `archiveReady` is false
+
+### Requirement: Show JSON names requirements and scenarios
+
+`cospec show --json` SHALL include each requirement's and scenario's `name`,
+matching the header names archive uses.
+
+#### Scenario: Cite without reparsing
+
+- **WHEN** `cospec show <capability> --json` is read
+- **THEN** each requirement object carries `name` equal to its
+  `### Requirement:` header text

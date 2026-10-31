@@ -190,7 +190,7 @@ describe('1.3 new change --json carries upstream keys beside cospec keys', () =>
     expect(change.path).toBe(join(realpathSync(coRoot), 'openspec', 'changes', 'foo'))
     expect((coDoc['root'] as { path: string }).path).toBe(realpathSync(coRoot))
     for (const key of ['type', 'dir', 'artifacts']) expect(coDoc, key).toHaveProperty(key)
-    expect(metadata(coRoot, 'foo')['schemaVersion']).toBe(2)
+    expect(metadata(coRoot, 'foo')['x-cospec-schema-version']).toBe(2)
   }, 30_000)
 })
 
@@ -305,7 +305,7 @@ describe('1.7 new change takes its default schema from config.yaml', () => {
     const root = copyOf(cospecTemplate)
     const c = await runCospec(['new', 'change', 'foo'], root)
     expect(c.exitCode, detail('cospec', c)).toBe(0)
-    expect(metadata(root, 'foo')).toMatchObject({ schema: 'feat', schemaVersion: 2 })
+    expect(metadata(root, 'foo')).toMatchObject({ schema: 'feat', 'x-cospec-schema-version': 2 })
   }, 30_000)
 
   test('an upstream root (schema: spec-driven) gets what the binary creates', async () => {
@@ -333,7 +333,11 @@ describe('1.8 --goal is written on both spellings', () => {
     expect(metadata(coRoot, 'foo')['goal']).toBe(goal)
     const typed = await runCospec(['new', 'feat', 'bar', '--goal', 'ship it'], coRoot)
     expect(typed.exitCode, detail('cospec', typed)).toBe(0)
-    expect(metadata(coRoot, 'bar')).toMatchObject({ schema: 'feat', goal, schemaVersion: 2 })
+    expect(metadata(coRoot, 'bar')).toMatchObject({
+      schema: 'feat',
+      goal,
+      'x-cospec-schema-version': 2,
+    })
   }, 30_000)
 })
 
@@ -844,7 +848,7 @@ function gatedRoot(): string {
     mkdirSync(join(root, 'openspec', 'changes', id), { recursive: true })
     writeFileSync(
       join(root, 'openspec', 'changes', id, '.openspec.yaml'),
-      'schema: feat\ncreated: 2026-09-28\nschemaVersion: 2\n',
+      'schema: feat\ncreated: 2026-09-28\nx-cospec-schema-version: 2\n',
     )
   }
   mkdirSync(join(root, 'sub', 'deep'), { recursive: true })

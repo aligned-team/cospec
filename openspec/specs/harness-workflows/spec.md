@@ -14,14 +14,13 @@ and no generated body ever calls bare `openspec` or hand-mutates
 
 ### Requirement: opsx 1.5.0 workflow parity
 
-When no profile is explicitly set (see the `workflow-profiles` capability),
-cospec SHALL emit a command (claude, opencode) and a skill (claude, codex,
-opencode, agents) for every live opsx 1.5.0 workflow, mapping opsx `sync` to the
-existing cospec `sync-specs` workflow rather than renaming it. The `codex` and
-`agents` skills are the same files in the shared `.agents/skills` root, so the
-rendered skill set SHALL be complete there for both. An explicitly set profile
-or delivery mode narrows what is written as `workflow-profiles` states; it never
-changes a workflow's body when every workflow is installed.
+With no profile explicitly set (see `workflow-profiles`), cospec SHALL emit a
+command (claude, opencode) and a skill (claude, codex, opencode, agents) for
+every live opsx 1.5.0 workflow, mapping opsx `sync` to the existing cospec
+`sync-specs` workflow, not renaming it. `codex` and `agents` share the
+`.agents/skills` files, so that set SHALL be complete for both. An explicit
+profile or delivery narrows what is written but SHALL NOT change a body when
+every workflow is installed.
 
 #### Scenario: /cospec:verify exists
 
@@ -45,50 +44,12 @@ changes a workflow's body when every workflow is installed.
 
 ### Requirement: cospec-adapted workflow bodies
 
-Each parity workflow body SHALL express cospec's typed model — not a copy of
-opsx prose. `verify` SHALL drive the verification ledger and
-`validate --strict`; `ff` SHALL respect the change's typed artifact plan and add
-nothing it forbids; `bulk-archive` SHALL loop the gated `cospec archive` per
-change and SHALL NOT hand-`mkdir`/`mv` a change; `onboard` SHALL archive via the
-real `cospec archive` CLI path.
-
-Workflow bodies render from one canonical source into every harness, differing
-only in the dialect-driven spelling of their `/cospec:<id>` references, so they
-SHALL be runtime-neutral: no body SHALL name a tool that exists in only one
-harness (`AskUserQuestion`, `TodoWrite`), instructing the agent to ask the user
-or track progress in runtime-neutral terms instead. Bodies that revisit an
-artifact SHALL instruct re-reading it from disk rather than trusting an earlier
-in-context copy. `apply` SHALL instruct surfacing added scope and pausing rather
-than narrowing or deferring specified behavior, and SHALL only allow a task to
-be checked off when the specified behavior is fully implemented. `explore` SHALL
-require naming the exact artifacts and files to be written and obtaining an
-explicit yes/no in a separate message before the first write — stating that
-answering a design question is not consent and that editing schemas, templates,
-or `config.yaml` counts as a write. `bulk-archive` SHALL carry an explicit
-declined branch that stops with nothing archived. `continue`, `verify`,
-`sync-specs`, and `archive` SHALL auto-select a repository's sole active change
-and announce the selection, while `bulk-archive` SHALL NOT. `sync-specs` and
-`archive` SHALL describe the capability-retirement procedure, including that a
-retirement is declared by `retire_capabilities` and that a merged spec must
-never be left with an empty `## Requirements` section.
-
-Every project fact a body grounds itself on SHALL be obtained through a `cospec`
-command rather than by reading a store file directly: `explore` and `propose`
-SHALL read the project's `context` and `rules` through `cospec context --json`
-and SHALL NOT instruct reading `openspec/config.yaml` (or `config.yml`) by hand,
-SHALL treat the result as a constraint on their own reasoning rather than
-authority to act or material to reproduce, and, when no root resolves, SHALL
-follow the shared root-guard fragment rather than proceeding without project
-context: a request the user made explicitly reports the failure and asks how to
-proceed, while a workflow the agent selected itself stops using cospec and
-answers the request normally.
-
-A body that edits artifacts under user confirmation SHALL stage the edit before
-writing it: `update` SHALL draft the requested revision in the conversation
-rather than in files, check every other existing artifact against the drafted
-edit, propose no revisions when the change is already coherent, and SHALL name
-exactly one step as the step that performs every artifact write in the workflow,
-with no earlier step editing an artifact.
+Each parity workflow body SHALL express cospec's typed model, not opsx prose,
+and SHALL be runtime-neutral, differing per harness only in `/cospec:<id>`
+spelling. `verify` SHALL drive the verification ledger and `validate --strict`;
+`ff` SHALL respect the typed artifact plan; `bulk-archive` SHALL loop gated
+`cospec archive` and never hand-`mkdir`/`mv` a change; `onboard` SHALL archive
+via `cospec archive`. Further body obligations are stated as scenarios.
 
 #### Scenario: verify body references the ledger and hard gates
 
@@ -155,22 +116,68 @@ with no earlier step editing an artifact.
   is already coherent, and its confirmation step states that it performs every
   artifact write in the workflow and that no earlier step edits an artifact
 
+#### Scenario: bodies name no harness-only tool and re-read artifacts
+
+- **WHEN** any rendered workflow body is read
+- **THEN** it names no tool that exists in only one harness (`AskUserQuestion`,
+  `TodoWrite`), asks the user or tracks progress in runtime-neutral terms, and
+  any body that revisits an artifact instructs re-reading it from disk rather
+  than trusting an earlier in-context copy
+
+#### Scenario: apply surfaces added scope instead of narrowing
+
+- **WHEN** the rendered `apply` body is read
+- **THEN** it instructs surfacing added scope and pausing rather than narrowing
+  or deferring specified behavior, and allows checking off a task only when the
+  specified behavior is fully implemented
+
+#### Scenario: explore counts config edits as writes
+
+- **WHEN** the rendered `explore` body is read
+- **THEN** it requires naming the exact artifacts and files to be written, and
+  states that editing schemas, templates, or `config.yaml` counts as a write
+
+#### Scenario: sync-specs and archive describe capability retirement
+
+- **WHEN** the rendered `sync-specs` and `archive` bodies are read
+- **THEN** each describes the capability-retirement procedure, states that a
+  retirement is declared by `retire_capabilities`, and that a merged spec must
+  never be left with an empty `## Requirements` section
+
+#### Scenario: project facts come through cospec commands
+
+- **WHEN** any rendered workflow body grounds itself on a project fact
+- **THEN** it obtains the fact through a `cospec` command rather than by reading
+  a store file directly, and `explore` and `propose` read `context` and `rules`
+  through `cospec context --json`, never by opening `openspec/config.yaml` (or
+  `config.yml`), treating the result as a constraint on their reasoning rather
+  than authority to act or material to reproduce
+
+#### Scenario: explore and propose follow the root guard without a root
+
+- **WHEN** the rendered `explore` and `propose` bodies are read for the case
+  where no root resolves
+- **THEN** each follows the shared root-guard fragment rather than proceeding
+  without project context: an explicit user request reports the failure and asks
+  how to proceed, while a workflow the agent selected itself stops using cospec
+  and answers the request normally
+
+#### Scenario: update names its single write step
+
+- **WHEN** the rendered `update` body is read
+- **THEN** it stages edits before writing them, checks every other existing
+  artifact against the drafted edit, and names exactly one step as the step that
+  performs every artifact write, with no earlier step editing an artifact
+
 ### Requirement: opsx 1.11.0 workflow parity
 
-When no profile is explicitly set, cospec SHALL extend its generated workflow
-set to the `opsx` workflow set of the pinned OpenSpec 1.11.0 release by adding a
-twelfth workflow, `update`, rendered as a command (claude, opencode) and a skill
-(claude, codex, opencode, agents) under cospec's own naming — `/cospec:update`
-and the `cospec-update-change` skill. Its body SHALL revise existing artifacts
-only: it SHALL edit only artifact output paths that already exist, SHALL NOT
-invent an artifact (that remains `continue`'s job), SHALL NOT edit code, SHALL
-route every read through `cospec status --change <slug> --json` and
-`cospec instructions <artifact> --change <slug> --json`, and SHALL hand off to
-`/cospec:continue` or `/cospec:apply` wherever those workflows are installed.
-The workflow SHALL be registered in the canon harness manifest and its skill id
-known to `cospec doctor`, so the dangling-reference check does not flag it under
-either the workflow-id or the skill-name spelling. cospec's schema count SHALL
-be unaffected and remain eleven.
+With no profile set, cospec SHALL add opsx 1.11.0's twelfth workflow, `update`,
+as a command (claude, opencode) and skill (claude, codex, opencode, agents):
+`/cospec:update` and `cospec-update-change`. Its body SHALL only revise existing
+artifact paths, never invent an artifact or edit code, read only through
+`cospec` commands, and hand off to `/cospec:continue` or `/cospec:apply`. It
+SHALL be in the harness manifest and known to `cospec doctor`. Schemas SHALL
+stay eleven.
 
 #### Scenario: update is rendered in every harness
 
@@ -198,16 +205,29 @@ be unaffected and remain eleven.
 - **THEN** it reports no drift, and the schema count reported by
   `cospec schemas` is still eleven
 
+#### Scenario: update reads only through cospec commands
+
+- **WHEN** the rendered `update` body is read
+- **THEN** every read it instructs goes through
+  `cospec status --change <slug> --json` and
+  `cospec instructions <artifact> --change <slug> --json`, and its hand-offs to
+  `/cospec:continue` and `/cospec:apply` apply wherever those workflows are
+  installed
+
+#### Scenario: doctor accepts both update spellings
+
+- **WHEN** `cospec doctor` checks references to `update` spelled by workflow id
+  and by skill name
+- **THEN** neither spelling is flagged by the dangling-reference check
+
 ### Requirement: OpenCode commands carry their arguments
 
 Generated OpenCode command bodies SHALL declare the invocation's arguments
 through OpenCode's `$ARGUMENTS` placeholder whenever the workflow takes
-positional input, so an invocation like `/cospec-new feat add-widget` reaches
-the agent with its argument text intact instead of silently dropping it.
+positional input, so `/cospec-new feat add-widget` reaches the agent intact.
 Injection SHALL be a no-op when a body already references `$ARGUMENTS` or a
-positional placeholder, SHALL preserve the body's existing line endings, and
-SHALL apply only to workflows whose bodies actually take positional input.
-Claude and Codex output SHALL be unchanged.
+positional placeholder, SHALL preserve line endings, and SHALL apply only to
+workflows taking positional input. Claude and Codex output SHALL be unchanged.
 
 #### Scenario: An argument-taking OpenCode command declares $ARGUMENTS
 
@@ -229,48 +249,12 @@ Claude and Codex output SHALL be unchanged.
 ### Requirement: Shared .agents/skills harness root
 
 cospec SHALL render skills for every harness whose skills root is `.agents`
-(`codex`, `agents`, `antigravity`, `zed`) into the vendor-neutral
-`.agents/skills/cospec-<skill>/SKILL.md` root, and SHALL write that root from
-exactly one selected harness per run, chosen in this order: the harness named by
-the ownership marker `.agents/skills/.cospec-target` when it is among the
-preferred selected harnesses; then cospec's pre-marker evidence (the codex rules
-file `.codex/rules/cospec.rules`, or a legacy `.codex/skills/cospec-*/SKILL.md`,
-means `codex`); then `agents` when the root already holds a cospec skill; then
-`codex`; then the first selected harness in the pinned OpenSpec binary's tool
-order (`antigravity`, `codex`, `zed`, `agents`). The preferred harnesses are the
-selected ones with no slash-command surface when any is selected, otherwise all
-selected ones. cospec SHALL write the marker, containing the chosen harness id
-and a newline, whenever it writes that root, and SHALL track it in the manifest.
-cospec SHALL NOT write or read an `.agents/skills/.openspec-target` ownership
-marker.
-
-`codex`, `agents` and `zed` SHALL render byte-identical shared skill files,
-including the stamped `contentHash`, through the single shared body dialect;
-`antigravity` SHALL render its skills through its flat dialect when it is the
-chosen writer. `agents` and `zed` SHALL emit skills only; `codex` SHALL
-additionally emit `.codex/rules/cospec.rules`; `antigravity` SHALL additionally
-emit its workflows under `.agents/workflows/` whichever harness writes the
-skills. No output path SHALL be written twice in one run, and two harnesses
-mapping one output path to differing content SHALL be a hard render error when
-the files are rendered without a chosen writer.
-
-In the shared dialect an in-body `/cospec:<id>` reference SHALL be respelled to
-`$cospec-<skill> (Codex) or /cospec-<skill> (other agents)` using the skill
-directory name, never the workflow id, because no command file resolves under
-that root; an id cospec does not know SHALL be left verbatim so
-`cospec doctor`'s dangling-reference check still fires on a genuinely bad
-reference, and that check SHALL accept both the workflow-id and the skill-name
-spelling. The `canonical` and `flat` dialects SHALL be unchanged.
-
-Auto-detection SHALL key the `agents` target on `.agents/skills`, not on a bare
-`.agents/` directory, and the fresh-repo default SHALL remain `claude`. The
-`codex` target's detection paths SHALL be `.agents/skills` and `.codex/skills`,
-as the pinned binary's; a detection path ending in `/skills` SHALL select a
-harness only when that harness is the chosen writer of the root, as the binary's
-tool detection reconciles it. `cospec update` and `cospec doctor` SHALL treat a
-harness as configured through a shared root only when it is that root's chosen
-writer, or when its own non-shared surface (a rules file, a command directory)
-holds cospec files.
+(`codex`, `agents`, `antigravity`, `zed`) into
+`.agents/skills/cospec-<skill>/SKILL.md`, written by exactly one chosen harness
+per run, writing the marker `.agents/skills/.cospec-target` (the chosen id and a
+newline) with that root, tracked in the manifest. It SHALL NOT read or write
+`.agents/skills/.openspec-target`. Writer choice, rendering, respelling and
+detection are stated as scenarios.
 
 #### Scenario: codex and agents render identical shared files
 
@@ -349,26 +333,54 @@ holds cospec files.
   harness-looking directory is `.codex/` holding a user's `config.toml`
 - **THEN** `codex` is not auto-selected
 
+#### Scenario: the writer is chosen in a fixed order
+
+- **WHEN** cospec chooses the writer of the `.agents/skills` root
+- **THEN** it takes, in order: the harness the `.cospec-target` marker names
+  when it is among the preferred selected harnesses; `codex` when
+  `.codex/rules/cospec.rules` or a legacy `.codex/skills/cospec-*/SKILL.md`
+  exists; `agents` when the root already holds a cospec skill; `codex`; then the
+  first selected harness in the pinned binary's tool order (`antigravity`,
+  `codex`, `zed`, `agents`) — where the preferred harnesses are the selected
+  ones with no slash-command surface when any is selected, otherwise all
+  selected ones
+
+#### Scenario: each harness emits its own extra surface
+
+- **WHEN** shared-root harnesses are rendered
+- **THEN** `codex`, `agents` and `zed` render byte-identical shared skills,
+  `contentHash` included, through the shared dialect; `antigravity` renders
+  through its flat dialect when it is the chosen writer; `agents` and `zed` emit
+  skills only; `codex` also emits `.codex/rules/cospec.rules`; `antigravity`
+  also emits `.agents/workflows/` whichever harness writes the skills; and no
+  output path is written twice in one run
+
+#### Scenario: unknown ids in the shared dialect stay verbatim
+
+- **WHEN** a shared-dialect body references a `/cospec:<id>` cospec does not
+  know
+- **THEN** the reference is left verbatim so `cospec doctor`'s dangling-ref
+  check fires, while known ids are respelled with the skill directory name,
+  never the workflow id, and the `canonical` and `flat` dialects are unchanged
+
+#### Scenario: detection paths follow the pinned binary
+
+- **WHEN** harnesses are auto-detected or treated as configured
+- **THEN** the fresh-repo default stays `claude`, `codex`'s detection paths are
+  `.agents/skills` and `.codex/skills`, a detection path ending in `/skills`
+  selects a harness only when it is that root's chosen writer, and
+  `cospec update` and `cospec doctor` treat a harness as configured through a
+  shared root only when it is the chosen writer or its own non-shared surface (a
+  rules file, a command directory) holds cospec files
+
 ### Requirement: Legacy .codex/skills installs are migrated non-destructively
 
-cospec SHALL migrate an existing `.codex/skills/cospec-*` install to
-`.agents/skills` after generation has written the replacement, and SHALL delete
-a legacy file only when that replacement was actually rendered and the legacy
-file still hashes to its own stamped `contentHash`, or when `--force` was
-passed. A legacy file cospec did not author SHALL be left untouched and
-unreported; a hand-edited legacy file SHALL be left on disk and reported as
-preserved, and its freshly generated replacement SHALL NOT be overwritten with
-legacy content. Only paths of the exact shape `.codex/skills/cospec-*/SKILL.md`
-SHALL be removed, directories SHALL be pruned with `rmdir`-if-empty rather than
-a recursive removal, and `.codex/` itself — which still holds
-`.codex/rules/cospec.rules` — SHALL never be removed.
-
-A remaining legacy layout SHALL count as drift, so `cospec update --check` SHALL
-exit 1 until it clears, and `cospec doctor` SHALL report one `legacy-layout`
-WARNING per remaining legacy file rather than describing it as canon drift.
-`cospec init --json` and `cospec update --json` SHALL carry the outcomes in a
-top-level `migration` array, and `--check`/`--dry-run` SHALL compute every
-outcome without touching the disk.
+cospec SHALL migrate `.codex/skills/cospec-*` to `.agents/skills` after the
+replacement is written, deleting a legacy file only when its replacement was
+rendered and it still matches its stamped `contentHash`, or with `--force`. It
+SHALL remove only `.codex/skills/cospec-*/SKILL.md`, prune with
+`rmdir`-if-empty, and never remove `.codex/`. A remaining legacy layout SHALL be
+drift. `init`/`update --json` SHALL carry a top-level `migration` array.
 
 #### Scenario: an untouched legacy skill is removed
 
@@ -397,25 +409,33 @@ outcome without touching the disk.
 - **THEN** doctor reports a `legacy-layout` WARNING naming each legacy path and
   `cospec update --check` exits 1; after `cospec update` both are clean
 
+#### Scenario: a preserved file keeps its replacement generated
+
+- **WHEN** a hand-edited legacy file is preserved during migration
+- **THEN** its freshly generated `.agents/skills` replacement is not overwritten
+  with legacy content, and a legacy file cospec did not author is neither
+  touched nor reported
+
+#### Scenario: doctor reports legacy files, not canon drift
+
+- **WHEN** `cospec doctor` finds a remaining legacy file
+- **THEN** it reports one `legacy-layout` WARNING per file rather than
+  describing it as canon drift
+
+#### Scenario: check and dry-run compute outcomes without writing
+
+- **WHEN** `cospec update --check` or `--dry-run` runs with a legacy install
+- **THEN** every migration outcome is computed and the disk is untouched
+
 ### Requirement: Explore conducts grounded, dependency-ordered discovery
 
-The rendered `explore` body SHALL instruct the agent how to conduct discovery,
-not only when it may write. It SHALL require asking one focused question at a
-time, naming the decision that question unlocks, and ordering questions by
-dependency so an answer is never sought before the answer it depends on. It
-SHALL require checking the repository for any fact the agent can verify itself
-before asking the user for it, and offering a grounded recommendation with its
-tradeoffs rather than an open menu. It SHALL state that decisions are tracked in
-the conversation and not in files, and that silence is not acceptance — that
-accepting an answer, or a batch of recommendations, is not permission to write.
-
-The body SHALL also carry a capability-inventory step built on cospec commands
-that already exist: `cospec list --specs` to enumerate the project's capability
-specs, and `cospec show "<id>" --type spec [--no-scenarios]` to read one.
-
-An explicit request from the user to capture, record, or write down a named
-result SHALL be its own write confirmation, scoped to exactly what was named and
-to nothing else.
+The `explore` body SHALL instruct: one focused question at a time naming the
+decision it unlocks, in dependency order; checking the repository before asking
+a verifiable fact; a recommendation with tradeoffs, not an open menu; decisions
+kept in the conversation, not files; and that silence or accepted answers are
+not permission to write. It SHALL inventory capabilities via
+`cospec list --specs` and `cospec show`. An explicit capture request SHALL
+confirm only what it names.
 
 #### Scenario: explore names the questioning discipline
 
@@ -442,14 +462,12 @@ to nothing else.
 
 ### Requirement: Workflow skill descriptions carry natural-phrasing triggers
 
-Every workflow description in the canon harness manifest SHALL carry, in
-addition to its functional sentence, a trigger sentence naming the phrasings a
-user actually types, because harness skill matching keys off the description
-rather than the body. The trigger sentence SHALL cover both vocabularies cospec
-users arrive with — the `cospec <verb>` spelling and the `openspec <verb>`
-spelling. The `cospec-update-change` description SHALL additionally disambiguate
-the workflow from the unrelated `cospec update` CLI subcommand that regenerates
-managed harness and schema files.
+Every workflow description in the canon harness manifest SHALL carry, beside its
+functional sentence, a trigger sentence naming the phrasings users type, since
+harness skill matching keys off the description. It SHALL cover both the
+`cospec <verb>` and `openspec <verb>` spellings. The `cospec-update-change`
+description SHALL also disambiguate it from the unrelated `cospec update`
+subcommand that regenerates managed files.
 
 #### Scenario: every description carries a trigger sentence
 
@@ -488,29 +506,13 @@ agent must perform.
 
 ### Requirement: Init receipt hint follows the selected harness
 
-`cospec init`'s receipt SHALL end with its two hint lines (`Try: …` and
-`Lightweight change? …`) spelled the way the first selected harness invokes the
-`propose` workflow. The lines SHALL be rendered through that harness's body
-dialect and invocation prefix, the same respelling its generated bodies get, so
-the hint names a command or skill that exists for that harness. The first
-selected harness SHALL be the first id of an explicit `--harness`/`--tools` list
-as given, or otherwise the first selected row in table order. When no harness is
-selected (`--harness none`), the hint SHALL keep the canonical `/cospec:propose`
-spelling. When the `propose` workflow is not installed for that harness (an
-explicit profile left it out), the hint SHALL name `new` when that workflow is
-installed (`/cospec:new`, spelled the same way), and otherwise the raw gated
-command, `cospec new feat <slug>`, followed by a line pointing at
-`cospec config profile`, instead of a workflow that does not exist.
-
-The receipt SHALL name only what the `delivery` wrote. The hint SHALL be spelled
-for the first selected harness that generates a skill or a command: its command
-under delivery `commands`, its skill (`/cospec-propose`, not `/cospec:propose`)
-under delivery `skills` when the harness has command files it did not get. When
-selected harnesses exist and none generates anything, the receipt SHALL print no
-start hint. A harness's setup note SHALL print only when the delivery writes the
-surface it is about, and the IDE restart line SHALL follow the surface the
-delivery writes for the flagged harness; the shared-root line SHALL print only
-for a skills root the delivery writes into.
+`cospec init`'s receipt SHALL end with its `Try: …` and `Lightweight change? …`
+hints spelled, via that harness's dialect and invocation prefix, as the first
+selected harness (first `--harness`/`--tools` id, else first selected row in
+table order) invokes `propose`. With `--harness none` it SHALL keep
+`/cospec:propose`. Without `propose` it SHALL name `new`, else
+`cospec new feat <slug>` and a `cospec config profile` line. The receipt SHALL
+name only what `delivery` wrote.
 
 #### Scenario: OpenCode receipt names the flat command
 
@@ -577,17 +579,31 @@ for a skills root the delivery writes into.
   `No skills or commands were generated for …` line, and prints no `Try:` hint,
   no Hermes or shared `.agents/skills` setup note and no shared-root line
 
+#### Scenario: delivery decides the hint harness and spelling
+
+- **WHEN** a `delivery` is set
+- **THEN** the hint is spelled for the first selected harness that generates a
+  skill or a command: its command under `commands`, its skill
+  (`/cospec-propose`) under `skills` when the harness has command files it did
+  not get
+
+#### Scenario: setup notes follow the delivered surface
+
+- **WHEN** the receipt is printed under any `delivery`
+- **THEN** a harness's setup note prints only when the delivery writes the
+  surface it is about, the IDE restart line follows the surface written for the
+  flagged harness, and the shared-root line prints only for a skills root the
+  delivery writes into
+
 ### Requirement: Doctor checks only the harness files cospec writes
 
 `cospec doctor`'s `stale-harness`, `mixed-versions` and `dangling-ref` checks
-SHALL read only files at a path cospec generates:
-`<skills-root>/<skill>/SKILL.md`, with exactly one directory between a harness
-row's project or legacy skills root and the file, and each markdown harness
-row's command paths
-(`<commands dir>/<file template with one path segment for the command><extension>`).
-Any other file under a harness directory SHALL NOT produce one of those
-findings. That includes a user's own markdown and a nested worktree's checkout.
-The opsx leftover scan is not narrowed by this requirement.
+SHALL read only paths cospec generates: `<skills-root>/<skill>/SKILL.md`, one
+directory below a harness row's project or legacy skills root, and each markdown
+harness row's command paths (one path segment for the command). Any other file
+under a harness directory, including user markdown and nested worktree
+checkouts, SHALL NOT produce those findings. The opsx leftover scan is not
+narrowed.
 
 #### Scenario: A user note is not a harness document
 
@@ -613,19 +629,12 @@ The opsx leftover scan is not narrowed by this requirement.
 
 ### Requirement: The sync-specs workflow syncs through cospec sync-specs
 
-The `sync-specs` workflow body SHALL do what upstream's `sync` workflow does,
-merge a change's delta specs into the main specs without archiving it, and SHALL
-do it only through the CLI: preview the merge (`cospec validate <slug>` and the
-change's delta files), say which main specs will be created, changed or deleted,
-then run `cospec sync-specs <slug>` and report its result. It SHALL NOT instruct
-the agent to edit a main spec by hand, and SHALL NOT say that a mid-flight sync
-is unsupported. It SHALL say that the merge is the archive's own, byte-for-byte,
-so a refusal there is the same refusal archive would give, and that the change
-stays active. The workflow's `harness.yaml` description SHALL say it merges a
-change's delta specs into the main specs without archiving, and SHALL keep its
-natural-phrasing triggers. The `archive` workflow body SHALL say that a change
-whose specs were synced early archives as a no-op merge, with both hard gates
-still run.
+The `sync-specs` body SHALL merge a change's delta specs into the main specs
+without archiving, only through the CLI: preview (`cospec validate <slug>` and
+the delta files), say which main specs are created, changed or deleted, run
+`cospec sync-specs <slug>` and report. It SHALL NOT hand-edit a main spec or
+call mid-flight sync unsupported, and SHALL say the merge is the archive's own
+and the change stays active, as its `harness.yaml` description SHALL.
 
 #### Scenario: The rendered sync-specs body runs the command
 
@@ -639,26 +648,27 @@ still run.
 - **THEN** it says a change synced early with `/cospec:sync-specs` archives as a
   no-op merge and still passes both hard gates
 
+#### Scenario: sync-specs shares the archive's refusals
+
+- **WHEN** the rendered `sync-specs` body is read
+- **THEN** it says the merge is byte-for-byte the archive's own, so a refusal
+  there is the same refusal archive would give
+
+#### Scenario: the description says it merges without archiving
+
+- **WHEN** the `sync-specs` description in `harness.yaml` is read
+- **THEN** it says the workflow merges a change's delta specs into the main
+  specs without archiving and keeps its natural-phrasing triggers
+
 ### Requirement: Every pinned tool id is a harness
 
-`cospec init --harness` and its `--tools` spelling SHALL accept every tool id
-the pinned OpenSpec binary's `AI_TOOLS` declares, and SHALL resolve `windsurf`
-to `devin` as the binary's `TOOL_ID_ALIASES` does; `all` SHALL select every
-harness. For each harness cospec SHALL write cospec's own canon workflow bodies,
-never an upstream `/opsx:*` template, at the paths the pinned binary's
-`init --tools <id>` writes, with `openspec-<skill>` skill directories spelled
-`cospec-<skill>` and `opsx-<id>`/`opsx/<id>` command files spelled
-`cospec-<command>`/`cospec/<command>`, in the same directory, with the same
-extension and the same wrapper (YAML frontmatter with upstream's keys plus
-cospec's `metadata` provenance, a Markdown `# <name>` header, a bare body, or
-TOML). The receipt SHALL print, after each selected harness's setup note, the
-binary's single IDE-restart line when a selected harness requires a restart; a
-harness whose upstream entry carries a setup note SHALL print a note that
-includes that text verbatim. An unknown value SHALL be refused naming the valid
-values and followed by the line
-`Tool not listed? Use <flag> agents: the vendor-neutral target that writes .agents/skills/ for any assistant.`,
-with `<flag>` the flag the user typed; the `agents` target's search aliases
-SHALL NOT be accepted as values, as the binary does not accept them.
+`cospec init --harness`/`--tools` SHALL accept every pinned `AI_TOOLS` id,
+resolve `windsurf` to `devin`, and let `all` select all. Each harness SHALL get
+cospec's canon bodies, never `/opsx:*` templates, at the paths the binary's
+`init --tools <id>` writes, `openspec-`/`opsx-` names respelled `cospec-`, with
+upstream's directory, extension and wrapper. The receipt SHALL print upstream
+setup notes verbatim. Unknown values, including `agents` aliases, SHALL be
+refused.
 
 #### Scenario: a new tool's files land where upstream writes them
 
@@ -687,20 +697,34 @@ SHALL NOT be accepted as values, as the binary does not accept them.
   `Tool not listed? Use --tools agents: the vendor-neutral target that writes .agents/skills/ for any assistant.`,
   and nothing is written
 
+#### Scenario: wrappers keep upstream's shape plus provenance
+
+- **WHEN** a harness's command files are rendered
+- **THEN** each uses upstream's wrapper — YAML frontmatter with upstream's keys
+  plus cospec's `metadata` provenance, a Markdown `# <name>` header, a bare
+  body, or TOML — and `opsx-<id>`/`opsx/<id>` are spelled
+  `cospec-<command>`/`cospec/<command>`
+
+#### Scenario: the restart line follows the setup notes
+
+- **WHEN** a selected harness requires an IDE restart
+- **THEN** the receipt prints the binary's single IDE-restart line after each
+  selected harness's setup note
+
+#### Scenario: the fallback line names the flag typed
+
+- **WHEN** `cospec init --harness bogus` runs
+- **THEN** the refusal names the valid values and is followed by
+  `Tool not listed? Use --harness agents: the vendor-neutral target that writes .agents/skills/ for any assistant.`
+
 ### Requirement: Workflow references follow each tool's invocation
 
-A harness's skill bodies and command bodies SHALL spell an in-body
-`/cospec:<id>` reference the way that tool invokes it, as the pinned binary's
-skill and command reference transforms do: `/cospec:<id>` for a namespaced
-command surface, `<prefix>cospec-<id>` for a flat one (`@` for Amazon Q),
-`/cospec-<skill>` for a skills-only tool and for Devin's skills,
+Skill and command bodies SHALL spell `/cospec:<id>` as the tool invokes it, per
+the binary's transforms: `/cospec:<id>` namespaced, `<prefix>cospec-<id>` flat
+(`@` for Amazon Q), `/cospec-<skill>` for skills-only tools and Devin's skills,
 `/skill:cospec-<skill>` for Kimi Code, `the cospec-<skill> skill` for Rovo Dev,
-and the shared dialect on the shared `.agents` root. The receipt's hint lines
-SHALL use the first selected harness's skill spelling; for a harness whose
-skills are referenced in prose the hint SHALL read
-`Try: ask <tool name> to use the cospec-propose skill with "feat: <what you want to build>"`.
-`cospec doctor`'s dangling-reference check SHALL recognise every one of these
-spellings.
+and the shared dialect on `.agents`. Receipt hints SHALL use the first selected
+harness's skill spelling. `cospec doctor` SHALL recognise every spelling.
 
 #### Scenario: Devin's skills and workflows spell differently
 
@@ -721,6 +745,12 @@ spellings.
 - **WHEN** `cospec init --harness rovodev` runs
 - **THEN** the receipt ends with
   `Try: ask Rovo Dev CLI to use the cospec-propose skill with "feat: <what you want to build>"`
+
+#### Scenario: prose-skill hints use the tool name
+
+- **WHEN** the first selected harness references skills in prose
+- **THEN** the receipt hint reads
+  `Try: ask <tool name> to use the cospec-propose skill with "feat: <what you want to build>"`
 
 ### Requirement: Frontmatter-less command files are manifest-tracked
 
@@ -783,18 +813,13 @@ it.
 
 ### Requirement: Legacy tool roots move OpenSpec-managed content
 
-cospec SHALL port the pinned binary's legacy tool-root moves for a selected
-harness: `.kimi` to `.kimi-code` and `.agent` to `.agents` without consent,
-`.codex` to `.agents` after generation, and `.windsurf` to `.devin` with
-consent. Only OpenSpec-managed skill files (`openspec-<skill>/SKILL.md`) and
-command files (`opsx-*` at the tool's command path under the legacy root) SHALL
-move; an identical destination SHALL drop the legacy copy, a differing one SHALL
-keep both and be reported, and a directory SHALL be removed only when empty.
-`cospec init` SHALL treat selecting the tool as consent. `cospec update` SHALL
-ask before moving `.windsurf` only when stdin and stdout are terminals and
-neither `--json` nor `--force` is passed, and SHALL move without asking
-otherwise. Every move SHALL be reported in the receipt and the `--json`
-`migration` array.
+cospec SHALL port the binary's legacy root moves for a selected harness:
+`.kimi`→`.kimi-code` and `.agent`→`.agents` without consent, `.codex`→`.agents`
+after generation, `.windsurf`→`.devin` with consent. Only
+`openspec-<skill>/SKILL.md` and `opsx-*` command files SHALL move; an identical
+destination drops the legacy copy, a differing one keeps both and is reported;
+directories go only when empty. Every move SHALL be reported in the receipt and
+`--json` `migration`.
 
 #### Scenario: init moves Kimi's legacy skills
 
@@ -816,6 +841,13 @@ otherwise. Every move SHALL be reported in the receipt and the `--json`
   `.windsurf/` holds OpenSpec-managed workflows
 - **THEN** they are moved to `.devin/workflows/` without a question and listed
   in the document's `migration` array
+
+#### Scenario: consent for the Windsurf move
+
+- **WHEN** `.windsurf` holds OpenSpec-managed content
+- **THEN** `cospec init` treats selecting the tool as consent, and
+  `cospec update` asks before moving only when stdin and stdout are terminals
+  and neither `--json` nor `--force` is passed, moving without asking otherwise
 
 ### Requirement: A write failure is isolated to its file
 
@@ -839,21 +871,13 @@ exit 1. Any other error SHALL propagate.
 
 ### Requirement: GitHub Copilot is a harness target
 
-`--harness github-copilot` SHALL select a target that writes cospec's twelve
-skills to `.github/skills/cospec-<skill>/SKILL.md` and its twelve commands to
-`.github/prompts/cospec-<command>.prompt.md`. A command file SHALL carry
-`description` and cospec's `metadata` provenance block in its frontmatter and
-the workflow body in the flat dialect, so references read `/cospec-<id>`. The
-target SHALL be auto-detected by any of `.github/copilot-instructions.md`,
-`.github/instructions`, `.github/workflows/copilot-setup-steps.yml`,
-`.github/prompts`, `.github/agents`, `.github/skills` and `.github/.mcp.json`;
-SHALL set `requiresIdeRestart`, so that a receipt naming it ends with
-`Restart your IDE to refresh commands.`; and SHALL sit in the harness table
-between `gemini` and `hermes`. `cospec update` SHALL detect it by the sentinel
-`cospec-propose` skill under `.github/skills`. An OpenSpec-written
-`.github/prompts/openspec-*.prompt.md` or `.github/prompts/opsx-*.prompt.md`
-with upstream's provenance SHALL be reported as a leftover and removed by
-`--remove-opsx`; a user's own prompt file SHALL NOT.
+`--harness github-copilot` SHALL write the twelve skills to
+`.github/skills/cospec-<skill>/SKILL.md` and twelve commands to
+`.github/prompts/cospec-<command>.prompt.md`, each with `description` and
+`metadata` frontmatter and a flat-dialect body. It SHALL set
+`requiresIdeRestart`, sit between `gemini` and `hermes`, and be found by
+`update` via its `cospec-propose` skill. OpenSpec-written `openspec-*`/`opsx-*`
+prompts SHALL be leftovers for `--remove-opsx`; user prompts SHALL NOT be.
 
 #### Scenario: Skills and prompts are written under .github
 
@@ -888,36 +912,23 @@ with upstream's provenance SHALL be reported as a leftover and removed by
   `cospec init --harness github-copilot --remove-opsx` runs
 - **THEN** only the OpenSpec file is removed
 
+#### Scenario: every Copilot detection path selects it
+
+- **WHEN** `cospec init` runs with no `--harness` in a repo holding any one of
+  `.github/copilot-instructions.md`, `.github/instructions`,
+  `.github/workflows/copilot-setup-steps.yml`, `.github/prompts`,
+  `.github/agents`, `.github/skills` or `.github/.mcp.json`
+- **THEN** `github-copilot` is auto-detected
+
 ### Requirement: One shared fragment grounds every body on the project root
 
-The canon SHALL declare the root-grounding text once, in
-`canon/workflows/_shared/root-guard.md`, and `renderHarnessFiles` SHALL
-interpolate it at a `{{ROOT_GUARD}}` token into each of the twelve workflow
-bodies before any other render step. A body SHALL carry exactly one such token,
-and a render whose body lacks it, repeats it or carries any other unregistered
-`{{NAME}}` token (other than `{{TYPE_TABLE}}`) SHALL fail. The fragment SHALL
-name no bare `openspec` command, no `/cospec:<id>` reference and no
-optional-workflow marker.
-
-The fragment SHALL open with the check that precedes the first write
-(`cospec list --json`, with `--store <id>` when a store is selected, reading
-`root`), and SHALL carry three parts: a store-declaration carve-out, which
-applies when a `status` message starts `Declared in` or
-`Invalid store declaration in` and names the project's `openspec/config.yaml` or
-`config.yml` and which stops before writing and shows that entry's `message` and
-`fix`; the distinction between a workflow the agent selected itself, which stops
-using cospec and answers normally without mentioning setup, and an explicit
-request, which stops before writing and asks whether to initialise, target a
-store or continue without cospec; and a change picker. In both branches the
-fragment SHALL forbid creating the root as a side effect. The picker SHALL
-present the three or four most recently modified changes in the order
-`cospec list --json` returns them, each with its type, gate state, task progress
-and how recently it was modified from `lastModified`, and SHALL mark the most
-recent `(Recommended)`.
-
-A body's own root-grounding or change-picking prose SHALL NOT duplicate the
-fragment; the bodies that auto-select a sole active change SHALL keep that
-behaviour and its announcement.
+The canon SHALL declare root-grounding once in
+`canon/workflows/_shared/root-guard.md`, interpolated at one `{{ROOT_GUARD}}`
+token per workflow body before any other render step; a missing or repeated
+token, or any other unregistered `{{NAME}}` besides `{{TYPE_TABLE}}`, SHALL fail
+the render. The fragment SHALL name no bare `openspec`, `/cospec:<id>` or
+optional-workflow marker. Bodies SHALL NOT duplicate it and SHALL keep
+sole-change auto-selection.
 
 #### Scenario: the fragment renders into all twelve bodies
 
@@ -952,19 +963,36 @@ behaviour and its announcement.
 - **WHEN** a workflow body lacks `{{ROOT_GUARD}}` or carries it twice
 - **THEN** the render throws naming the workflow
 
+#### Scenario: the fragment opens with the root check
+
+- **WHEN** the fragment is read
+- **THEN** it opens with the check that precedes the first write,
+  `cospec list --json` (with `--store <id>` when a store is selected) reading
+  `root`, and in both no-root branches forbids creating the root as a side
+  effect
+
+#### Scenario: the store carve-out names config
+
+- **WHEN** a `status` message starts `Declared in` or
+  `Invalid store declaration in` and names the project's `openspec/config.yaml`
+  or `config.yml`
+- **THEN** the fragment applies its store-declaration carve-out
+
+#### Scenario: the picker uses list order and lastModified
+
+- **WHEN** the fragment's change picker is read
+- **THEN** it presents changes in the order `cospec list --json` returns them,
+  with recency taken from `lastModified`
+
 ### Requirement: propose and ff inspect the project before drafting
 
-The rendered `propose` and `ff` bodies SHALL tell the agent, before it drafts an
-artifact, to read the instructions' `context` and `rules` and then inspect the
-implementation, nearby tests, configuration and documentation outside
-`openspec/`, read-only and in proportion to the change. They SHALL tell the
-agent to identify the target project from the request and context and to ask
-when it is unclear, to ground scope, approach and tasks in what it finds while
-distinguishing observed behaviour from assumptions and surfacing conflicts with
-existing specs instead of silently choosing, and to do that discovery now rather
-than leave generic exploration tasks. The passage SHALL NOT instruct reading
-`openspec/config.yaml` or the schema files, and the existing rule that an
-artifact's format comes from `cospec instructions` SHALL remain.
+Before drafting, the rendered `propose` and `ff` bodies SHALL have the agent
+read the instructions' `context` and `rules`, then inspect, read-only and in
+proportion, implementation, tests, configuration and docs outside `openspec/`;
+identify the target project, asking when unclear; and ground the draft in
+findings now, not generic tasks. They SHALL NOT instruct reading config or
+schema files, and an artifact's format SHALL still come from
+`cospec instructions`.
 
 #### Scenario: propose and ff name what to inspect and when to ask
 
@@ -979,6 +1007,14 @@ artifact's format comes from `cospec instructions` SHALL remain.
 - **THEN** each still states that an artifact's template and format come from
   `cospec instructions`, and neither instructs opening `openspec/schemas/` or
   `openspec/config.yaml`
+
+#### Scenario: findings ground the draft
+
+- **WHEN** the rendered `propose` and `ff` bodies are read
+- **THEN** each tells the agent to ground scope, approach and tasks in what it
+  found, distinguishing observed behaviour from assumptions, to surface
+  conflicts with existing specs instead of silently choosing, and to do the
+  discovery now rather than leave generic exploration tasks
 
 ### Requirement: explore draws diagrams in ASCII only
 
@@ -995,19 +1031,13 @@ fonts and locales. The body SHALL contain no box-drawing or arrow glyph.
 
 ### Requirement: apply treats the project's inputs as controlled advice
 
-The rendered `apply` body SHALL tell the agent to read `context` and
-`operationGuidance` from the `apply` object of `cospec apply --json`: `context`
-as a required prompt-level input and `operationGuidance` as optional additive
-advice, each entry considered and followed only where applicable and compatible
-with the built-in workflow. It SHALL keep both apart from the gate, the tasks,
-the progress, `contextFiles` and the built-in instruction; say neither is
-evidence of task completion, replaces the instruction or permits bypassing a
-blocked or soft-blocked state; require a conflict with the instruction, an
-explicit user choice or a CLI-controlled value to be reported with the
-controlling value kept, and inapplicable guidance to be left unfollowed with the
-reason said; forbid copying either verbatim into implementation files or
-planning artifacts unless the user asks; and say they are prompt-level
-contracts, not enforceable checks.
+The rendered `apply` body SHALL read `context` (required prompt input) and
+`operationGuidance` (optional additive advice, followed only where applicable
+and compatible) from `cospec apply --json`'s `apply` object, kept apart from the
+gate, tasks, progress, `contextFiles` and the built-in instruction. Neither
+SHALL count as task evidence, replace the instruction or bypass a blocked or
+soft-blocked state. The scenarios below state conflict, copying and enforcement
+rules.
 
 #### Scenario: apply carries the precedence paragraph
 
@@ -1015,20 +1045,28 @@ contracts, not enforceable checks.
 - **THEN** it carries each of those rules, and each controlling sentence appears
   in the pinned `apply-change.js` template's corresponding paragraph
 
+#### Scenario: conflicts keep the controlling value
+
+- **WHEN** the rendered `apply` body is read
+- **THEN** it requires a conflict with the instruction, an explicit user choice
+  or a CLI-controlled value to be reported with the controlling value kept, and
+  inapplicable guidance to be left unfollowed with the reason said
+
+#### Scenario: the inputs are not copied and not enforced
+
+- **WHEN** the rendered `apply` body is read
+- **THEN** it forbids copying `context` or `operationGuidance` verbatim into
+  implementation files or planning artifacts unless the user asks, and says both
+  are prompt-level contracts, not enforceable checks
+
 ### Requirement: archive and bulk-archive consult the archive guidance advisorily
 
-The rendered `archive` body SHALL, after selecting the change, run
+The `archive` body SHALL, after selecting the change, run
 `cospec instructions archive --change "<slug>" --json` (with the selected
-`--store`) and the rendered `bulk-archive` body SHALL run it once for the
-selected root before batch validation. The lookup SHALL be stated as optional
-and non-blocking: a non-zero exit or invalid JSON means continuing with no
-context and no guidance, with no error reported and no stop. Each body SHALL
-carry the precedence paragraph for the returned `context` (required) and
-`operationGuidance` (additive): neither overrides built-in steps, explicit user
-choices, resolved paths, CLI checks or command contracts; a conflict is reported
-with the controlling value kept; no replacement paths, skipped prompts or flags
-are inferred; neither is copied into specs, change artifacts or the summary; and
-both are prompt-level only. Following `archive.md` alone SHALL reach
+`--store`); `bulk-archive` SHALL run it once per root before batch validation.
+The lookup SHALL be optional and non-blocking. Each body SHALL carry the
+precedence paragraph for `context` (required) and `operationGuidance`
+(additive). Following `archive.md` alone SHALL reach
 `operations.archive.guidance`.
 
 #### Scenario: the lookup the body names returns the configured guidance
@@ -1043,29 +1081,24 @@ both are prompt-level only. Following `archive.md` alone SHALL reach
 - **THEN** each states that a non-zero exit or invalid JSON from the lookup
   continues the workflow with no context and no guidance and reports nothing
 
+#### Scenario: the precedence paragraph bounds both inputs
+
+- **WHEN** the rendered `archive` and `bulk-archive` bodies are read
+- **THEN** each states that neither `context` nor `operationGuidance` overrides
+  built-in steps, explicit user choices, resolved paths, CLI checks or command
+  contracts; a conflict is reported with the controlling value kept; no
+  replacement paths, skipped prompts or flags are inferred; neither is copied
+  into specs, change artifacts or the summary; and both are prompt-level only
+
 ### Requirement: bulk-archive resolves cross-change collisions through delta edits
 
-The rendered `bulk-archive` body SHALL define a collision as two or more
-selected changes carrying a delta for the exact same `<capability-path>`, and
-SHALL instruct the agent to read each conflicting delta, search the codebase for
-implementation evidence, order the colliding changes by the order they archive
-in (dependency first, then creation, older first), and record for each delta (a
-change and a capability path) an include or exclude decision with its rationale:
-only one change implemented includes that one, both implemented includes both
-with the change that archives later (the newer) overwriting, and neither
-excludes both with a warning. The retarget of a colliding `ADDED` to a
-`MODIFIED`, and the scenario carry-over for two changes that `MODIFIED` one
-requirement, SHALL fall on that later-archiving change.
-
-The resolution SHALL edit only the conflicting change's delta files, SHALL
-require the user's confirmation of the resolution and each proposed edit before
-any edit is written (a declined confirmation edits and archives nothing), SHALL
-NOT write a main spec, move a change directory or edit any other artifact, and
-SHALL require each edited change to pass `cospec validate <slug> --strict` after
-every change ahead of it in the resolved order has archived and before its own
-archive. Each change SHALL be archived with `cospec archive <slug>` in the
-resolved order, so both archive hard gates run for each, and no `--force*` flag
-SHALL be suggested to get past a collision.
+The `bulk-archive` body SHALL define a collision as selected changes carrying a
+delta for the same `<capability-path>`, have the agent read each, search for
+implementation evidence, order changes by archive order (dependency, then
+creation, older first), and record include/exclude per delta with rationale. It
+SHALL edit only conflicting delta files after user confirmation, then archive
+each change via `cospec archive <slug>` in order, both gates running, never
+suggesting `--force*`.
 
 #### Scenario: a duplicate ADDED resolves through a delta edit and archives through the gates
 
@@ -1105,6 +1138,23 @@ SHALL be suggested to get past a collision.
 - **THEN** it forbids writing a main spec, hand-moving a change directory and
   `--force*`, and states that a declined confirmation edits and archives nothing
 
+#### Scenario: the include/exclude decision follows the evidence
+
+- **WHEN** the body's collision decision is read
+- **THEN** only one change implemented includes that one, both implemented
+  includes both with the later-archiving (newer) change overwriting, and neither
+  excludes both with a warning; the `ADDED`→`MODIFIED` retarget and the scenario
+  carry-over for two `MODIFIED` blocks on one requirement fall on the
+  later-archiving change
+
+#### Scenario: each edited change validates before its own archive
+
+- **WHEN** a delta edit has been confirmed and written
+- **THEN** the body requires the user to confirm the resolution and each
+  proposed edit before any edit is written, writes no other artifact, and
+  requires each edited change to pass `cospec validate <slug> --strict` after
+  every change ahead of it has archived and before its own archive
+
 ### Requirement: Each ported passage records its upstream template and pin
 
 `canon/workflows/harness.yaml` SHALL carry, for every workflow, a `ported:` list
@@ -1124,3 +1174,91 @@ workflow that carries it. The list SHALL NOT reach any generated file.
 
 - **WHEN** every harness file is rendered
 - **THEN** none contains the text of a `ported:` key
+
+### Requirement: OpenSpec 1.15.0 tool targets
+
+`HARNESS_TABLE` SHALL carry a row for every tool id the 1.15.0 binary exposes,
+adding `codestudio`, `dsh`, `gigacode`, `atomcode`, `gsd`, `amp`, `easycode`,
+`veai`, `grok`, and `warp`, each at upstream's skills and commands paths, with
+cospec's skill and command names. Skills-only tools SHALL get no command files.
+
+#### Scenario: Init a new target
+
+- **WHEN** a user runs `cospec init --tools warp,dsh`
+- **THEN** `.warp/skills/cospec-*/SKILL.md` and `.dsh/skills/cospec-*/SKILL.md`
+  are written and no command files are written for either
+
+#### Scenario: AtomCode argument frontmatter
+
+- **WHEN** cospec renders AtomCode commands
+- **THEN** a workflow that reads invocation input declares `args: optional` and
+  receives `$ARGUMENTS`, and one that does not declares `args: none`
+
+### Requirement: Kilo Code commands move to .kilo/command
+
+Kilo Code commands SHALL be written to `.kilo/command/`. Init, update, and
+legacy cleanup SHALL remove cospec- and OpenSpec-generated files under
+`.kilocode/workflows/`, matched by known file names only, and leave every other
+file there.
+
+#### Scenario: User file survives
+
+- **WHEN** `.kilocode/workflows/` holds a generated file and `my-notes.md`
+- **THEN** after `cospec update` the generated file is gone, `my-notes.md`
+  remains, and commands exist under `.kilo/command/`
+
+### Requirement: Update dry run
+
+`cospec update --dry-run` SHALL write nothing and report what an update would
+do. `--json` SHALL emit upstream's document (`changes[]` of
+`{path, action, tool}`, `notes`, `failures`, and `status` on an early failure,
+which exits nonzero), with cospec's `row` and `reason` added to each change. The
+existing `update --check` drift gate SHALL keep its own exit-1-on-drift
+semantics.
+
+#### Scenario: Nothing written
+
+- **WHEN** a user runs `cospec update --dry-run --json` on a stale tree
+- **THEN** `changes[]` lists the pending writes and `git status` shows no
+  modification
+
+#### Scenario: Early failure
+
+- **WHEN** the dry run cannot resolve a project root
+- **THEN** the document carries `status` and `failures` and the exit code is
+  nonzero
+
+#### Scenario: Check and dry run differ
+
+- **WHEN** a stale tree is run through `--check` and then `--dry-run`
+- **THEN** `--check` exits 1 and `--dry-run` exits 0, and neither writes
+
+### Requirement: Legacy marker removal keeps line endings
+
+Removing a legacy OpenSpec marker block from `CLAUDE.md`, `AGENTS.md`, or an rc
+file SHALL rewrite the file with its dominant line ending, including the
+separator left by the blank-line collapse, so a CRLF file stays CRLF.
+
+#### Scenario: CRLF CLAUDE.md
+
+- **WHEN** `cospec init` removes a legacy OpenSpec block from a CRLF `CLAUDE.md`
+- **THEN** every line ending in the result is CRLF
+
+### Requirement: Canon ports through OpenSpec 1.15.0
+
+The canon workflow bodies SHALL carry the 1.13.2–1.15.0 upstream passages, each
+recorded with its upstream template and pin, adapted to route through cospec:
+verify, explore, update, specs, continue, tasks, ff, onboard, archive, and
+proposal guidance.
+
+#### Scenario: Port ledger
+
+- **WHEN** the port ledger test runs
+- **THEN** every ported passage names its upstream template and pin 1.15.0, and
+  no generated body names bare `openspec`
+
+#### Scenario: Removed requirement verified against baseline
+
+- **WHEN** `/cospec:verify` checks a REMOVED requirement whose baseline cannot
+  be recovered
+- **THEN** that entry is reported as not verified rather than passing

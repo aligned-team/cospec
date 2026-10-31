@@ -293,7 +293,7 @@ describe('three-way parity: --help flags == completion flags == parser-accepted 
     expect(renderBashCompletion(spec)).toMatch(/ {4}init\)\n {6}globals='[^']*'/)
     expect(renderZshCompletion(spec)).toMatch(/ {4}init\)\n {6}global_flags=\(/)
     expect(renderFishCompletion(spec)).toContain(
-      "complete -c cospec -n 'not __fish_seen_subcommand_from init update completion feedback help' -l store",
+      "complete -c cospec -n 'not __fish_seen_subcommand_from init update completion feedback version install help' -l store",
     )
     const powershell = renderPowerShellCompletion(spec)
     expect(commandFlags(commandBlock(powershell, 'init')!).map((f) => f.name)).not.toContain(

@@ -4,10 +4,11 @@
 // real binary.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { existsSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { run as archiveRun } from '../../../src/commands/archive.ts'
+import { isRetirementCleanupFailure, run as archiveRun } from '../../../src/commands/archive.ts'
+import { diagnostics } from '../../../src/core/archive-output.ts'
 import {
   ctx,
   DONE_TASKS,
@@ -106,12 +107,90 @@ describe('archive pre-flight', () => {
   })
 })
 
-/** Stamp `schemaVersion: 2` onto a change already written by `writeChange` —
+/** A project schema whose tasks artifact is a glob, tracked through `apply.tracks`. */
+const MULTI_FILE_SCHEMA = `name: multi
+version: 1
+description: tasks split across files
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Proposal
+    template: proposal.md
+  - id: tasks
+    generates: tasks/*.md
+    description: Tasks
+    template: tasks.md
+    requires:
+      - proposal
+apply:
+  requires:
+    - tasks
+  tracks: tasks/*.md
+`
+
+describe('archive task gate reads every tracked file', () => {
+  test('an unchecked task in a second tracked file refuses, naming that file', async () => {
+    const cwd = repo()
+    mkdirSync(join(cwd, 'openspec', 'schemas', 'multi'), { recursive: true })
+    writeFileSync(join(cwd, 'openspec', 'schemas', 'multi', 'schema.yaml'), MULTI_FILE_SCHEMA)
+    writeChange(cwd, 'c', 'multi', {
+      'proposal.md': LITE_PROPOSAL,
+      'tasks/a.md': '## 1. A\n\n- [x] 1.1 done\n',
+      'tasks/b.md': '## 2. B\n\n- [ ] 2.1 still open\n',
+    })
+    // `--no-validate` keeps the legacy schema's delegated validation out of a unit test.
+    const r = await runCmd(archiveRun, ctx(cwd, ['c', '--no-validate'], { command: 'archive' }))
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('1 incomplete task(s)')
+    expect(r.err).toContain('- [ ] 2.1 still open (tasks/b.md)')
+    expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
+  })
+
+  test('a tasks.md beside a tracked glob is not what the gate reads', async () => {
+    const cwd = repo()
+    mkdirSync(join(cwd, 'openspec', 'schemas', 'multi'), { recursive: true })
+    writeFileSync(join(cwd, 'openspec', 'schemas', 'multi', 'schema.yaml'), MULTI_FILE_SCHEMA)
+    writeChange(cwd, 'c', 'multi', {
+      'proposal.md': LITE_PROPOSAL,
+      'tasks/a.md': '## 1. A\n\n- [ ] 1.1 open in the tracked file\n',
+      'tasks.md': '## 1. A\n\n- [x] 1.1 done in an untracked file\n',
+    })
+    const r = await runCmd(archiveRun, ctx(cwd, ['c', '--no-validate'], { command: 'archive' }))
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('open in the tracked file (tasks/a.md)')
+  })
+})
+
+describe('retirement cleanup failure classification', () => {
+  const OUTPUT =
+    'Error: Could not finalize the retirement backup at /x (EACCES). The change was archived, but retirement cleanup did not complete. Inspect all reported recovery paths before recovery or cleanup.'
+
+  test("the binary's cleanup failure over a verified move", () => {
+    expect(isRetirementCleanupFailure(OUTPUT, { moved: true, targetHasYaml: true })).toBe(true)
+  })
+
+  test('its words alone never count without the move on disk', () => {
+    expect(isRetirementCleanupFailure(OUTPUT, { moved: false, targetHasYaml: false })).toBe(false)
+    expect(isRetirementCleanupFailure(OUTPUT, { moved: true, targetHasYaml: false })).toBe(false)
+  })
+
+  test('any other failure is not one', () => {
+    expect(isRetirementCleanupFailure('Error: boom', { moved: true, targetHasYaml: true })).toBe(
+      false,
+    )
+  })
+
+  test("its --json code is the binary's", () => {
+    expect(diagnostics.retirementCleanupFailed('m').code).toBe('archive_retirement_cleanup_failed')
+  })
+})
+
+/** Stamp `x-cospec-schema-version: 2` onto a change already written by `writeChange` —
  * the v2 gate (verification enforcement) applies from here on. */
 function stampV2(cwd: string, id: string, schema: string): void {
   writeFileSync(
     join(cwd, 'openspec', 'changes', id, '.openspec.yaml'),
-    `schema: ${schema}\ncreated: 2026-07-06\nschemaVersion: 2\n`,
+    `schema: ${schema}\ncreated: 2026-07-06\nx-cospec-schema-version: 2\n`,
   )
 }
 

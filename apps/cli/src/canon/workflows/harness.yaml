@@ -34,13 +34,16 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: inspect-before-drafting
         file: dist/core/templates/workflows/propose.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: glob-output-path-check
+        file: dist/core/templates/workflows/propose.js
+        pin: 1.15.0
   - id: new
     command: new
     skill: cospec-new-change
@@ -53,10 +56,10 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
   - id: continue
     command: continue
     skill: cospec-continue-change
@@ -68,10 +71,16 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: partial-glob-artifact
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.15.0
+      - passage: glob-output-path-check
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.15.0
   - id: ff
     command: ff
     skill: cospec-ff-change
@@ -83,13 +92,19 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: inspect-before-drafting
         file: dist/core/templates/workflows/ff-change.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: glob-output-path-check
+        file: dist/core/templates/workflows/ff-change.js
+        pin: 1.15.0
+      - passage: ask-when-critically-unclear
+        file: dist/core/templates/workflows/ff-change.js
+        pin: 1.15.0
   - id: update
     command: update
     skill: cospec-update-change
@@ -105,10 +120,16 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: glob-new-file-exception
+        file: dist/core/templates/workflows/update-change.js
+        pin: 1.15.0
+      - passage: skipped-artifacts-untouched
+        file: dist/core/templates/workflows/update-change.js
+        pin: 1.15.0
   - id: apply
     command: apply
     skill: cospec-apply-change
@@ -121,13 +142,16 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: operation-inputs-precedence
         file: dist/core/templates/workflows/apply-change.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: verify-before-archive
+        file: dist/core/templates/workflows/apply-change.js
+        pin: 1.15.0
   - id: verify
     command: verify
     skill: cospec-verify-change
@@ -140,10 +164,25 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: delta-section-coverage
+        file: dist/core/templates/workflows/verify-change.js
+        pin: 1.15.0
+      - passage: removed-baseline-exact-name
+        file: dist/core/templates/workflows/verify-change.js
+        pin: 1.15.0
+      - passage: artifacts-by-output-path
+        file: dist/core/templates/workflows/verify-change.js
+        pin: 1.15.0
+      - passage: skipped-checks-not-passing
+        file: dist/core/templates/workflows/verify-change.js
+        pin: 1.15.0
+      - passage: schema-aware-task-progress
+        file: dist/core/templates/workflows/archive-change.js
+        pin: 1.15.0
   - id: archive
     command: archive
     skill: cospec-archive-change
@@ -156,13 +195,19 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: archive-inputs-lookup
         file: dist/core/templates/workflows/archive-change.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: schema-aware-task-progress
+        file: dist/core/templates/workflows/archive-change.js
+        pin: 1.15.0
+      - passage: stop-on-blocking-sync
+        file: dist/core/templates/workflows/archive-change.js
+        pin: 1.15.0
   - id: bulk-archive
     command: bulk-archive
     skill: cospec-bulk-archive-change
@@ -174,16 +219,22 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: archive-inputs-lookup
         file: dist/core/templates/workflows/bulk-archive-change.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: collision-resolution
         file: dist/core/templates/workflows/bulk-archive-change.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: schema-aware-task-progress
+        file: dist/core/templates/workflows/bulk-archive-change.js
+        pin: 1.15.0
+      - passage: stop-on-blocking-sync
+        file: dist/core/templates/workflows/bulk-archive-change.js
+        pin: 1.15.0
   - id: sync-specs
     command: sync-specs
     skill: cospec-sync-specs
@@ -196,10 +247,10 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
   - id: explore
     command: explore
     skill: cospec-explore
@@ -212,13 +263,16 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: ascii-diagrams
         file: dist/core/templates/workflows/explore.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: schema-defined-capture-targets
+        file: dist/core/templates/workflows/explore.js
+        pin: 1.15.0
   - id: onboard
     command: onboard
     skill: cospec-onboard
@@ -229,7 +283,13 @@ workflows:
     ported:
       - passage: root-guard
         file: dist/core/templates/workflows/project-root.js
-        pin: 1.13.1
+        pin: 1.15.0
       - passage: change-picker
         file: dist/core/templates/workflows/continue-change.js
-        pin: 1.13.1
+        pin: 1.15.0
+      - passage: task-breakdown-approval
+        file: dist/core/templates/workflows/onboard.js
+        pin: 1.15.0
+      - passage: task-groups-own-tests-docs
+        file: dist/core/templates/workflows/onboard.js
+        pin: 1.15.0

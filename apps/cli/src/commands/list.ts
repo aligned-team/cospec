@@ -10,6 +10,14 @@
 // keys are merged in beside them (`core/upstream-keys.ts`). `--sort name`
 // is forwarded; any other value, like none, is the binary's recent-first order.
 //
+// `--archived` lists archived changes and `--all` active and archived together
+// (OpenSpec 1.15.0), from the same one delegated call with the flag forwarded,
+// so the rows, their `archived` marker and their order are the binary's. Each
+// archived row adds what only cospec reads: its commit type (the archived
+// `.openspec.yaml`'s schema), the slug and the archive date its folder name
+// carries (`archivedOn`), and its task progress. Active rows keep their gate
+// columns and, beside archived ones, carry `archivedOn: null`.
+//
 // `cospec list --specs` (WI-7) closes the spec-listing gap: cospec's own rules
 // are change-centric, so it delegates to `openspec list --specs --json`
 // (disciplined passthrough, WI-1) and renders cospec's own spec table.
@@ -22,6 +30,7 @@ import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { loadSchema, schemaDir } from '../core/change-metadata.ts'
 import {
+  archiveDir,
   changesDir,
   defaultProjectSchema,
   findNestedChangesIn,
@@ -35,8 +44,10 @@ import { flagValue, hasFlag } from '../core/command-table.ts'
 import { artifactOutputExists } from '../core/glob.ts'
 import {
   OpenspecCallError,
+  openspecBelow,
   passthroughOpenspec,
   wrappedCallLabel,
+  wrappedOpenspecVersion,
   type Root,
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
@@ -153,6 +164,49 @@ interface Row {
 interface FailedRow {
   change: string
   error: string
+}
+
+/** An archived change's row (`--archived`/`--all`): no gate, the archive's own facts. */
+interface ArchivedRow {
+  change: string
+  /** The archived change's commit type (its `.openspec.yaml` schema), else `(none)`. */
+  type: string
+  state: 'archived'
+  /** The change id the folder archives (`<date>-<slug>` → `<slug>`). */
+  slug: string
+  /** The archive date from the folder name (`YYYY-MM-DD`), null for a folder without one. */
+  archivedOn: string | null
+  tasks: { total: number; complete: number }
+}
+
+const ARCHIVED_NAME = /^(\d{4}-\d{2}-\d{2})-(.+)$/
+
+/** cospec's columns for the archived folder `name`; a read failure fails the row alone. */
+function archivedRow(base: string, name: string, warnings: ReadWarning[]): ArchivedRow | FailedRow {
+  const dir = join(archiveDir(base), name)
+  const match = ARCHIVED_NAME.exec(name)
+  try {
+    const parsedTasks = readChangeTasks(dir, warnings)
+    return {
+      change: name,
+      type: readOpenspecYaml(dir)?.schema ?? '(none)',
+      state: 'archived',
+      slug: match?.[2] ?? name,
+      archivedOn: match?.[1] ?? null,
+      tasks: {
+        total: parsedTasks.items.length,
+        complete: parsedTasks.items.filter((t) => t.checked).length,
+      },
+    }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (!(error instanceof Error) || typeof code !== 'string') throw error
+    return { change: name, error: error.message }
+  }
+}
+
+function isArchivedRow(row: Row | FailedRow | ArchivedRow): row is ArchivedRow {
+  return 'state' in row && row.state === 'archived'
 }
 
 /**
@@ -287,7 +341,7 @@ function computeRow(
   }
 }
 
-function isFailedRow(row: Row | FailedRow): row is FailedRow {
+function isFailedRow(row: Row | FailedRow | ArchivedRow): row is FailedRow {
   return 'error' in row
 }
 
@@ -346,10 +400,33 @@ async function delegatedList(root: Root, args: string[]): Promise<Record<string,
 const LIST_FAILURE_PAYLOAD = { changes: [], root: null } as const
 const SPECS_FAILURE_PAYLOAD = { specs: [], root: null } as const
 
+/** The first openspec release whose `list` takes `--archived` and `--all`. */
+export const LIST_ARCHIVED_SINCE = '1.14.0'
+
+/** The refusal when the wrapped OpenSpec predates `list --archived`, else undefined (pure). */
+export function listArchivedUnsupported(version: string): string | undefined {
+  return openspecBelow(version, LIST_ARCHIVED_SINCE)
+    ? `list --archived and --all need OpenSpec >=${LIST_ARCHIVED_SINCE}; the wrapped OpenSpec is ${version}`
+    : undefined
+}
+
+/** The binary's refusal of `--specs` beside `--archived`/`--all`, raised before any root. */
+const SPECS_ARCHIVED_MESSAGE = '--archived and --all can only be used when listing changes.'
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
   const specsMode = hasFlag(parsed, '--specs')
+  const archivedMode = hasFlag(parsed, '--archived')
+  const allMode = hasFlag(parsed, '--all')
+  const includeArchived = archivedMode || allMode
+  if (specsMode && includeArchived) {
+    if (flags.json) {
+      const status = [{ severity: 'error', code: 'list_error', message: SPECS_ARCHIVED_MESSAGE }]
+      process.stdout.write(`${JSON.stringify({ ...SPECS_FAILURE_PAYLOAD, status }, null, 2)}\n`)
+    } else process.stderr.write(`cospec list: ${SPECS_ARCHIVED_MESSAGE}\n`)
+    return EXIT.failure
+  }
   const root = await resolveRootOrDocument(
     ctx,
     'list_error',
@@ -360,11 +437,23 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   if (specsMode) return runSpecs(ctx, root)
 
+  const tooOld = includeArchived
+    ? listArchivedUnsupported(await wrappedOpenspecVersion())
+    : undefined
+  if (tooOld !== undefined) {
+    if (flags.json) {
+      const status = [{ severity: 'error', code: 'openspec_version_too_old', message: tooOld }]
+      process.stdout.write(`${JSON.stringify({ ...LIST_FAILURE_PAYLOAD, status }, null, 2)}\n`)
+    } else process.stderr.write(`cospec list: ${tooOld}\n`)
+    return EXIT.failure
+  }
+
   const onlyBlocked = hasFlag(parsed, '--blocked')
-  const upstream = await delegatedList(
-    root,
-    flagValue(parsed, '--sort') === 'name' ? ['--sort', 'name'] : [],
-  )
+  const upstream = await delegatedList(root, [
+    ...(flagValue(parsed, '--sort') === 'name' ? ['--sort', 'name'] : []),
+    ...(archivedMode ? ['--archived'] : []),
+    ...(allMode ? ['--all'] : []),
+  ])
 
   // A read failure the binary refuses (an unreadable tasks.md or change
   // directory) is its answer, relayed: its document, or its messages.
@@ -389,20 +478,20 @@ export async function run(ctx: CommandContext): Promise<number> {
   const active = new Set(listChanges(base).map((c) => c.id))
   const verificationLayers = projectVerificationLayers(base)
   const warnings: ReadWarning[] = warning === undefined ? [] : [warning]
-  const rows = upstreamRows.map((upRow) => {
-    const native = nativeRow(
-      base,
-      String(upRow.name),
-      archived,
-      active,
-      verificationLayers,
-      warnings,
-    )
-    return mergeUpstream(native, upRow).value
+  const rows: (Row | FailedRow | ArchivedRow)[] = upstreamRows.map((upRow) => {
+    const name = String(upRow.name)
+    if (upRow.archived === true)
+      return mergeUpstream(archivedRow(base, name, warnings), upRow).value
+    const native = nativeRow(base, name, archived, active, verificationLayers, warnings)
+    const marked =
+      includeArchived && !isFailedRow(native) ? { ...native, archivedOn: null } : native
+    return mergeUpstream(marked, upRow).value
   })
   const failed = rows.some(isFailedRow)
 
-  const shown = onlyBlocked ? rows.filter((r) => isFailedRow(r) || r.gateState !== 'clear') : rows
+  const shown = onlyBlocked
+    ? rows.filter((r) => isFailedRow(r) || (!isArchivedRow(r) && r.gateState !== 'clear'))
+    : rows
 
   if (flags.json) {
     const { changes: _rows, ...rest } = upstream
@@ -417,14 +506,28 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   for (const w of warnings) process.stderr.write(`Warning: ${w.message}\n`)
   if (shown.length === 0) {
-    process.stdout.write(onlyBlocked ? 'No blocked changes.\n' : 'No active changes.\n')
-    return EXIT.success
+    const none = onlyBlocked
+      ? 'No blocked changes.'
+      : allMode
+        ? 'No changes.'
+        : archivedMode
+          ? 'No archived changes.'
+          : 'No active changes.'
+    process.stdout.write(`${none}\n`)
+    return failed ? EXIT.failure : EXIT.success
   }
 
   const nameWidth = Math.max(...shown.map((r) => r.change.length), 6)
   const typeWidth = Math.max(...shown.map((r) => (isFailedRow(r) ? 0 : r.type.length)), 4)
+  // Beside archived rows, every row says which it is, in the binary's one order.
+  const marker = (r: Row | ArchivedRow): string =>
+    includeArchived ? `${(isArchivedRow(r) ? 'archived' : 'active').padEnd(8)}  ` : ''
   const lines = shown.map((r) => {
     if (isFailedRow(r)) return `  ${r.change.padEnd(nameWidth)}  ERROR — ${r.error}`
+    if (isArchivedRow(r)) {
+      const on = `archived ${r.archivedOn ?? '(undated)'}`
+      return `  ${marker(r)}${r.change.padEnd(nameWidth)}  ${r.type.padEnd(typeWidth)}  ${on.padEnd(18)}  ${r.tasks.complete}/${r.tasks.total} tasks`
+    }
     const tasks =
       r.state === 'not-a-change'
         ? 'not a change'
@@ -432,7 +535,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           ? 'no artifacts yet'
           : `${r.tasks.complete}/${r.tasks.total} tasks`
     const ready = r.archiveReady ? '  archive-ready' : ''
-    return `  ${r.change.padEnd(nameWidth)}  ${r.type.padEnd(typeWidth)}  ${r.gate.padEnd(18)}  ${tasks}${ready}`
+    return `  ${marker(r)}${r.change.padEnd(nameWidth)}  ${r.type.padEnd(typeWidth)}  ${r.gate.padEnd(18)}  ${tasks}${ready}`
   })
   process.stdout.write(`${lines.join('\n')}\n`)
   // The binary's nested-folder warnings follow the table, as its text does.

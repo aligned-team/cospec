@@ -60,5 +60,8 @@ Obey the exit code:
 
 ## 3. Finish
 
-When every task is checked, tell the user the change is ready to archive — next
-step `[[opsx:if-workflow archive]]/cospec:archive[[opsx:else]]cospec archive <slug>[[opsx:end]]`.
+When every tracked task is checked, tell the user the tracked tasks are complete
+— not that the change is ready to archive. The next step is to review and verify
+it with `[[opsx:if-workflow verify]]/cospec:verify[[opsx:else]]cospec validate <slug> --strict[[opsx:end]]`, then `[[opsx:if-workflow archive]]/cospec:archive[[opsx:else]]cospec archive <slug>[[opsx:end]]`. Plain
+bullets under `## Workflow follow-up` in `tasks.md` are steps for after archive,
+not tasks to check off here.

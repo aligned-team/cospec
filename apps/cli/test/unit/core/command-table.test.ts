@@ -426,6 +426,8 @@ describe('pending surfaces', () => {
       '--blocked',
       '--changes',
       '--sort',
+      '--archived',
+      '--all',
     ])
   })
 })
@@ -457,6 +459,8 @@ describe('table shape', () => {
       'config',
       'completion',
       'feedback',
+      'version',
+      'install',
       'help',
       '__complete',
       'check-commit',
@@ -491,9 +495,9 @@ describe('table shape', () => {
     )
   })
 
-  test('only view and completion refuse --json; forward rows carry no json marking', () => {
+  test('only view, completion and install refuse --json; forward rows carry no json marking', () => {
     const refusing = COMMAND_TABLE.filter((row) => row.parse === 'table' && row.json === 'refused')
-    expect(refusing.map((row) => row.name).toSorted()).toEqual(['completion', 'view'])
+    expect(refusing.map((row) => row.name).toSorted()).toEqual(['completion', 'install', 'view'])
     for (const row of COMMAND_TABLE) if (row.parse === 'forward') expect('json' in row).toBe(false)
   })
 
@@ -518,7 +522,9 @@ describe('table shape', () => {
         'feedback',
         'help',
         'init',
+        'install',
         'update',
+        'version',
       ].toSorted(),
     )
   })

@@ -6,7 +6,14 @@
 // registry is sandboxed per-run via XDG_DATA_HOME so tests never pollute it.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
@@ -69,8 +76,8 @@ describe('cospec --store', () => {
 
     const yamlPath = join(storeDir, 'openspec/changes/created-in-store/.openspec.yaml')
     expect(existsSync(yamlPath)).toBe(true)
-    // `cospec new` stamps schemaVersion 2 in the store, same as a local repo.
-    expect(readFileSync(yamlPath, 'utf8')).toMatch(/schemaVersion:\s*2/)
+    // `cospec new` stamps schema version 2 in the store, same as a local repo.
+    expect(readFileSync(yamlPath, 'utf8')).toMatch(/^x-cospec-schema-version:\s*2$/m)
     // The invocation cwd is untouched — the change did not land locally.
     expect(existsSync(join(workspace, 'openspec/changes/created-in-store'))).toBe(false)
   }, 30_000)
@@ -151,4 +158,75 @@ describe('cospec --store', () => {
     // The invocation cwd never grew an openspec/ tree of its own.
     expect(existsSync(join(workspace, 'openspec'))).toBe(false)
   }, 60_000)
+})
+
+describe('a store-only pointer repo', () => {
+  /** A code repo whose `openspec/` holds only `config.yaml` naming the store. */
+  function pointerRepo(name: string): string {
+    const dir = join(workspace, name)
+    mkdirSync(join(dir, 'openspec'), { recursive: true })
+    writeFileSync(join(dir, 'openspec', 'config.yaml'), `store: ${STORE_ID}\n`)
+    return dir
+  }
+
+  test('status --json lists the declaring project beside the store in allowedEditRoots', async () => {
+    const repo = pointerRepo('pointer-status')
+    authorFeat(storeDir, 'edit-roots', 'edit-roots-cap')
+    const res = await cospec(['status', '--change', 'edit-roots', '--json'], { cwd: repo, env })
+    expect(res.exitCode).toBe(0)
+    const doc = JSON.parse(res.stdout) as { actionContext: { allowedEditRoots: string[] } }
+    expect(doc.actionContext.allowedEditRoots.map((p) => realpathSync(p))).toEqual([
+      realpathSync(repo),
+      realpathSync(storeDir),
+    ])
+  }, 30_000)
+
+  test('init at the pointer root installs integrations and leaves the pointer alone', async () => {
+    const repo = pointerRepo('pointer-init')
+    const before = readFileSync(join(repo, 'openspec', 'config.yaml'), 'utf8')
+    const res = await cospec(['init', '--harness', 'claude', '--no-gate', '--yes'], {
+      cwd: repo,
+      env,
+    })
+    expect(res.exitCode).toBe(0)
+    expect(readFileSync(join(repo, 'openspec', 'config.yaml'), 'utf8')).toBe(before)
+    expect(existsSync(join(repo, 'openspec', 'specs'))).toBe(false)
+    expect(existsSync(join(repo, 'openspec', 'changes'))).toBe(false)
+    expect(existsSync(join(repo, '.claude'))).toBe(true)
+  }, 30_000)
+
+  test('init below the pointer root is refused', async () => {
+    const repo = pointerRepo('pointer-subdir')
+    const sub = join(repo, 'packages', 'app')
+    mkdirSync(sub, { recursive: true })
+    const res = await cospec(['init', '--harness', 'claude', '--no-gate', '--yes'], {
+      cwd: sub,
+      env,
+    })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('Run cospec init from the pointer repo root')
+    expect(existsSync(join(sub, 'openspec'))).toBe(false)
+  }, 30_000)
+
+  test('init at a pointer root naming an unregistered store is refused', async () => {
+    const dir = join(workspace, 'pointer-unknown')
+    mkdirSync(join(dir, 'openspec'), { recursive: true })
+    writeFileSync(join(dir, 'openspec', 'config.yaml'), 'store: no-such-store\n')
+    const res = await cospec(['init', '--harness', 'claude', '--no-gate', '--yes'], {
+      cwd: dir,
+      env,
+    })
+    expect(res.exitCode).toBe(1)
+    expect(existsSync(join(dir, '.claude'))).toBe(false)
+  }, 30_000)
+
+  test('init with --language at the pointer root is refused', async () => {
+    const repo = pointerRepo('pointer-language')
+    const res = await cospec(
+      ['init', '--harness', 'claude', '--no-gate', '--yes', '--language', 'fr'],
+      { cwd: repo, env },
+    )
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('--language cannot update an external store')
+  }, 30_000)
 })

@@ -1,11 +1,17 @@
 // Pure formatting/parsing unit tests for `cospec feedback` (DESIGN §3.1,
-// ledger row 3.1): grapheme-safe 72-char title truncation, the
-// Summary/Details/provenance body shape, the never-a-shell argv, and argv
-// parsing.
+// ledger row 3.1): grapheme-safe 72-char title truncation, the bug-form body
+// shape (openspec-1-15-parity task 5.6) and its prefilled link, the
+// never-a-shell argv, and argv parsing.
 
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+import { parse as parseYaml } from 'yaml'
 
 import {
+  BUG_FORM_FIELDS,
+  type BugFacts,
   COSPEC_REPO,
   formatBody,
   formatTitle,
@@ -13,6 +19,7 @@ import {
   manualUrl,
   feedbackArgs,
   provenanceFooter,
+  REPRO_MISSING,
   UPSTREAM_REPO,
   upstreamFeedbackArgv,
 } from '../../../src/commands/feedback.ts'
@@ -67,23 +74,51 @@ describe('formatTitle', () => {
   })
 })
 
-describe('formatBody', () => {
-  test('carries Summary, optional Details, and the footer', () => {
-    const footer = provenanceFooter(new Date('2026-09-01T00:00:00.000Z'), 'project 1.11.0')
-    const withDetails = formatBody('short summary', 'more detail here', footer)
-    expect(withDetails).toContain('## Summary')
-    expect(withDetails).toContain('short summary')
-    expect(withDetails).toContain('## Details')
-    expect(withDetails).toContain('more detail here')
-    expect(withDetails).toContain(footer)
+const FACTS: BugFacts = {
+  version: '0.12.0',
+  openspec: 'embedded 1.15.0',
+  environment: 'linux x64, standalone',
+}
 
-    const withoutDetails = formatBody('short summary', undefined, footer)
-    expect(withoutDetails).not.toContain('## Details')
+/** The bug form's fields as `.github/ISSUE_TEMPLATE/bug_report.yml` declares them, in order. */
+function formFields(): { id: string; label: string }[] {
+  const path = resolve(import.meta.dir, '../../../../../.github/ISSUE_TEMPLATE/bug_report.yml')
+  const form = parseYaml(readFileSync(path, 'utf8')) as {
+    body: { type: string; id?: string; attributes: { label?: string } }[]
+  }
+  return form.body
+    .filter((field) => field.type !== 'markdown')
+    .map((field) => ({ id: field.id!, label: field.attributes.label! }))
+}
+
+describe('formatBody', () => {
+  test("BUG_FORM_FIELDS is the bug form's field list, ids and labels in order", () => {
+    expect(
+      BUG_FORM_FIELDS.map((f): { id: string; label: string } => ({ id: f.id, label: f.label })),
+    ).toEqual(formFields())
   })
 
-  test('an empty-string details is treated as absent', () => {
-    const footer = provenanceFooter(new Date(), 'embedded 1.11.0')
-    expect(formatBody('msg', '', footer)).not.toContain('## Details')
+  test("its sections are the bug form's headings in order, repro steps said missing", () => {
+    const footer = provenanceFooter(new Date('2026-09-01T00:00:00.000Z'), FACTS.openspec)
+    const body = formatBody('short summary', undefined, FACTS, footer)
+    const headings = body.split('\n').filter((line) => line.startsWith('### '))
+    expect(headings).toEqual(formFields().map((f) => `### ${f.label}`))
+    const after = (heading: string) => body.split(`### ${heading}\n\n`)[1]!.split('\n')[0]
+    expect(after('What happened')).toBe('short summary')
+    expect(after('Minimal steps to reproduce')).toBe(REPRO_MISSING)
+    expect(after('cospec version')).toBe('0.12.0')
+    expect(after('OpenSpec version')).toBe('embedded 1.15.0')
+    expect(after('Environment')).toBe('linux x64, standalone')
+    expect(body.endsWith(footer)).toBe(true)
+  })
+
+  test('--body is carried as details under What happened; an empty one is absent', () => {
+    const footer = provenanceFooter(new Date(), FACTS.openspec)
+    const body = formatBody('msg', 'more detail here', FACTS, footer)
+    expect(body).toContain('### What happened\n\nmsg\n\nmore detail here\n\n### Minimal')
+    expect(formatBody('msg', '', FACTS, footer)).toContain(
+      '### What happened\n\nmsg\n\n### Minimal',
+    )
   })
 })
 
@@ -99,11 +134,22 @@ describe('provenanceFooter', () => {
 })
 
 describe('manualUrl', () => {
-  test('URL-encodes title and body onto the given repo, no labels param', () => {
-    const url = manualUrl(COSPEC_REPO, 'Feedback: it broke', '## Summary\n\nit broke')
-    expect(url.startsWith(`https://github.com/${COSPEC_REPO}/issues/new?`)).toBe(true)
-    expect(url).toContain(encodeURIComponent('Feedback: it broke'))
-    expect(url).not.toContain('labels=')
+  test('opens the bug form with message, version and environment prefilled by field id', () => {
+    const url = manualUrl(COSPEC_REPO, 'Feedback: it broke', 'it broke', 'details & more', FACTS)
+    expect(
+      url.startsWith(`https://github.com/${COSPEC_REPO}/issues/new?template=bug_report.yml&`),
+    ).toBe(true)
+    const params = new URL(url).searchParams
+    expect(params.get('title')).toBe('Feedback: it broke')
+    expect(params.get('what_happened')).toBe('it broke\n\ndetails & more')
+    expect(params.get('version')).toBe('0.12.0')
+    expect(params.get('openspec_version')).toBe('embedded 1.15.0')
+    expect(params.get('environment')).toBe('linux x64, standalone')
+    expect(params.has('labels')).toBe(false)
+    expect(params.has('body')).toBe(false)
+    const ids = new Set(formFields().map((f) => f.id))
+    for (const key of params.keys())
+      if (key !== 'template' && key !== 'title') expect(ids.has(key)).toBe(true)
   })
 })
 

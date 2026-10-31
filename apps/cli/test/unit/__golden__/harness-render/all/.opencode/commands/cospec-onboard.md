@@ -3,7 +3,7 @@ description: Walk a first-time user through one real cospec change end to end, n
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1
+  contentHash: sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -100,6 +100,13 @@ cospec instructions <artifact> --change <slug> --json
 
 Explain what the instructions ask for, write the artifact, show the user what
 you wrote, and pause before moving to the next artifact.
+
+For `tasks.md`, explain that each task group carries the tests and documentation
+for its own work, and the last group is only for integration checks. Draft the
+breakdown, show it, and ask "Does this task breakdown look right?" Wait for the
+user's approval or feedback, and save the file only after they approve. Then ask
+separately whether they are ready to implement, and wait for that answer before
+moving on.
 
 ## 6. Validate
 

@@ -52,6 +52,11 @@ contributes none) and suggests the closest id. If that listing cannot be read,
 doctor says so in one `config` warning and flags no key. A `rules` that is
 absent or not a mapping is not reported.
 
+A `rules` item that is not a string is reported as `config/rules-item-type`,
+naming its artifact, its index, the shape it parsed as, and the quoted fix. The
+usual cause is an unquoted colon: `- Use: tabs` parses as a mapping, so write
+`- "Use: tabs"`.
+
 For the full key reference and syntax, see OpenSpec's
 [customization guide](https://github.com/Fission-AI/OpenSpec/blob/main/docs/customization.md).
 

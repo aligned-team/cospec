@@ -35,9 +35,10 @@ import {
   type Stats,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, relative, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path'
 
 import { relayedReason } from './archive-output.ts'
+import { assertDiscoveredSpecFile } from './spec-paths.ts'
 
 /** What one scratch run of the wrapped archive printed and exited with. */
 export interface ScratchRun {
@@ -118,17 +119,54 @@ function rootHolding(roots: readonly CopiedRoot[], target: string): CopiedRoot |
     .toSorted((a, b) => b.real.length - a.real.length)[0]
 }
 
+/** A link's identity whichever spelling reaches it: its parent's real path plus its name. */
+function linkKey(link: string): string {
+  return join(realpathSync(dirname(link)), basename(link))
+}
+
 /**
- * The first symbolic link under the copied paths whose target leaves them, as
- * a path relative to the root — the binary would write through it into the
- * real tree. A link inside them is copied re-pointed at the scratch copy of its
- * target, so the scratch run sees the same aliasing the real tree has. Each
- * copied path is walked at its real path, as it is copied.
+ * A `spec.md` link under a specs root (`openspec/specs` or the change's
+ * `specs/`) that leaves the copied paths but stays inside the project: the
+ * binary reads and writes through it (1.14.3, `assertDiscoveredSpecFile`), so the
+ * scratch tree holds a plain copy of its target and a write lands on the target.
+ * Returns that target's real path, or `undefined` when the link is not one.
  */
-export function symlinkEscape(base: string, changeId: string): string | undefined {
+function inProjectSpecLink(specsRoot: string, spelledLink: string): string | undefined {
+  if (basename(spelledLink) !== 'spec.md') return undefined
+  const rel = relative(specsRoot, spelledLink)
+  // `<capability…>/spec.md`: a root-level `spec.md` is no capability's.
+  if (!within(specsRoot, spelledLink) || rel.split(sep).length < 2) return undefined
+  try {
+    if (!statSync(spelledLink).isFile()) return undefined
+    assertDiscoveredSpecFile(specsRoot, spelledLink)
+  } catch (error) {
+    if (!(error instanceof Error)) throw error
+    return undefined
+  }
+  return realpathSync(spelledLink)
+}
+
+/** What a walk of the copied paths found among their links. */
+export interface LinkScan {
+  /** The first link whose target leaves the copied paths, relative to the root. */
+  escape?: string
+  /** In-project `spec.md` links leaving the copied paths: `linkKey` → real target. */
+  linked: Map<string, string>
+}
+
+/**
+ * Every symbolic link under the copied paths. One whose target leaves them is
+ * an escape — the binary would write through it into the real tree — unless it
+ * is an in-project `spec.md` link (`inProjectSpecLink`), which is carried as a
+ * plain copy of its target. A link inside them is copied re-pointed at the
+ * scratch copy of its target, so the scratch run sees the same aliasing the
+ * real tree has. Each copied path is walked at its real path, as it is copied.
+ */
+export function scanLinks(base: string, changeId: string): LinkScan {
   const openspec = join(base, 'openspec')
   const roots = copiedRoots(openspec, changeId)
-  const leaves = (link: string): boolean => {
+  const linked = new Map<string, string>()
+  const leaves = (link: string, specsRoot: string | undefined, spelled: string): boolean => {
     let target: string
     try {
       target = realpathSync(link)
@@ -137,24 +175,51 @@ export function symlinkEscape(base: string, changeId: string): string | undefine
       if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return true
       throw error
     }
-    return rootHolding(roots, target) === undefined
+    if (rootHolding(roots, target) !== undefined) return false
+    const inProject = specsRoot === undefined ? undefined : inProjectSpecLink(specsRoot, spelled)
+    if (inProject === undefined) return true
+    linked.set(linkKey(link), inProject)
+    return false
   }
-  const walk = (path: string, shown: string): string | undefined => {
+  const walk = (
+    path: string,
+    specsRoot: string | undefined,
+    spelled: string,
+    shown: string,
+  ): string | undefined => {
     const stat = lstatSync(path)
-    if (stat.isSymbolicLink()) return leaves(path) ? shown : undefined
+    if (stat.isSymbolicLink()) return leaves(path, specsRoot, spelled) ? shown : undefined
     if (!stat.isDirectory()) return undefined
     // An unlistable directory is copied empty: no link in it reaches the run.
     for (const name of (listable(path) ?? []).toSorted()) {
-      const found = walk(join(path, name), `${shown}/${name}`)
+      const found = walk(join(path, name), specsRoot, join(spelled, name), `${shown}/${name}`)
       if (found !== undefined) return found
     }
     return undefined
   }
+  const changeRel = join('changes', changeId)
   for (const root of roots) {
-    const found = walk(root.real, ['openspec', ...root.rel.split(sep)].join('/'))
-    if (found !== undefined) return found
+    const spelledRoot = join(openspec, root.rel)
+    const specsRoot =
+      root.rel === 'specs'
+        ? spelledRoot
+        : root.rel === changeRel
+          ? join(spelledRoot, 'specs')
+          : undefined
+    const found = walk(
+      root.real,
+      specsRoot,
+      spelledRoot,
+      ['openspec', ...root.rel.split(sep)].join('/'),
+    )
+    if (found !== undefined) return { escape: found, linked }
   }
-  return undefined
+  return { linked }
+}
+
+/** The first link under the copied paths that leads out of them (`scanLinks`'s `escape`). */
+export function symlinkEscape(base: string, changeId: string): string | undefined {
+  return scanLinks(base, changeId).escape
 }
 
 /**
@@ -162,13 +227,21 @@ export function symlinkEscape(base: string, changeId: string): string | undefine
  * scratch copy of its target, a directory this process cannot list as an
  * empty one, a file it cannot read as an empty file of the same mode.
  */
-function copyEntry(src: string, dst: string, scratchFor: (target: string) => string): void {
+function copyEntry(
+  src: string,
+  dst: string,
+  scratchFor: (target: string) => string,
+  linked: ReadonlyMap<string, string>,
+): void {
   const stat = lstatSync(src)
   if (stat.isSymbolicLink()) {
-    symlinkSync(relative(dirname(dst), scratchFor(realpathSync(src))), dst)
+    const target = linked.get(linkKey(src))
+    if (target !== undefined) copyFileSync(target, dst)
+    else symlinkSync(relative(dirname(dst), scratchFor(realpathSync(src))), dst)
   } else if (stat.isDirectory()) {
     mkdirSync(dst)
-    for (const name of listable(src) ?? []) copyEntry(join(src, name), join(dst, name), scratchFor)
+    for (const name of listable(src) ?? [])
+      copyEntry(join(src, name), join(dst, name), scratchFor, linked)
   } else if (stat.isFile()) {
     try {
       copyFileSync(src, dst)
@@ -181,7 +254,11 @@ function copyEntry(src: string, dst: string, scratchFor: (target: string) => str
 }
 
 /** Copy every root into `scratchOpenspec`, each read at its real path. */
-function copyRoots(roots: readonly CopiedRoot[], scratchOpenspec: string): void {
+function copyRoots(
+  roots: readonly CopiedRoot[],
+  scratchOpenspec: string,
+  linked: ReadonlyMap<string, string>,
+): void {
   const scratchFor = (target: string): string => {
     const root = rootHolding(roots, target)
     // `symlinkEscape` has refused every link that leaves the roots.
@@ -189,23 +266,31 @@ function copyRoots(roots: readonly CopiedRoot[], scratchOpenspec: string): void 
       throw new Error(`sync-specs: ${target} left the copied paths after they were checked`)
     return join(scratchOpenspec, root.rel, relative(root.real, target))
   }
-  for (const root of roots) copyEntry(root.real, join(scratchOpenspec, root.rel), scratchFor)
+  for (const root of roots)
+    copyEntry(root.real, join(scratchOpenspec, root.rel), scratchFor, linked)
 }
 
 /**
  * Every entry under `dir`, relative to it: a file by its sha256, a link by the
- * target it holds (never followed), a directory by `dir`. A file this process
+ * target it holds (never followed; an in-project spec link in `linked` by its
+ * target's sha256), a directory by `dir`. A file this process
  * cannot read is fingerprinted by its metadata, a directory it cannot list as
  * `unlisted` with its metadata, unwalked.
  */
-function fingerprint(dir: string): Map<string, string> {
+function fingerprint(
+  dir: string,
+  linked: ReadonlyMap<string, string> = new Map(),
+): Map<string, string> {
   const out = new Map<string, string>()
   const walk = (abs: string): void => {
     for (const name of listable(abs) ?? []) {
       const child = join(abs, name)
       const rel = relative(dir, child)
       const stat = lstatSync(child)
-      if (stat.isSymbolicLink()) out.set(rel, `link:${readlinkSync(child)}`)
+      const target = stat.isSymbolicLink() ? linked.get(linkKey(child)) : undefined
+      // An in-project spec link is its target's bytes, as the scratch copy is.
+      if (target !== undefined) out.set(rel, fileFingerprint(target, statSync(target)))
+      else if (stat.isSymbolicLink()) out.set(rel, `link:${readlinkSync(child)}`)
       else if (stat.isDirectory()) {
         if (listable(child) === undefined) out.set(rel, `unlisted:${stat.mode}:${stat.mtimeMs}`)
         else {
@@ -281,19 +366,19 @@ export async function syncThroughScratch(
 ): Promise<ScratchSync> {
   const openspec = join(base, 'openspec')
   const realSpecs = join(openspec, 'specs')
-  const escape = symlinkEscape(base, changeId)
+  const { escape, linked } = scanLinks(base, changeId)
   if (escape !== undefined)
     throw new ScratchRefusal(
       'symlink-escape',
       `${escape} is a symbolic link that leads outside the tree sync-specs copies; the wrapped archive would write through it into the real tree`,
     )
 
-  const realBefore = fingerprint(realSpecs)
+  const realBefore = fingerprint(realSpecs, linked)
   const scratch = mkdtempSync(join(tmpdir(), 'cospec-sync-'))
   try {
     const scratchOpenspec = join(scratch, 'openspec')
     mkdirSync(join(scratchOpenspec, 'changes/archive'), { recursive: true })
-    copyRoots(copiedRoots(openspec, changeId), scratchOpenspec)
+    copyRoots(copiedRoots(openspec, changeId), scratchOpenspec, linked)
     mkdirSync(join(scratchOpenspec, 'specs'), { recursive: true })
     const scratchSpecs = join(scratchOpenspec, 'specs')
 
@@ -330,15 +415,21 @@ export async function syncThroughScratch(
       // Deepest first, so a parent is empty when its turn comes.
       .toSorted((a, b) => b.length - a.length)
 
-    if (!sameMap(realBefore, fingerprint(realSpecs)))
+    if (!sameMap(realBefore, fingerprint(realSpecs, linked)))
       throw new ScratchRefusal(
         'specs-changed',
         'the main specs changed while sync ran; nothing was written',
         run,
       )
 
-    for (const rel of written)
-      writeAtomically(join(realSpecs, rel), readFileSync(join(scratchSpecs, rel)))
+    for (const rel of written) {
+      const real = join(realSpecs, rel)
+      // The binary writes through an in-project spec link, onto its target.
+      const target = lstatSync(real, { throwIfNoEntry: false })?.isSymbolicLink()
+        ? linked.get(linkKey(real))
+        : undefined
+      writeAtomically(target ?? real, readFileSync(join(scratchSpecs, rel)))
+    }
     for (const rel of deleted) unlinkSync(join(realSpecs, rel))
     for (const rel of pruned) {
       const dir = join(realSpecs, rel)
@@ -346,7 +437,7 @@ export async function syncThroughScratch(
     }
 
     // Step 5: what landed is exactly what the run wrote, and nothing else moved.
-    const realAfter = fingerprint(realSpecs)
+    const realAfter = fingerprint(realSpecs, linked)
     for (const [rel, kind] of realBefore)
       if (!written.includes(rel) && !deleted.includes(rel) && !pruned.includes(rel))
         if (realAfter.get(rel) !== kind)

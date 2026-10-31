@@ -10,6 +10,18 @@ commit type. `feat` gets the full treatment; `ci` takes two minutes.
 cospec ships as standalone executables — one per platform — so it runs with no
 JS runtime required, and installs cleanly on Node, Deno, or Bun.
 
+### Install script
+
+```sh
+curl -fsSL https://github.com/aligned-team/cospec/releases/latest/download/install.sh | sh   # macOS, Linux
+irm https://github.com/aligned-team/cospec/releases/latest/download/install.ps1 | iex       # Windows
+```
+
+Both scripts verify the download against the release's `SHA256SUMS` before
+installing. Version pinning, the install directory, the Nix flake and the full
+platform list are in the
+[installation guide](https://cospec.aligned.team/guide/installation).
+
 ### mise
 
 ```sh
@@ -60,7 +72,7 @@ clean tree stays clean.
 ## What is this
 
 cospec is an opinionated superset of, and drop-in replacement for,
-[OpenSpec](https://github.com/Fission-AI/OpenSpec) `1.13.1` that maps the
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) `1.15.0` that maps the
 spec-driven workflow onto your conventional-commit type. One schema per type;
 the heavier the type, the more the workflow asks of you.
 
@@ -96,30 +108,31 @@ grandfathering, and a blocking-changes ledger with auto-sync.
 
 ## Commands
 
-| command                          | what it does                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `cospec init [path]`             | scaffold `openspec/`, schemas, and harness files (idempotent)                                     |
-| `cospec update [--check]`        | re-generate managed files from canon; `--check` is a drift gate                                   |
-| `cospec doctor`                  | read-only health check, incl. changes still on `schemaVersion` 1                                  |
-| `cospec new <type> <slug>`       | create a typed change; prints the artifact plan                                                   |
-| `cospec migrate <change>`        | stamp a grandfathered change to the current `schemaVersion`, scaffolding deferred verification    |
-| `cospec validate [name]`         | validate changes and specs (`--all`/`--changes`/`--specs`); `--strict` promotes warnings          |
-| `cospec status` / `cospec list`  | change status with type, gate, and archive-readiness columns (`list --specs` lists living specs)  |
-| `cospec instructions <artifact>` | print the authoring instruction for one artifact                                                  |
-| `cospec apply <change>`          | the gate — exit 0 clear, 2 blocked, 3 soft-blocked                                                |
-| `cospec archive <change>`        | validate, archive, verify the move, fan out blocker sync                                          |
-| `cospec sync-blockers`           | check off blocker entries whose target has shipped                                                |
-| `cospec show <item>`             | read a change or spec's markdown or JSON                                                          |
-| `cospec view`                    | the OpenSpec dashboard                                                                            |
-| `cospec store <sub>`             | manage stores: `setup`/`register` (auto-init) / `unregister` / `remove` / `ls` / `doctor`         |
-| `cospec context`                 | a store's cross-repo working-set brief (`--json`, `--code-workspace`)                             |
-| `cospec workset <sub>`           | personal cross-repo working views: `create` / `list` / `remove` / `open`                          |
-| `cospec schemas` / `schema`      | inspect resolvable schemas (`schema which`/`validate`)                                            |
-| `cospec templates`               | list per-artifact template paths                                                                  |
-| `cospec config <sub>`            | machine-global OpenSpec config: `path`/`list`/`get`/`set`/`unset`/`reset`/`edit`/`profile`        |
-| `cospec completion [shell]`      | print a bash/zsh/fish/powershell completion script, generated natively                            |
-| `cospec completion install`      | write that script and wire your shell to load it; `uninstall` removes both                        |
-| `cospec feedback "<msg>"`        | file a bug report at `aligned-team/cospec` via `gh`; `--upstream` files at OpenSpec's own tracker |
+| command                              | what it does                                                                                                                                 |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cospec init [path]`                 | scaffold `openspec/`, schemas, and harness files (idempotent)                                                                                |
+| `cospec update [--check\|--dry-run]` | re-generate managed files from canon; `--check` is a drift gate, `--dry-run` reports what would change and writes nothing                    |
+| `cospec doctor`                      | read-only health check, incl. changes still on `schemaVersion` 1                                                                             |
+| `cospec new <type> <slug>`           | create a typed change; prints the artifact plan                                                                                              |
+| `cospec migrate <change>`            | stamp a grandfathered change to the current `schemaVersion`, scaffolding deferred verification                                               |
+| `cospec validate [name]`             | validate changes and specs (`--all`/`--changes`/`--specs`); `--strict` promotes warnings                                                     |
+| `cospec status` / `cospec list`      | change status with type, gate, and archive-readiness columns (`list --specs` lists living specs, `list --archived`/`--all` archived changes) |
+| `cospec instructions <artifact>`     | print the authoring instruction for one artifact                                                                                             |
+| `cospec apply <change>`              | the gate — exit 0 clear, 2 blocked, 3 soft-blocked                                                                                           |
+| `cospec archive <change>`            | validate, archive, verify the move, fan out blocker sync                                                                                     |
+| `cospec sync-blockers`               | check off blocker entries whose target has shipped                                                                                           |
+| `cospec show <item>`                 | read a change or spec's markdown or JSON                                                                                                     |
+| `cospec view`                        | dashboard of active changes with gate state, verification progress, and archive readiness; archived changes listed separately                |
+| `cospec store <sub>`                 | manage stores: `setup`/`register` (auto-init) / `unregister` / `remove` / `ls` / `doctor`                                                    |
+| `cospec context`                     | a store's cross-repo working-set brief (`--json`, `--code-workspace`)                                                                        |
+| `cospec workset <sub>`               | personal cross-repo working views: `create` / `list` / `remove` / `open`                                                                     |
+| `cospec schemas` / `schema`          | inspect resolvable schemas (`schema which`/`validate`)                                                                                       |
+| `cospec templates`                   | list per-artifact template paths                                                                                                             |
+| `cospec config <sub>`                | machine-global OpenSpec config: `path`/`list`/`get`/`set`/`unset`/`reset`/`edit`/`profile`                                                   |
+| `cospec completion [shell]`          | print a bash/zsh/fish/powershell completion script, generated natively                                                                       |
+| `cospec completion install`          | write that script and wire your shell to load it; `uninstall` removes both                                                                   |
+| `cospec feedback "<msg>"`            | file a bug report at `aligned-team/cospec` via `gh`; `--upstream` files at OpenSpec's own tracker                                            |
+| `cospec version [--check]`           | cospec's version and install type, the wrapped OpenSpec version and source; `--check` looks for a newer release                              |
 
 Global flags on every command: `--json`, `--no-color`, `--cwd <path>`,
 `--store <id>`. `--store` runs the whole change lifecycle against a registered
@@ -189,7 +202,7 @@ Details and a per-harness smoke checklist:
 
 ## How it relates to OpenSpec
 
-cospec pins `@fission-ai/openspec` `1.13.1` for its own dev/CI and accepts any
+cospec pins `@fission-ai/openspec` `1.15.0` for its own dev/CI and accepts any
 `>=1.0.0 <2.0.0` at runtime (the range is asserted at startup; the pin is the
 build the contract suite is probed against) and adds, on top of it:
 

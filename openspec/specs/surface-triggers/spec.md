@@ -15,16 +15,13 @@ required-artifact matrix.
 
 ### Requirement: Proposal Surfaces flag block
 
-The `proposal` artifact SHALL carry a machine-parsed `## Surfaces` block for
-every change type except the four no-surface light types (`chore`, `docs`,
-`style`, `test`), gated by a per-type canon boolean `surfaces`. The block SHALL
-use checkbox grammar with a closed four-token vocabulary — `interactive`,
-`deploy`, `integration`, `agent-behavior` — all optional and defaulting to
-unchecked. A token outside that set SHALL fail closed as
-`proposal/surfaces-vocab`. A surfaces:true type whose proposal omits the
-`## Surfaces` block entirely SHALL fail closed as `proposal/sections`, so a
-dropped block cannot silently suppress its soft-trigger consequences; an
-empty-but-present block satisfies the requirement.
+The `proposal` SHALL carry a machine-parsed `## Surfaces` block for each type
+whose canon boolean `surfaces` is true (all but `chore`, `docs`, `style`,
+`test`), using checkbox grammar over a closed vocabulary — `interactive`,
+`deploy`, `integration`, `agent-behavior` — each optional, unchecked by default;
+any other token SHALL fail closed as `proposal/surfaces-vocab`. A surfaces type
+whose proposal omits the block SHALL fail closed as `proposal/sections`; an
+empty-but-present block satisfies it.
 
 #### Scenario: Valid surface flags parse
 
@@ -58,14 +55,13 @@ empty-but-present block satisfies the requirement.
 
 ### Requirement: Design flag-keyed sections
 
-The `design` artifact's per-type instruction SHALL require flag-keyed sections
-that fire only when the matching `## Surfaces` flag is set:
-`## Operational surface` when `interactive` or `deploy` is set
+The `design` per-type instruction SHALL require flag-keyed sections, each a
+soft-level check: `## Operational surface` when `interactive` or `deploy` is set
 (`design/operational-surface`), `## Integration contract` when `integration` is
 set (`design/integration-contract`), and `## Seam ownership` always for
-`refactor` (`design/seam-ownership`). Each SHALL be a soft-level check. The
-design artifact's matrix placement (optional for `feat`/`fix`/`perf`, required
-for `refactor`, forbidden for `revert` and the light types) SHALL be unchanged.
+`refactor` (`design/seam-ownership`). Design's matrix placement (optional for
+`feat`/`fix`/`perf`, required for `refactor`, forbidden for `revert` and the
+light types) SHALL be unchanged.
 
 #### Scenario: Deploy flag without operational surface
 
@@ -94,16 +90,12 @@ for `refactor`, forbidden for `revert` and the light types) SHALL be unchanged.
 ### Requirement: Surface soft-trigger mechanic
 
 cospec SHALL promote an absent consequence of a checked `## Surfaces` flag to a
-soft nudge, firing only when the flag's consequence is absent and only for types
-where the target artifact or row is not Forbidden. The consequence is reported
-by whichever rule owns it: `meta/surface-unmet` when a soft-promotable type's
-`verification.md` is absent entirely (no row to inspect), the `design/*` section
-rules when a required design section is missing, and the `verification/*`
-surface rules (`interactive-required`, `eval-check`, `integration-check`,
-`deploy-real-layer`) when a present `verification.md` lacks the required row. At
-validate time these SHALL be WARNING (ERROR under `--strict`). At apply time
-they SHALL contribute to the existing soft-blocker set, yielding exit 3 unless
-`--allow-soft` is passed, with reasons naming the triggering flag.
+soft nudge, only where the target artifact or row is not Forbidden, from the
+rule that owns it: `meta/surface-unmet` when `verification.md` is absent, the
+`design/*` rules for a missing design section, the `verification/*` surface
+rules for a missing row. At validate time these SHALL be WARNING (ERROR under
+`--strict`); at apply, soft blockers (exit 3 unless `--allow-soft`) whose
+reasons name the flag.
 
 #### Scenario: Interactive flag without a manual or e2e row
 
@@ -128,6 +120,18 @@ they SHALL contribute to the existing soft-blocker set, yielding exit 3 unless
 - **WHEN** a change checks a flag whose consequence targets an artifact that is
   Forbidden for that type
 - **THEN** `meta/surface-unmet` does not fire for that flag
+
+#### Scenario: Each verification surface rule owns its missing row
+
+- **WHEN** a present `verification.md` lacks the row a checked flag requires
+- **THEN** the nudge comes from the owning rule among
+  `verification/interactive-required`, `verification/eval-check`,
+  `verification/integration-check`, and `verification/deploy-real-layer`
+
+#### Scenario: A wholly absent ledger is reported once
+
+- **WHEN** a soft-promotable type with a checked flag has no `verification.md`
+- **THEN** `meta/surface-unmet` reports it, since there is no row to inspect
 
 ### Requirement: Static apply.requires invariant
 

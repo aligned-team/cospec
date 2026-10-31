@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:538dc3d260562c79d34367a3868b8027226fa6227ae4987067ee3620c68b14d4
+  contentHash: sha256:bfbd637144f8993803418a9e624764d62e80e15f23243d458f542bc446d2eab5
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -103,6 +103,13 @@ cospec instructions <artifact> --change <slug> --json
 
 Explain what the instructions ask for, write the artifact, show the user what
 you wrote, and pause before moving to the next artifact.
+
+For `tasks.md`, explain that each task group carries the tests and documentation
+for its own work, and the last group is only for integration checks. Draft the
+breakdown, show it, and ask "Does this task breakdown look right?" Wait for the
+user's approval or feedback, and save the file only after they approve. Then ask
+separately whether they are ready to implement, and wait for that answer before
+moving on.
 
 ## 6. Validate
 

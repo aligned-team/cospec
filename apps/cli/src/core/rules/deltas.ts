@@ -1,11 +1,41 @@
 // deltas/* rules (DESIGN §4.3) — run before openspec delegation so cospec's
 // sharper diagnostics win. Rule IDs are frozen public API.
 
-import { parseAdvisoryDelta, parseDeltaSpec, SHALL_MUST_RE, type Delta } from '../deltas.ts'
+import {
+  describeUnappliedContent,
+  extractRequirementBody,
+  findUnappliedContent,
+  parseAdvisoryDelta,
+  parseDeltaSpec,
+  SHALL_MUST_RE,
+  type Delta,
+} from '../deltas.ts'
 import { findRequirementSplits, rebuildSpec } from '../rebuilt-spec.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
+import {
+  MAX_REQUIREMENT_TEXT_LENGTH,
+  REQUIREMENT_TOO_LONG_HINT,
+  requirementTooLongMessage,
+} from './specs.ts'
 import type { AdvisoryIssue } from './views.ts'
+
+/** Where text archive drops belongs instead (openspec 1.14.2's remedy). */
+const DROPPED_TEXT_HINT = 'move it into a requirement, or into proposal.md or design.md'
+
+/**
+ * openspec's twins of cospec's deltas/* findings in a delegated `validate`, for
+ * the validate command's duplicate suppression (see `SPECS_DELEGATED_TWINS`).
+ */
+export const DELTAS_DELEGATED_TWINS = [
+  // 1.14.2 unapplied delta text, keyed on the description both open with
+  // (`Section "## Notes"`, `Text above the first "## " section`, …).
+  {
+    rule: 'deltas/dropped-text',
+    delegated: /^(.+?) is not carried into the main spec by archive\. Move it /,
+    nativeKey: /^(.+?) is not carried into the main spec by archive$/,
+  },
+] as const
 
 const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 /** `specs/<capability-path>/spec.md` — the path may nest (`<area>/<capability>`). */
@@ -165,6 +195,24 @@ export function deltasRules(
       continue
     }
 
+    // deltas/dropped-text — text the archive's merge never carries into the
+    // main spec: a foreign `## ` section, a preamble above the first `## `, or
+    // prose before the first requirement of ADDED/MODIFIED. A WARNING, as
+    // openspec 1.14.2 reports it (`findUnappliedContent`), on the verbatim view
+    // with its own comment rule: a comment holds no text, but a `## ` inside
+    // one is still the boundary the merge reads. After `header-present`: a
+    // file with no delta section is that rule's alone, all of it dropped.
+    for (const lost of findUnappliedContent(file.text)) {
+      issues.push({
+        level: 'WARNING',
+        rule: 'deltas/dropped-text',
+        path: file.path,
+        line: lost.line,
+        message: `${describeUnappliedContent(lost, true)} is not carried into the main spec by archive`,
+        hint: DROPPED_TEXT_HINT,
+      })
+    }
+
     // deltas/unpaired-rename — a FROM:/TO: line that formed no pair. openspec
     // 1.13.1 reports the same shape as an ERROR (`validation/validator.ts`),
     // and below that pin the line is silently dropped or, worse, cross-paired
@@ -240,8 +288,38 @@ export function deltasRules(
     }
 
     issues.push(...requirementShapeIssues(parsed, file.path))
+    issues.push(...requirementLengthIssues(parsed, file.path))
   }
 
+  return issues
+}
+
+/**
+ * `specs/requirement-too-long` for one delta file's ADDED and MODIFIED blocks:
+ * a statement over 500 characters, measured as openspec measures it
+ * (`extractRequirementText`: the body up to the first header, scenarios
+ * excluded). openspec 1.14.1 checks ADDED only and leaves MODIFIED to the main
+ * spec it lands in, where its living-spec check fires after archive; cospec
+ * reports a MODIFIED one now, before it gets there.
+ */
+export function requirementLengthIssues(parsed: Delta, path: string): Issue[] {
+  const issues: Issue[] = []
+  for (const op of parsed.ops) {
+    if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue
+    const text = extractRequirementBody(op.raw.split('\n').slice(1))
+    if (text.length <= MAX_REQUIREMENT_TEXT_LENGTH) continue
+    issues.push({
+      level: 'WARNING',
+      rule: 'specs/requirement-too-long',
+      path,
+      line: op.line,
+      message: requirementTooLongMessage(
+        `${op.operation} "${op.verbatimName ?? op.name}"`,
+        text.length,
+      ),
+      hint: REQUIREMENT_TOO_LONG_HINT,
+    })
+  }
   return issues
 }
 
