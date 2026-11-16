@@ -135,6 +135,10 @@ run = "mise run //packages/bench:bench"
 description = "Single cheap bench cell: ci scenario, sonnet-5/high, cospec arm (advisory, never gates CI)"
 run = "mise run //packages/bench:smoke"
 
+[tasks."bench:complete"]
+description = "Time `cospec __complete changes` against its recorded budget (advisory, always exits 0)"
+run = "mise run //packages/bench:complete"
+
 [tasks."test:bench"]
 description = "Unit tests for the packages/bench harness (matrix, mechanical, report, judge, scenario registry) — no auth/network required"
 run = "mise run //packages/bench:test"

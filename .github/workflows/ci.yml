@@ -25,6 +25,7 @@ jobs:
       shell: ${{ steps.filter.outputs.shell || steps.all.outputs.all }}
       actions: ${{ steps.filter.outputs.actions || steps.all.outputs.all }}
       docs: ${{ steps.filter.outputs.docs || steps.all.outputs.all }}
+      complete_bench: ${{ steps.filter.outputs.complete_bench || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # Pushes to main and the merge queue run every job, and every test suite whole (release.yml
@@ -57,6 +58,15 @@ jobs:
               - 'mise.lock'
               - 'package.json'
               - 'bun.lock'
+              - '.github/actions/setup-mise/**'
+            complete_bench:
+              - 'apps/cli/src/**'
+              - 'packages/bench/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'mise.toml'
+              - 'mise.lock'
+              - '.github/workflows/ci.yml'
               - '.github/actions/setup-mise/**'
 
   # Runs on every pull request: `bun fmt` checks every change's openspec Markdown, the unit tests
@@ -276,6 +286,21 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Build docs
         run: mise run docs:build
+
+  # Advisory: times `cospec __complete changes` against its recorded budget and
+  # writes the result to the step summary. Never gates — not in ci-gate's needs,
+  # and the script always exits 0 (shared-runner wall-clock is too noisy).
+  ci-bench-complete:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.complete_bench == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+      - name: __complete startup timing (advisory)
+        run: mise run bench:complete
 
   ci-gate:
     if: always()
