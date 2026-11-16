@@ -843,7 +843,7 @@ ${marker} TO: \`### Requirement: Widget memoization\`
 
 // --- archive-and-sync-parity (archive --no-validate, archive's JSON, sync-specs) ---
 //
-// Every builder below writes a `feat` change at `schemaVersion: 2` with done
+// Every builder below writes a `feat` change at `x-cospec-schema-version: 2` with done
 // tasks and a resolved verification ledger, so `cospec validate --strict`,
 // `cospec archive` and the binary's own archive all accept it, except for the
 // one thing the builder is named for. The composed cospec schema is copied in
@@ -930,7 +930,7 @@ this removes the path so the release steps run without the manual fix-up.
 `
 
 export interface V2ChangeOptions {
-  /** `.openspec.yaml` lines after `schemaVersion: 2`. */
+  /** `.openspec.yaml` lines after `x-cospec-schema-version: 2`. */
   yamlExtra?: string
   tasks?: string
   /** `false` writes no verification.md. */
@@ -948,7 +948,7 @@ export function writeV2Change(
   withCospecSchema(root, 'feat')
   const change = `openspec/changes/${name}`
   const files: Record<string, string> = {
-    [`${change}/.openspec.yaml`]: `schema: feat\ncreated: 2026-10-05\nschemaVersion: 2\n${opts.yamlExtra ?? ''}`,
+    [`${change}/.openspec.yaml`]: `schema: feat\ncreated: 2026-10-05\nx-cospec-schema-version: 2\n${opts.yamlExtra ?? ''}`,
     [`${change}/proposal.md`]: opts.proposal ?? V2_PROPOSAL,
     [`${change}/blocking-changes.md`]: BLOCKERS,
     [`${change}/tasks.md`]: opts.tasks ?? V2_TASKS_DONE,
@@ -1295,7 +1295,8 @@ export const R7_CHORE = r7('chore', false, true, (root) => {
   withCospecSchema(root, 'chore')
   const change = 'openspec/changes/c1'
   writeFiles(root, {
-    [`${change}/.openspec.yaml`]: 'schema: chore\ncreated: 2026-10-05\nschemaVersion: 2\n',
+    [`${change}/.openspec.yaml`]:
+      'schema: chore\ncreated: 2026-10-05\nx-cospec-schema-version: 2\n',
     [`${change}/proposal.md`]: CHORE_PROPOSAL,
     [`${change}/blocking-changes.md`]: BLOCKERS,
     [`${change}/tasks.md`]: V2_TASKS_DONE,
@@ -1422,7 +1423,7 @@ export const R7_SKIP_SPECS_WITH_DELTA = r7('skip-specs-with-delta', false, false
   R7_MODIFIED.build(root)
   writeFileSync(
     join(root, 'openspec/changes/c1/.openspec.yaml'),
-    'schema: feat\ncreated: 2026-10-05\nschemaVersion: 2\nskip_specs: true\n',
+    'schema: feat\ncreated: 2026-10-05\nx-cospec-schema-version: 2\nskip_specs: true\n',
   )
   return 'c1'
 })

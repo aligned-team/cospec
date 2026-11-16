@@ -21,6 +21,7 @@ import {
   listChanges,
   openspecDir,
   projectVerificationLayers,
+  rawSchemaVersionStamp,
   resolveSchema,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
@@ -181,7 +182,7 @@ function loadOpenspecYaml(changeDir: string, reader: ChangeReader): LoadedChange
   const record = doc as Record<string, unknown>
   const schema = typeof record.schema === 'string' ? record.schema : undefined
   const created = typeof record.created === 'string' ? record.created : undefined
-  const rawSchemaVersion = record.schemaVersion
+  const rawSchemaVersion = rawSchemaVersionStamp(record).value
   // A present-but-non-positive-integer schemaVersion is reported via
   // schemaVersionInvalid (meta/openspec-yaml) but must not flow through as a
   // usable version — otherwise `?? 1` would keep the garbage and mis-filter

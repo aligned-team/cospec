@@ -231,10 +231,10 @@ collides with one of the eleven cospec types, since that would overwrite a
 canon-managed `schema.yaml` every other command reads. Any other destination
 name forks normally. `cospec new <name> <slug>` recognizes a resolved
 project-local schema the same way — it delegates to OpenSpec, skips the
-cospec-only `schemaVersion` stamp and typed artifact-plan output, and prints a
-"legacy schema — reduced cospec guarantees" note; a name that resolves to
-neither a cospec type nor a project-local schema still gets today's unknown-type
-error.
+cospec-only `x-cospec-schema-version` stamp and typed artifact-plan output, and
+prints a "legacy schema — reduced cospec guarantees" note; a name that resolves
+to neither a cospec type nor a project-local schema still gets today's
+unknown-type error.
 
 ::: warning `config.yaml` can't reach what a fork can `context`/`rules` are
 additive prose injected into an instruction — they cannot override which

@@ -77,8 +77,8 @@ describe('cospec --store', () => {
 
     const yamlPath = join(storeDir, 'openspec/changes/created-in-store/.openspec.yaml')
     expect(existsSync(yamlPath)).toBe(true)
-    // `cospec new` stamps schemaVersion 2 in the store, same as a local repo.
-    expect(readFileSync(yamlPath, 'utf8')).toMatch(/schemaVersion:\s*2/)
+    // `cospec new` stamps schema version 2 in the store, same as a local repo.
+    expect(readFileSync(yamlPath, 'utf8')).toMatch(/^x-cospec-schema-version:\s*2$/m)
     // The invocation cwd is untouched — the change did not land locally.
     expect(existsSync(join(workspace, 'openspec/changes/created-in-store'))).toBe(false)
   }, 30_000)

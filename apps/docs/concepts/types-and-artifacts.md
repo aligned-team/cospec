@@ -135,8 +135,16 @@ differs from a hard blocker (exit 2) — live on
 
 Every schema carries a `version`, currently `2` (bumped from `1` when
 `verification` was introduced). `cospec new` stamps a change's `.openspec.yaml`
-with the schema version current at creation time; changes created before
-`verification` existed have no stamp and are treated as `schemaVersion: 1`.
+with the schema version current at creation time, as
+`x-cospec-schema-version: 2`; changes created before `verification` existed have
+no stamp and are treated as `schemaVersion: 1`.
+
+The stamp is an `x-` extension key, the namespace OpenSpec 1.14+ reserves for
+tool metadata, so bare `openspec validate --strict` reports no unknown key on a
+cospec change. Earlier cospec releases wrote the stamp as `schemaVersion:`.
+cospec still reads that legacy key as an equal fallback, `cospec migrate <slug>`
+rewrites it to `x-cospec-schema-version`, and `cospec doctor` lists every change
+still carrying it.
 
 `apply` and `archive` compute their required-artifact set from
 `(type, schemaVersion)`, filtered to artifacts that existed at that schema

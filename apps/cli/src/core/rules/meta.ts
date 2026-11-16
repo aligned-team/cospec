@@ -89,7 +89,8 @@ export function openspecYamlIssues(y: LoadedChange['openspecYaml']): Issue[] {
         level: 'ERROR',
         rule: 'meta/openspec-yaml',
         path: '.openspec.yaml',
-        message: 'schemaVersion must be a positive integer when present',
+        message:
+          'x-cospec-schema-version (legacy: schemaVersion) must be a positive integer when present',
       })
   }
   return issues
