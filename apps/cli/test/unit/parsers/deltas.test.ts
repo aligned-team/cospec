@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  extractRequirementBody,
   findScenarioDrops,
   foldRequirementName,
   type LivingSpec,
@@ -10,7 +11,6 @@ import {
   parseAdvisoryDelta,
   parseDeltaSpec,
   parseLivingSpec,
-  extractRequirementBody,
   scanDocument,
   scenarioDropMessage,
   scenarioNameFromHeader,

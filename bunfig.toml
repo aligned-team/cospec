@@ -18,3 +18,89 @@ coverageReporter = ["text", "lcov"]
 coverageDir = "coverage"
 
 telemetry = false
+
+# `bun fmt` — the repo's formatter (`mise run format:check` / `format:fix` and
+# the hk formatter step). Keys are Prettier's option names. `bun fmt` uses the
+# nearest bunfig.toml with a `[fmt]` section from the working directory up;
+# globs here are relative to this file.
+[fmt]
+# Print what oxfmt prints, as the repo did before `bun fmt` — without it, a
+# `[fmt]` section with no oxfmt config file formats like Prettier.
+flavor = "oxfmt"
+printWidth = 100
+tabWidth = 2
+useTabs = false
+semi = false
+singleQuote = true
+jsxSingleQuote = false
+trailingComma = "all"
+bracketSpacing = true
+bracketSameLine = false
+arrowParens = "always"
+endOfLine = "lf"
+insertFinalNewline = true
+sortPackageJson = true
+# `.gitignore` syntax. `bun fmt` also skips everything `.gitignore` does.
+ignorePatterns = [
+  # cospec-generated, generator-owned files. These are composed from
+  # apps/cli/src/canon/** by the composer/renderer and are byte-exact
+  # drift-gated by `mise run generate:check` (= `cospec update --check`). The
+  # generator is their sole formatting authority: running the hand-formatter
+  # over them would make `format:fix` and `generate:check` mutually
+  # unsatisfiable. They remain git-tracked (committed, reviewable) — only
+  # formatting is delegated to cospec.
+  "openspec/schemas/",
+  ".claude/commands/cospec/",
+  ".claude/skills/cospec-*/",
+  # The shared vendor-neutral skills root, written by the `codex` and `agents`
+  # targets (it replaced `.codex/skills/`).
+  ".agents/skills/cospec-*/",
+  ".codex/rules/cospec.rules",
+  ".opencode/commands/cospec-*.md",
+  ".opencode/skills/cospec-*/",
+  # Generated vendored openspec bundle embedded in the compiled binary. Built
+  # by `mise run vendor:openspec` (drift-gated by `vendor:openspec:check`); it
+  # is minified third-party output, not hand-formatted source.
+  "apps/cli/src/vendor/",
+  # Generated third-party license notices for the vendored openspec bundle.
+  # Built alongside the bundle by `mise run vendor:openspec` (drift-gated); it
+  # reproduces upstream license text verbatim and must not be reflowed.
+  "apps/cli/THIRD-PARTY-LICENSES.md",
+  # packages/bench `style` scenario fixture: deliberately seeded violating this
+  # repo's own formatting conventions (double quotes, semicolons) — that IS
+  # the bug the scenario's agent is scored on fixing inside its sandbox copy.
+  # The checked-in fixture itself must never be reformatted, or the scenario
+  # would start pre-completed.
+  "packages/bench/scenarios/fixtures/style/src/format.ts",
+  # harness-adapter-table (R8): committed raw golden files proving
+  # renderHarnessFiles/init/update/doctor output is byte-identical across the
+  # refactor (Buffer-compared, regenerated only under COSPEC_GOLDEN_WRITE=1).
+  # `renderHarnessFiles`'s own output is their formatting authority; reflowing
+  # them would make a committed golden diverge from what the code emits.
+  "__golden__/",
+]
+
+[fmt.sortImports]
+order = "asc"
+ignoreCase = true
+newlinesBetween = true
+internalPattern = ["~/", "@/", "~/*", "@/*", "@aligned-team/*"]
+
+[[fmt.overrides]]
+files = ["*.json", "*.jsonc"]
+options = { printWidth = 80 }
+
+[[fmt.overrides]]
+files = ["*.md", "*.mdx"]
+options = { proseWrap = "always", printWidth = 80 }
+
+# A verification ledger row keeps its evidence on one physical line: the
+# parser reads one row per line. No slash, so it matches the file name in any
+# directory, a scratch copy outside the repo included.
+[[fmt.overrides]]
+files = ["verification.md"]
+options = { proseWrap = "preserve" }
+
+[[fmt.overrides]]
+files = ["apps/cli/src/canon/workflows/*.md"]
+options = { proseWrap = "preserve" }

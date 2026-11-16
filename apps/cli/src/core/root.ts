@@ -37,11 +37,11 @@ import { parse as parseYaml } from 'yaml'
 
 import {
   openspecStoreList,
+  type Root,
   runOpenspec,
+  type StoreListEntry,
   StoreRegistryError,
   suppressRelayedStderrLine,
-  type Root,
-  type StoreListEntry,
 } from './openspec.ts'
 import { respellRemedies } from './remedies.ts'
 
@@ -161,7 +161,7 @@ export class RawSelectionError extends RootSelectionError {
  * upstream does.
  *
  * The message is passed through as this runtime's `fs` throws it, with no
- * reformatting. cospec runs the binary under Bun, and Bun (1.3.14) words a
+ * reformatting. cospec runs the binary under Bun, and Bun (1.4.4) words a
  * failed `read` (`store.yaml` as a directory) with no path —
  * `EISDIR: illegal operation on a directory, read`, `error.path` undefined —
  * in cospec's own `readFileSync` and in the binary's `fs.promises.readFile`

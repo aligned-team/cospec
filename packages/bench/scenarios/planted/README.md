@@ -42,7 +42,7 @@ Same as `scenarios/hidden/`: every detector file here assumes it is copied to
 relative to that — `../src/<file>.ts`, never a bare path relative to this
 directory's real on-disk location (`scenarios/planted/<id>/`, two levels from
 `scenarios/fixtures/<id>/`). These files are excluded from the package's
-`tsconfig.json` for the same reason `scenarios/hidden/**` is: `tsgo` cannot
+`tsconfig.json` for the same reason `scenarios/hidden/**` is: `bun check` cannot
 resolve their runtime-only import paths in place, and `bun test` (at score-time,
 and in `test/unit/planted.test.ts`'s fail-before/pass-after verification) is the
 only thing that ever executes them.

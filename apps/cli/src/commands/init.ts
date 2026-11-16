@@ -38,29 +38,29 @@ import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
 import { initPointerRefusal } from '../core/root.ts'
 import {
   adapterFor,
+  HARNESS_NAMES,
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  HARNESS_NAMES,
   isHarnessName,
   isLegacyCommandPath,
   legacyCommandDirs,
   legacyCommandRoots,
   legacySkillsRoots,
+  resolveHarnessIdAlias,
+  respellInvocationHint,
   scanRoots,
   SKILL_EXTENSION,
   SKILL_FILE,
   skillsRoot,
-  resolveHarnessIdAlias,
-  respellInvocationHint,
   universalHarnessHint,
 } from '../harness/adapters.ts'
 import {
+  COPILOT_CLOUD_IGNORED_FLAG,
   copilotCloudDirective,
   copilotCloudReceiptLines,
   copilotSelected,
   copilotSucceeded,
-  COPILOT_CLOUD_IGNORED_FLAG,
   decideCopilotCloud,
   emptyCopilotCloudReport,
   persistCopilotCloudOptIn,
@@ -110,8 +110,8 @@ import {
 import {
   detectHarnesses,
   emittedPaths,
-  type FailedWrite,
   failedLines,
+  type FailedWrite,
   generate,
   migrationLines,
 } from './update.ts'

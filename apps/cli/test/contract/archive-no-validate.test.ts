@@ -45,9 +45,9 @@ import {
   R7_SYNCED_MODIFIED,
   R7_SYNCED_SHAPES,
   R7_UNRELATED_UNREADABLE,
+  type R7Fixture,
   restoreArchiveMode,
   restoreUnrelatedMode,
-  type R7Fixture,
 } from './fixtures.ts'
 import { byKey, checkNativeKeys, compareDocuments, type OracleSpec } from './support/key-oracle.ts'
 import { oracle, oracleEnv } from './support/upstream-oracle.ts'

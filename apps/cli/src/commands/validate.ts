@@ -29,8 +29,8 @@ import { answeringErrno, errnoMessage } from '../core/errno.ts'
 import {
   isOpenspecErrorStatus,
   openspecBelow,
-  runOpenspec,
   type Root,
+  runOpenspec,
   type StatusDiagnostic,
   threadedArgv,
   wrappedCallLabel,
@@ -39,13 +39,13 @@ import {
 import { respellRemedies } from '../core/remedies.ts'
 import {
   exitCode as reportExitCode,
+  type FindingsScope,
+  type ItemReport,
   renderHuman,
   toFindings,
   toJson,
-  type FindingsScope,
-  type ItemReport,
 } from '../core/report.ts'
-import { type ResolvedRoot, RootSelectionError, rootSelectionDocument } from '../core/root.ts'
+import { type ResolvedRoot, rootSelectionDocument, RootSelectionError } from '../core/root.ts'
 import { runChangeRules, specsRules } from '../core/rules/index.ts'
 import type { Issue, IssueLevel } from '../core/rules/issue.ts'
 import {
@@ -57,18 +57,18 @@ import {
   unreadableArtifactIssue,
 } from '../core/rules/meta.ts'
 import {
-  deriveSchemaInfo,
   type ArtifactSpec,
+  deriveSchemaInfo,
   type LoadedChange,
   type SchemaInfo,
   type ValidateContext,
 } from '../core/rules/schema-info.ts'
 import {
   ARTIFACT_GENERATES,
-  enforcedApplyRequires,
-  TYPE_ARTIFACTS,
   type ArtifactId,
   type CospecType,
+  enforcedApplyRequires,
+  TYPE_ARTIFACTS,
 } from '../core/rules/type-facts.ts'
 import {
   capabilityForDeltaFile,

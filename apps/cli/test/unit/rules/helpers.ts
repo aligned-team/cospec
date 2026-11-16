@@ -3,17 +3,17 @@
 // exercised as the pure function it is.
 
 import {
-  deriveSchemaInfo,
   type ArtifactSpec,
+  deriveSchemaInfo,
   type LoadedChange,
   type SchemaInfo,
   type ValidateContext,
 } from '../../../src/core/rules/schema-info.ts'
 import {
   ARTIFACT_GENERATES,
-  TYPE_ARTIFACTS,
   type ArtifactId,
   type CospecType,
+  TYPE_ARTIFACTS,
 } from '../../../src/core/rules/type-facts.ts'
 
 export function cospecSchema(type: CospecType): SchemaInfo {

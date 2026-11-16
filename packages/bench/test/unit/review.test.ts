@@ -9,9 +9,9 @@ import {
   parseFindings,
   parseVerdict,
   reviewDiff,
-  scrubArmIdentifiers,
   type ReviewFinding,
   type ReviewRunner,
+  scrubArmIdentifiers,
 } from '../../src/review.ts'
 
 // A diff and task that deliberately name both tools, to prove the prompt

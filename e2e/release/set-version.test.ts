@@ -68,7 +68,7 @@ async function runScript(
   const proc = Bun.spawn(['bash', SCRIPT, version, '--root', root], {
     stdout: 'pipe',
     stderr: 'pipe',
-    // The script runs host tools (`jq`, `oxfmt`), which a mise shim resolves through the real
+    // The script runs host tools (`jq`, `bun fmt`), which a mise shim resolves through the real
     // home; no cospec code runs here, so the sandbox the preload installs is stepped around.
     env: hostToolEnv(),
   })

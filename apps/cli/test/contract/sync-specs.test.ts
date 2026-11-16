@@ -39,9 +39,9 @@ import {
   R7_SYNC_SHAPES,
   R7_UNREAD_DELTAS,
   R7_UNRELATED_UNREADABLE,
+  type R7Fixture,
   restoreUnrelatedMode,
   writeLivingSpec,
-  type R7Fixture,
 } from './fixtures.ts'
 import { makeSandbox, setupStore } from './support/root-sandbox.ts'
 import { oracle, oracleEnv } from './support/upstream-oracle.ts'

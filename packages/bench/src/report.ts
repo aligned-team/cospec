@@ -9,19 +9,19 @@ import { join } from 'node:path'
 
 import type { AgentTelemetry } from './agent.ts'
 import type { QualityScore } from './judge.ts'
-import { cellKey, type Cell } from './matrix.ts'
+import { type Cell, cellKey } from './matrix.ts'
 import {
+  type ArtifactSnapshot,
   confirmedReviewDefectCount,
   conformanceIssueCount,
-  type ArtifactSnapshot,
   type MechanicalMetrics,
 } from './mechanical.ts'
 import { assertRedacted, redactText, type Sentinels } from './redact.ts'
 import {
+  type NumericSummary,
   pairedComparisons,
   renderPairedComparisonMarkdown,
   summarizeNumeric,
-  type NumericSummary,
 } from './stats.ts'
 
 export interface CellResult {

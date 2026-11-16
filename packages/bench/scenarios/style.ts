@@ -1,8 +1,8 @@
 // `style` scenario — reformat to the project's own documented style guide
 // with no behavior change. NOTE: src/format.ts is deliberately seeded
-// violating THIS repo's oxfmt conventions too (double quotes, semicolons) —
+// violating THIS repo's formatting conventions too (double quotes, semicolons) —
 // that is the bug under test, not a defect in this fixture. It is expected to
-// fail this repo's own `oxfmt --check` until the agent (or a human) fixes it
+// fail this repo's own `bun fmt --check` until the agent (or a human) fixes it
 // in the sandbox copy; the fixture itself is intentionally never reformatted.
 
 import { spawnIn } from '../src/sandbox.ts'

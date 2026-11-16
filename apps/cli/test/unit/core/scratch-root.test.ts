@@ -21,9 +21,9 @@ import { join } from 'node:path'
 
 import {
   ScratchRefusal,
+  type ScratchRun,
   symlinkEscape,
   syncThroughScratch,
-  type ScratchRun,
 } from '../../../src/core/scratch-root.ts'
 import { cleanupAll, hashTree, mkTempRepo, writeFiles } from '../../fixtures/support.ts'
 

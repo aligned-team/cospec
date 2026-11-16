@@ -10,7 +10,7 @@
 // `judgeArtifacts`), which `run.ts` composes with this module's pure
 // partitioning/predicate logic.
 
-import { cellKey, type Cell } from './matrix.ts'
+import { type Cell, cellKey } from './matrix.ts'
 import type { CellResult } from './report.ts'
 
 /** The set of `cellKey`s already present in a loaded report's rows — the cells `--resume` must skip. */

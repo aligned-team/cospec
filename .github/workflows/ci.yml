@@ -43,7 +43,7 @@ jobs:
               - 'mise.toml'
               - 'tsconfig*.json'
               - '.oxlintrc.json'
-              - '.oxfmtrc.json'
+              - 'bunfig.toml'
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
             canon:

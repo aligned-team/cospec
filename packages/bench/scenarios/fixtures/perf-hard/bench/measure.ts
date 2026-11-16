@@ -5,7 +5,9 @@
 // implementations miss their thresholds on these input sizes; a rewrite
 // backed by a Set/Map/inverted-index clears all three comfortably (verified
 // during authoring: naive ~400ms/~207ms/~400ms vs optimized ~1ms/~2ms/~7ms on
-// this machine, cold).
+// this machine, cold). The dedupe sizes were raised for Bun 1.4.4, whose JIT
+// runs its nested loop ~13x faster than 1.3's did: ~960ms naive vs ~2ms
+// optimized there.
 
 import { dedupe } from '../src/dedupe.ts'
 import { groupBy } from '../src/groupBy.ts'
@@ -20,8 +22,8 @@ function fail(message: string): void {
 }
 
 // --- dedupe ---
-const DEDUPE_SIZE = 15000
-const DEDUPE_RANGE = 7000
+const DEDUPE_SIZE = 84000
+const DEDUPE_RANGE = 39000
 const DEDUPE_THRESHOLD_MS = 150
 
 const dedupeInput: number[] = []

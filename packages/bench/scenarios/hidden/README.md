@@ -19,9 +19,9 @@ level below the fixture root, and imports source relative to that:
 `../src/<file>.ts`, `../package.json`, etc. — never a bare path relative to this
 directory's real location in the repo (which sits at `scenarios/hidden/<id>/`,
 two levels from `scenarios/fixtures/<id>/`). Because of this, these files are
-**excluded** from the package's `tsconfig.json` (see its `exclude`) — `tsgo`
-cannot resolve their runtime-only import paths from their real on-disk location,
-and `bun test` (used both by the harness at score-time and by
+**excluded** from the package's `tsconfig.json` (see its `exclude`) —
+`bun check` cannot resolve their runtime-only import paths from their real
+on-disk location, and `bun test` (used both by the harness at score-time and by
 `test/unit/hidden.test.ts`'s fail-before/pass-after verification) is the only
 thing that ever actually executes them.
 

@@ -11,12 +11,12 @@
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import {
+  type ArchiveDiagnostic,
+  type ArchiveRefusalReason,
   changeNameProblem,
   diagnostics,
   failureDocument,
   readArchiveSummary,
-  type ArchiveDiagnostic,
-  type ArchiveRefusalReason,
 } from '../core/archive-output.ts'
 import {
   changesDir,
@@ -30,16 +30,16 @@ import {
 } from '../core/change.ts'
 import {
   enforceExpectation,
+  type OpenspecResult,
   spawnOpenspec,
   wrappedCallLabel,
-  type OpenspecResult,
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { renderHuman, renderJson } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
 import { changeDeltaOps, scenarioGate, scenarioRefusal } from '../core/scenario-gate.ts'
-import { ScratchRefusal, syncThroughScratch, type ScratchRun } from '../core/scratch-root.ts'
+import { ScratchRefusal, type ScratchRun, syncThroughScratch } from '../core/scratch-root.ts'
 import { rootOutput } from '../core/upstream-keys.ts'
 import { closest } from './apply.ts'
 import { collectArchiveWarnings } from './archive.ts'

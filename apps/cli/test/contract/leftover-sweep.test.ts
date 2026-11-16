@@ -8,7 +8,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { type HarnessAdapter, HARNESS_NAMES, HARNESS_TABLE } from '../../src/harness/adapters.ts'
+import { HARNESS_NAMES, HARNESS_TABLE, type HarnessAdapter } from '../../src/harness/adapters.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 import { assertNoAncestorOpenspec, CAPTURE_GLOBAL_CONFIG } from './support/upstream-init-capture.ts'
 import { oracleSpawn } from './support/upstream-oracle.ts'

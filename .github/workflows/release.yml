@@ -235,7 +235,7 @@ jobs:
       - run: bun install --frozen-lockfile
 
       # Stamp the ONE computed version into apps/cli/package.json. Needs only
-      # mise (usage-spec task + oxfmt) and jq — no cocogitto here.
+      # mise (usage-spec task + bun fmt) and jq — no cocogitto here.
       - name: Set cospec version
         run: mise run release:set-version -- "${{ needs.version.outputs.version }}"
 

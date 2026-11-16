@@ -18,14 +18,14 @@ import { EXIT } from '../cli.ts'
 import { isUpstreamStorePathRefusal } from './command-table.ts'
 import { forwardCall, isParseRejection, relayStorePathRefusal } from './forward-relay.ts'
 import {
+  type OpenspecResult,
   passthroughOpenspec,
+  type RunExpectation,
   runOpenspec,
   threadedArgv,
-  type OpenspecResult,
-  type RunExpectation,
 } from './openspec.ts'
 import { respellWhole, respellWholeRemedy } from './remedies.ts'
-import { resolveRoot, RootSelectionError, type ResolvedRoot } from './root.ts'
+import { type ResolvedRoot, resolveRoot, RootSelectionError } from './root.ts'
 
 export interface PassthroughCommandOptions {
   /** The wrapped command path (`['show']`, `['schema', 'init']`). */

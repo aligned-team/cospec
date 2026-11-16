@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { openspecPackageDir } from '../../src/core/openspec.ts'
-import { type HarnessAdapter, HARNESS_TABLE, skillsRoot } from '../../src/harness/adapters.ts'
+import { HARNESS_TABLE, type HarnessAdapter, skillsRoot } from '../../src/harness/adapters.ts'
 import { SHARED_ROOT_UPSTREAM_ORDER } from '../../src/harness/shared-root.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 import { assertNoAncestorOpenspec, CAPTURE_GLOBAL_CONFIG } from './support/upstream-init-capture.ts'

@@ -19,7 +19,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { archiveDir, COSPEC_TYPES, openspecDir } from '../core/change.ts'
 import { openspecList, passthroughOpenspec } from '../core/openspec.ts'
-import { resolveRoot, type ResolvedRoot } from '../core/root.ts'
+import { type ResolvedRoot, resolveRoot } from '../core/root.ts'
 import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
 
 export const COMPLETE_SOURCES = [

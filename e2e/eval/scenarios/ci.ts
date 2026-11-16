@@ -7,12 +7,12 @@ import {
   createSandbox,
   declaredArtifactFiles,
   driveAgent,
+  type EvalContext,
   readFileOr,
   resolveChange,
   runCospec,
-  teardown,
-  type EvalContext,
   type Scenario,
+  teardown,
 } from '../context.ts'
 import { CI_RUBRIC } from '../score.ts'
 

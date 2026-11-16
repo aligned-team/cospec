@@ -36,8 +36,8 @@ import { openspecPackageDir, STORE_ERROR_CODES } from '../../src/core/openspec.t
 import {
   type ResolvedRoot,
   resolveRoot,
-  RootSelectionError,
   type RootDiagnostic,
+  RootSelectionError,
 } from '../../src/core/root.ts'
 import { errnoShape } from '../fixtures/errno.ts'
 import { cleanupAll, cospec, hashTree, writeFiles } from '../fixtures/support.ts'

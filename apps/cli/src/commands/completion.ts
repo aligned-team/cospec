@@ -21,13 +21,13 @@ import { renderBashCompletion } from '../core/completions/bash.ts'
 import { renderFishCompletion } from '../core/completions/fish.ts'
 import {
   CompletionInstallError,
+  installCompletion,
   type InstallContext,
   type InstallResult,
-  installCompletion,
   reloadCommand,
   resolveTarget,
-  type UninstallResult,
   uninstallCompletion,
+  type UninstallResult,
 } from '../core/completions/install.ts'
 import { renderPowerShellCompletion } from '../core/completions/powershell.ts'
 import { buildCompletionSpec } from '../core/completions/spec.ts'

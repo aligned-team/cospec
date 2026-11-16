@@ -24,8 +24,8 @@ import {
   cleanup,
   homeCospec,
   homeOpenspec,
-  homeSandbox,
   type HomeSandbox,
+  homeSandbox,
   ptyAvailable,
   ptyRun,
 } from '../fixtures/support.ts'

@@ -29,8 +29,8 @@ import { run } from '../../src/cli.ts'
 import { CONSOLE_ROUTES, writeHandoverPreloadInto } from '../../src/core/handover-preload.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
 import {
-  CLI_ENTRY,
   cleanupAll,
+  CLI_ENTRY,
   cospec,
   hashTree,
   mkTempRepo,

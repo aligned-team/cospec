@@ -17,8 +17,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import {
-  type CompletionTipInput,
   ciSuppresses,
+  type CompletionTipInput,
   globalConfigDir,
   offerCompletionTip,
 } from '../../../src/core/completion-tip.ts'

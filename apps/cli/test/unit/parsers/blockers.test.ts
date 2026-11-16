@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  type BlockerEntry,
   parseBlockers,
   serializeEntry,
   syncBlockers,
-  type BlockerEntry,
 } from '../../../src/core/blockers.ts'
 
 const TEMPLATE = `# Dependencies

@@ -84,7 +84,7 @@ if (registry[REAL_HOMES_KEY] === undefined) {
     default: { ...osDefault, homedir },
   }))
 
-  // `bun test` never emits `exit` to a preload's `process.on('exit')` (Bun 1.3.14), so a handler
+  // `bun test` never emits `exit` to a preload's `process.on('exit')` (Bun 1.4.4), so a handler
   // there leaves one directory behind per run; a preload-level `afterAll` runs after the last file.
   afterAll(() => rmSync(root, { recursive: true, force: true }))
 

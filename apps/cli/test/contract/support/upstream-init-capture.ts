@@ -22,7 +22,7 @@
 //
 // To re-take the fixtures after a pin bump:
 //   COSPEC_FIXTURE_WRITE=1 bun test test/contract/upstream-init-fixtures.test.ts
-// then `mise run format:fix` (oxfmt owns the files' layout; the test compares parsed
+// then `mise run format:fix` (bun fmt owns the files' layout; the test compares parsed
 // values, so layout never decides a pass).
 
 import { createHash } from 'node:crypto'

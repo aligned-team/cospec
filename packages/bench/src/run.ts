@@ -12,30 +12,30 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { ALL_SCENARIOS, scenarioById } from '../scenarios/index.ts'
-import { runAgent, type AgentTelemetry } from './agent.ts'
+import { type AgentTelemetry, runAgent } from './agent.ts'
 import {
   collectArtifactText,
   judgeArtifacts,
-  judgeInputFromArtifactFiles,
   type JudgeConfig,
+  judgeInputFromArtifactFiles,
 } from './judge.ts'
-import { cellKey, expandMatrix, parseArgs, type Cell, type MatrixFilters } from './matrix.ts'
+import { type Cell, cellKey, expandMatrix, type MatrixFilters, parseArgs } from './matrix.ts'
 import { resolveChange, scoreMechanical, snapshotChangeArtifacts } from './mechanical.ts'
 import { publishFromReportDir, publishResults } from './publish.ts'
 import { redactText, type Sentinels } from './redact.ts'
 import {
   appendCellResult,
+  type CellResult,
   ensureRunDir,
   isStaleSchema,
   readCellDiff,
   readCellsJsonl,
+  type RunMeta,
   writeAggregate,
   writeArtifactSnapshot,
   writeCellDiff,
   writeCellsJsonl,
   writeMarkdown,
-  type CellResult,
-  type RunMeta,
 } from './report.ts'
 import { needsJudgeBackfill, needsReviewBackfill, partitionResumeCells } from './resume.ts'
 import { defaultReviewRunner, reviewDiff } from './review.ts'

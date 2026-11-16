@@ -28,11 +28,11 @@ import {
   renameSync,
   rmdirSync,
   rmSync,
+  type Stats,
   statSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
-  type Stats,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'

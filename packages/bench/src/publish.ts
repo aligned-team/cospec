@@ -21,10 +21,10 @@ import { MODEL_EFFORT } from './matrix.ts'
 import { assertRedacted, type Sentinels } from './redact.ts'
 import {
   aggregateByArmModel,
+  type CellResult,
   isStaleSchema,
   renderCompactArmModelMarkdown,
   renderSummaryBody,
-  type CellResult,
   type RunMeta,
 } from './report.ts'
 import { spawnIn } from './sandbox.ts'

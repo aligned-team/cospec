@@ -41,8 +41,8 @@ import {
   passthroughOpenspec,
   type PostCondition,
   resolveOpenspec,
-  satisfiesOpenspecRange,
   type Root,
+  satisfiesOpenspecRange,
 } from '../core/openspec.ts'
 import { readConfigFile } from '../core/project-config-read.ts'
 import { respellRemedies } from '../core/remedies.ts'

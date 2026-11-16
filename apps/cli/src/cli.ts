@@ -5,31 +5,31 @@ import pkg from '../package.json'
 import {
   closest,
   COMMAND_TABLE,
-  commandRow,
   type CommandRow,
-  type FlagSpec,
+  commandRow,
   flagLabel,
+  type FlagSpec,
   GLOBAL_FLAGS,
-  rowGlobalFlags,
   globalUnknownOptionRefusal,
   isPending,
   isStorePathToken,
+  jsonRefusal,
   offeredFlags,
   parseCommandArgs,
   type ParsedArgs,
-  type PositionalSpec,
   positionalLabel,
+  type PositionalSpec,
+  rowGlobalFlags,
   splitShortCluster,
   storePathRefusal,
   storePathTakesValue,
   type SubcommandSpec,
-  jsonRefusal,
   takesNextToken,
   VERSION_DESCRIPTION,
 } from './core/command-table.ts'
 import { offerCompletionTip } from './core/completion-tip.ts'
 import { isRelayedParseRefusal } from './core/parse-rejection.ts'
-import { RootSelectionError, rootSelectionDocument } from './core/root.ts'
+import { rootSelectionDocument, RootSelectionError } from './core/root.ts'
 
 /** Global flags accepted before or after the subcommand on every command. */
 export interface GlobalFlags {

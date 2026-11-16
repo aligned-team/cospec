@@ -19,8 +19,8 @@ import {
   nodeStatMessage,
   readDefaultStore,
   resolveRoot,
-  RootSelectionError,
   rootSelectionDocument,
+  RootSelectionError,
   type RootSource,
 } from '../../../src/core/root.ts'
 import { type ErrnoShape, errnoShape } from '../../fixtures/errno.ts'

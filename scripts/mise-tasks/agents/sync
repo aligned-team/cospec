@@ -48,7 +48,9 @@ sync_file() {
     printf '<!-- end shared -->\n'
     awk 'found{print} /<!-- end shared -->/{found=1}' "$target"
   } >> "$new_file"
-  mise exec -- oxfmt "$new_file" > /dev/null 2>&1 || true
+  # --cwd pins the repo's bunfig.toml `[fmt]`, which bun fmt finds from the
+  # working directory up: $new_file sits in a temp dir outside the repo.
+  mise exec -- bun fmt --cwd="$REPO_ROOT" "$new_file" > /dev/null 2>&1 || true
 
   if [[ "$CHECK" == true ]]; then
     if ! diff -q "$target" "$new_file" > /dev/null 2>&1; then

@@ -11,8 +11,8 @@ import { join } from 'node:path'
 import { TYPE_TABLE } from '../../../src/core/schema-compose.ts'
 import {
   type HarnessName,
-  type RenderOptions,
   renderHarnessFiles,
+  type RenderOptions,
 } from '../../../src/harness/render.ts'
 
 const CANON = join(import.meta.dir, '../../../src/canon/workflows')

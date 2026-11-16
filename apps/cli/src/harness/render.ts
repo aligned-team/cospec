@@ -19,8 +19,8 @@ import {
   renderCodexRules,
   serializeFrontmatter,
   skillPath,
-  skillsRoot,
   skillSpelling,
+  skillsRoot,
   transformBody,
   type WorkflowDef,
 } from './adapters.ts'

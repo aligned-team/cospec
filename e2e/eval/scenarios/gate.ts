@@ -5,10 +5,10 @@
 import {
   createSandbox,
   driveAgent,
-  runCospec,
-  teardown,
   type EvalContext,
+  runCospec,
   type Scenario,
+  teardown,
 } from '../context.ts'
 import { GATE_RUBRIC } from '../score.ts'
 

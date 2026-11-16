@@ -29,11 +29,11 @@ self-hosts: this repo's own `openspec/` tree is managed by cospec.
 
 | Layer         | Choice                                                           |
 | ------------- | ---------------------------------------------------------------- |
-| Runtime       | Bun 1.3                                                          |
-| Language      | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit`   |
+| Runtime       | Bun 1.4                                                          |
+| Language      | TypeScript 7; type-checked by `bun check`                        |
 | Wrapped tool  | `@fission-ai/openspec` 1.13.1 (pin; `>=1.0.0 <2.0.0` accepted)   |
 | CLI           | `cospec` — Bun entry at `apps/cli/src/index.ts`                  |
-| Lint + format | oxlint + oxfmt (no ESLint, no Prettier)                          |
+| Lint + format | oxlint + `bun fmt` (no ESLint, no Prettier)                      |
 | Git hooks     | hk (jdx/hk) via mise                                             |
 | Tests         | bun test — unit, contract (real binary), integration, pack smoke |
 | Eval          | DeepSeek v4 Flash (native API) — advisory, never gates CI        |
@@ -152,7 +152,7 @@ to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
 - Recovery: if a change does land on `main` unarchived anyway, the very next
   action is a follow-up PR whose first commit is the archive.
 
-## Style rules (oxlint + oxfmt enforced)
+## Style rules (oxlint + `bun fmt` enforced)
 
 - No semicolons; single quotes; `printWidth` 100 (80 for JSON/Markdown).
 - Trailing commas everywhere; arrow parens always; LF endings.
@@ -419,7 +419,6 @@ write.
 
 **Decisiveness** — research before asking; if the answer is in the codebase or
 DESIGN, find it. Lead with a recommendation when presenting options.
-
 <!-- end shared -->
 
 ## Claude Code notes

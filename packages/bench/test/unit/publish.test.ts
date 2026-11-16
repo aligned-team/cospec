@@ -10,6 +10,7 @@ import type { MechanicalMetrics } from '../../src/mechanical.ts'
 import {
   buildProvenance,
   commitUrl,
+  type GitInfo,
   parseGitHubRemote,
   publishFromReportDir,
   publishResults,
@@ -17,7 +18,6 @@ import {
   renderReadmeBlock,
   renderResultsMarkdown,
   replaceMarkerBlock,
-  type GitInfo,
 } from '../../src/publish.ts'
 import type { CellResult, RunMeta } from '../../src/report.ts'
 

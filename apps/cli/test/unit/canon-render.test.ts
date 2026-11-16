@@ -10,9 +10,9 @@ import { join } from 'node:path'
 import { canonFile } from '../../src/canon/embedded.ts'
 import { TYPE_TABLE } from '../../src/core/schema-compose.ts'
 import {
-  type RenderOptions,
   readWorkflowManifest,
   renderHarnessFiles,
+  type RenderOptions,
 } from '../../src/harness/render.ts'
 import {
   ARCHIVE_INPUTS_LOOKUP,

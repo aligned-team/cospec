@@ -62,14 +62,15 @@
       disk.
 - [x] 2.2 W4 — harden `core/deltas.ts`: strip a leading U+FEFF and normalise
       `\r\n`/`\r` at both `parseDeltaSpec` and `parseLivingSpec` entry, port
-      upstream's `buildCodeFenceMask` semantics
-      (```and`~~~`; a closing fence     must match the opening marker and be at least its length), and mask     HTML-comment spans (including unterminated-to-EOF) in place so line     numbers do not shift. Verify: unit fixtures for BOM, CRLF, a     commented-out `###
-      Requirement:`/`####
-      Scenario:`, a four-backtick block     containing a three-backtick line, and a `~~~`
-      fence — each asserting the header is not counted and that the reported
-      line numbers still match the source file; plus an integration assertion
-      that the scenario-preservation gate still refuses when the only surviving
-      scenarios are masked.
+      upstream's `buildCodeFenceMask` semantics (```and`~~~`; a closing fence
+      must match the opening marker and be at least its length), and mask
+      HTML-comment spans (including unterminated-to-EOF) in place so line
+      numbers do not shift. Verify: unit fixtures for BOM, CRLF, a commented-out
+      `###     Requirement:`/`####     Scenario:`, a four-backtick block
+      containing a three-backtick line, and a `~~~` fence — each asserting the
+      header is not counted and that the reported line numbers still match the
+      source file; plus an integration assertion that the scenario-preservation
+      gate still refuses when the only surviving scenarios are masked.
 - [x] 2.3 W5 — capture the wrapped archive's warning-shaped stdout on the
       success path (today discarded unless the archive fails) and surface it as
       `Warning:` lines in the human summary and a `warnings: string[]` array in

@@ -8,13 +8,13 @@ import {
   createSandbox,
   declaredArtifactFiles,
   driveAgent,
+  type EvalContext,
   livingSpecText,
   readFileOr,
   resolveChange,
   runCospec,
-  teardown,
-  type EvalContext,
   type Scenario,
+  teardown,
 } from '../context.ts'
 import { FEAT_RUBRIC } from '../score.ts'
 

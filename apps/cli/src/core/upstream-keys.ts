@@ -7,10 +7,10 @@
 
 import {
   RawSelectionError,
-  resolveRoot,
-  RootSelectionError,
-  rootSelectionDocument,
   type ResolvedRoot,
+  resolveRoot,
+  rootSelectionDocument,
+  RootSelectionError,
   type RootSource,
 } from './root.ts'
 

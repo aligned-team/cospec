@@ -3,8 +3,8 @@ import { join } from 'node:path'
 
 import { assertPathWithin } from '../core/glob.ts'
 import {
-  type HarnessAdapter,
   HARNESS_TABLE,
+  type HarnessAdapter,
   legacySkillsRoots,
   SKILL_FILE,
   skillsRoot,

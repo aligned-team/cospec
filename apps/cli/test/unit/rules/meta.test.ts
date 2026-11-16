@@ -5,9 +5,9 @@ import {
   metadataKeyIssues,
   metaRules,
   nestedChangeIssue,
-  unreadableArtifactIssue,
   schemaOutdatedIssues,
   surfaceUnmetConsequences,
+  unreadableArtifactIssue,
 } from '../../../src/core/rules/meta.ts'
 import { cospecSchema, legacySchema, makeChange, rules } from './helpers.ts'
 

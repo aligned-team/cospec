@@ -6,8 +6,8 @@ import { join } from 'node:path'
 import {
   collectArtifactText,
   judgeArtifacts,
-  judgeInputFromArtifactFiles,
   type JudgeConfig,
+  judgeInputFromArtifactFiles,
 } from '../../src/judge.ts'
 
 const roots: string[] = []
