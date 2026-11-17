@@ -446,7 +446,17 @@ describe('the key oracle', () => {
     expect(compareDocuments(up, broken, vspec).failures).toEqual([
       expect.stringContaining('items[].type: named collision broken'),
     ])
-    expect(NAMED_COLLISIONS.map((c) => c.path)).toEqual(['version', 'items[].type', 'status[].fix'])
+    expect(NAMED_COLLISIONS.map((c) => c.path)).toEqual([
+      'version',
+      'items[].type',
+      'install.location',
+      'install.packageManager',
+      'install.scope',
+      'update.status',
+      'update.latest',
+      'update.command',
+      'status[].fix',
+    ])
   })
 
   test('a respelled path must carry the binary value spelled through cospec', () => {

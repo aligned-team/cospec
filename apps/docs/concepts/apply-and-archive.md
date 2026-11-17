@@ -154,9 +154,14 @@ of them are hard gates with no `--force` flag:
 2. Run full validation — errors exit `1`. `--no-validate` skips this step and is
    passed on to OpenSpec, which then skips its own validation as well (see
    below).
-3. **Tasks gate.** Any unchecked task in `tasks.md` exits `1` unless you pass
-   `--force-incomplete`. Note that `-y` alone does not waive this — an automated
-   caller can't skip real work just by auto-confirming prompts.
+3. **Tasks gate.** Any unchecked task in a file the change's schema tracks
+   (`apply.tracks`, a path or glob — `tasks.md` for every cospec type; the same
+   resolver `status` and `apply` use) exits `1` unless you pass
+   `--force-incomplete`, and the refusal names the file. A
+   `## Workflow follow-up` section is not tracked (see
+   [`tasks/`](/reference/validation-rules#tasks)). Note that `-y` alone does not
+   waive this — an automated caller can't skip real work just by auto-confirming
+   prompts.
 4. Self-blocker sanity check: unchecked hard blockers pointing at _this_
    change's own file print a warning, not a failure (aborted or superseded work
    still needs to be archivable).

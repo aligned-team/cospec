@@ -173,7 +173,7 @@ function uncoveredListings(source: string): string[] {
 }
 
 describe('the pinned dist lists directories only through the forms the readdir preload covers', () => {
-  // The vendored bundle is the pinned dist and every dependency it runs (fast-glob's walker
+  // The vendored bundle is the pinned dist and every dependency it runs (tinyglobby's fdir walker
   // included), drift-gated against a fresh build of the pin.
   const bundle = join(REPO_ROOT, 'apps/cli/src/vendor/openspec.bundle.js.tpl')
 

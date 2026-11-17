@@ -23,12 +23,9 @@ export function isDelivery(value: string): value is Delivery {
 
 export type CommandSurfaceCapability = 'adapter-backed' | 'skills-invocable' | 'none'
 
-// Upstream's one skills-invocable tool: it invokes skills by name and gets no command files.
-const SKILLS_INVOCABLE: ReadonlySet<string> = new Set(['codex'])
-
 export function commandSurfaceCapability(row: HarnessAdapter): CommandSurfaceCapability {
   if (row.commands !== undefined) return 'adapter-backed'
-  if (SKILLS_INVOCABLE.has(row.id)) return 'skills-invocable'
+  if (row.skillsInvocable === true) return 'skills-invocable'
   return 'none'
 }
 

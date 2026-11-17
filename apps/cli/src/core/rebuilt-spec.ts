@@ -748,6 +748,31 @@ function parseSpec(rawLines: readonly string[]): ParsedSpec {
   return { kind: 'spec', overview: purpose.trim(), requirements, sections }
 }
 
+/** A living-spec requirement as openspec's `MarkdownParser.parseRequirements` reads it. */
+export interface ParsedRequirement {
+  /** 1-based line of its header. */
+  line: number
+  /** the header title, `Requirement:` prefix and all, as the parser keeps it. */
+  title: string
+  /** `extractRequirementText`: the statement, or the title when there is none. */
+  text: string
+}
+
+/**
+ * The requirements openspec's spec reader (`MarkdownParser.parseSpec`, the one
+ * `validate --specs` and the archive run) finds in a living spec, each with the
+ * text it measures. Empty when the reader throws (no Purpose, no Requirements).
+ */
+export function parsedRequirements(text: string): ParsedRequirement[] {
+  const parsed = parseSpec(text.replace(/\r\n?/g, '\n').split('\n'))
+  if (parsed.kind !== 'spec') return []
+  return parsed.requirements.children.map((child) => ({
+    line: child.line + 1,
+    title: child.title,
+    text: requirementBody(child.content.split('\n')) || child.title.trim(),
+  }))
+}
+
 /** One ERROR the archive's validation of the rebuilt spec reports. */
 export type RebuiltSpecIssue =
   | { kind: 'no-purpose' }

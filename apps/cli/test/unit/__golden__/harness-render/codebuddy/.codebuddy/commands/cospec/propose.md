@@ -5,7 +5,7 @@ argument-hint: "[command arguments]"
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:cca6f8cd0333b05ca9b632e5db623a55f63a8a486ffcff2389bdfc0e9c2c53ca
+  contentHash: sha256:6edd840ee4c7406f13b5eadca3b1dfac54b5fe8fc96d5d08521a929af99970be
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -171,6 +171,11 @@ Loop until every artifact in the type's `apply.requires` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
    `verification.md` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the `instruction` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
 
 For `blocking-changes.md`, scan the other active changes and the archive as the

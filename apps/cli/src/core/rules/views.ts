@@ -1,9 +1,11 @@
 // Which view of a spec document each rule reads (see `ReadView` in
 // `core/deltas.ts`). Gates read what openspec's archive reads — fences masked,
 // HTML comments kept; the comment-masked view survives only for the findings
-// listed here. `test/unit/rules/views.test.ts` enumerates every `archive/*` and
-// `deltas/*` rule in this directory and proves each one reads the view it is
-// registered under.
+// listed here. `test/unit/rules/views.test.ts` enumerates every `archive/*`,
+// `deltas/*` and `specs/*` rule in this directory and proves each one reads the
+// view it is registered under. Every rule not listed below is a verbatim one —
+// `specs/requirement-too-long` among them (1.14.1: an HTML comment is
+// requirement text to the binary, so it is measured).
 
 import type { Issue } from './issue.ts'
 
@@ -36,3 +38,14 @@ export type AdvisoryRule = (typeof ADVISORY_RULES)[number]
 export interface AdvisoryIssue extends Issue {
   rule: AdvisoryRule
 }
+
+/**
+ * Findings that read the verbatim document but apply the binary's own comment
+ * rule, ported with it: `deltas/dropped-text` is openspec 1.14.2's
+ * `findUnappliedContent`, where a commented line holds no text yet a `## `
+ * inside a comment is still the section boundary the merge reads. It reads
+ * neither view's parse — only the raw text — and it is a WARNING the binary
+ * raises on exactly the same lines (`test/unit/parsers/deltas.test.ts` runs
+ * both over one fixture set), so it can never refuse what the binary accepts.
+ */
+export const BINARY_COMMENT_RULES = ['deltas/dropped-text'] as const

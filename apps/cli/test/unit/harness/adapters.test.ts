@@ -253,7 +253,7 @@ function pathsOf(row: HarnessAdapter): Set<string> {
   return out
 }
 
-const ARBITRATED_DIALECT = new Set(['antigravity'])
+const ARBITRATED_DIALECT = new Set(['antigravity', 'gsd'])
 
 describe('HARNESS_TABLE invariants', () => {
   test('HarnessName is the literal union of the table ids', () => {
@@ -273,22 +273,30 @@ describe('HARNESS_TABLE invariants', () => {
       'opencode',
       'agents',
       'amazon-q',
+      'amp',
       'antigravity',
+      'atomcode',
       'auggie',
       'bob',
       'cline',
       'command-code',
       'codeartsagent',
+      'dsh',
       'devin',
       'forgecode',
       'codebuddy',
+      'codestudio',
       'continue',
       'costrict',
       'crush',
       'cursor',
+      'easycode',
       'factory',
       'gemini',
       'github-copilot',
+      'gigacode',
+      'grok',
+      'gsd',
       'hermes',
       'iflow',
       'junie',
@@ -306,6 +314,8 @@ describe('HARNESS_TABLE invariants', () => {
       'rovodev',
       'roocode',
       'trae',
+      'veai',
+      'warp',
       'zed',
       'zcode',
     ])
@@ -336,8 +346,9 @@ describe('HARNESS_TABLE invariants', () => {
         expect(`${a.id}:${a.bodyDialect}`).toBe(`${a.id}:${b.bodyDialect}`)
       }
     }
-    // codex, agents, antigravity and zed share `.agents/skills`; the check must not be vacuous.
-    expect(overlaps).toBe(6)
+    // codex, agents, amp, antigravity, gsd and zed share `.agents/skills`; the check must not
+    // be vacuous.
+    expect(overlaps).toBe(15)
   })
 
   test('the four shipped rows are all repo-scoped, `/`-invoked and need no IDE restart', () => {
@@ -373,25 +384,31 @@ const primary = [
   '.opencode',
   '.agents',
   '.amazonq',
+  '.atomcode',
   '.augment',
   '.bob',
   '.clinerules',
   '.commandcode',
   '.codeartsdoer',
+  '.dsh',
   '.devin',
   '.forge',
   '.codebuddy',
+  '.codestudio',
   '.continue',
   '.cospec',
   '.crush',
   '.cursor',
+  '.easycode',
   '.factory',
   '.gemini',
   '.github',
+  '.gigacode',
+  '.grok',
   '.hermes',
   '.iflow',
   '.junie',
-  '.kilocode',
+  '.kilo',
   '.kimi-code',
   '.kiro',
   '.lingma',
@@ -404,6 +421,8 @@ const primary = [
   '.rovodev',
   '.roo',
   '.trae',
+  '.veai',
+  '.warp',
   '.zcode',
 ]
 
@@ -415,25 +434,31 @@ describe('HARNESS_TABLE derived roots', () => {
       '.opencode',
       '.agents',
       '.amazonq',
+      '.atomcode',
       '.augment',
       '.bob',
       '.clinerules',
       '.commandcode',
       '.codeartsdoer',
+      '.dsh',
       '.devin',
       '.forge',
       '.codebuddy',
+      '.codestudio',
       '.continue',
       '.cospec',
       '.crush',
       '.cursor',
+      '.easycode',
       '.factory',
       '.gemini',
       '.github',
+      '.gigacode',
+      '.grok',
       '.hermes',
       '.iflow',
       '.junie',
-      '.kilocode',
+      '.kilo',
       '.kimi-code',
       '.kiro',
       '.lingma',
@@ -446,9 +471,12 @@ describe('HARNESS_TABLE derived roots', () => {
       '.rovodev',
       '.roo',
       '.trae',
+      '.veai',
+      '.warp',
       '.zcode',
       '.agent',
       '.cline',
+      '.kilocode',
     ])
   })
 
@@ -462,29 +490,36 @@ describe('HARNESS_TABLE derived roots', () => {
       '.agents',
       '.amazonq',
       '.agents',
+      '.agents',
+      '.atomcode',
       '.augment',
       '.bob',
       '.clinerules',
       '.commandcode',
       '.codeartsdoer',
+      '.dsh',
       '.devin',
       '.forge',
       '.codebuddy',
+      '.codestudio',
       '.continue',
       '.cospec',
       '.crush',
       '.cursor',
+      '.easycode',
       '.factory',
       '.gemini',
       '.github',
+      '.gigacode',
+      '.grok',
+      '.agents',
       '.hermes',
       '.iflow',
       '.junie',
-      '.kilocode',
+      '.kilo',
       '.kimi-code',
       '.kiro',
       '.lingma',
-      // minimax-code is home-scoped: no project root at all
       undefined,
       '.vibe',
       '.omp',
@@ -495,14 +530,18 @@ describe('HARNESS_TABLE derived roots', () => {
       '.rovodev',
       '.roo',
       '.trae',
+      '.veai',
+      '.warp',
       '.agents',
       '.zcode',
     ])
   })
 
   test('removal roots are openspec plus every tool root', () => {
-    expect(new Set(removalRoots())).toEqual(new Set(['openspec', ...primary, '.agent', '.cline']))
-    expect(removalRoots()).toHaveLength(40)
+    expect(new Set(removalRoots())).toEqual(
+      new Set(['openspec', ...primary, '.agent', '.cline', '.kilocode']),
+    )
+    expect(removalRoots()).toHaveLength(49)
   })
 
   test("each scan root's skills are harness documents; its rules and stray prompts are not", () => {

@@ -90,13 +90,14 @@ describe('legacy schemaVersion stamp', () => {
     })
   }
 
-  test('is honoured as version 2 under validate --strict', async () => {
+  test('is honoured as version 2 and is no unknown key under validate --strict', async () => {
     const root = await initRepo()
     authorLegacyStamped(root, 'legacy-stamp')
     const res = await cospec(['validate', 'legacy-stamp', '--strict', '--json'], { cwd: root })
     expect(res.exitCode).toBe(0)
     const parsed = JSON.parse(res.stdout) as { items: { issues: { rule: string }[] }[] }
     const rules = parsed.items[0]!.issues.map((i) => i.rule)
+    expect(rules).not.toContain('change/unknown-metadata-key')
     expect(rules).not.toContain('meta/schema-outdated')
   })
 
@@ -528,5 +529,47 @@ The system SHALL provide the widget behavior when requested.
     }
     expect(parsed.verification.declared).toBe(false)
     expect(parsed.archiveReady).toBe(true)
+  })
+})
+
+describe('change/unknown-metadata-key', () => {
+  function authorCi(root: string, name: string, extraYaml: string): void {
+    writeFiles(root, {
+      [`openspec/changes/${name}/.openspec.yaml`]: `schema: ci\ncreated: 2026-07-01\nx-cospec-schema-version: 2\n${extraYaml}`,
+      [`openspec/changes/${name}/proposal.md`]: CI_PROPOSAL,
+      [`openspec/changes/${name}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`openspec/changes/${name}/tasks.md`]: TASKS_DONE,
+    })
+  }
+
+  test('extension keys pass validate --strict', async () => {
+    const root = await initRepo()
+    authorCi(root, 'with-extensions', 'x-goal: G-12\nx-jiraKey: ABC-1\n')
+    const res = await cospec(['validate', 'with-extensions', '--strict', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+  })
+
+  test('an unknown key is a warning that fails --strict and that status names', async () => {
+    const root = await initRepo()
+    authorCi(root, 'with-unknown', 'skip_design: true\nX-Tracker: 1\n')
+
+    const plain = await cospec(['validate', 'with-unknown', '--json'], { cwd: root })
+    expect(plain.exitCode).toBe(0)
+    const strict = await cospec(['validate', 'with-unknown', '--strict', '--json'], { cwd: root })
+    expect(strict.exitCode).not.toBe(0)
+    const parsed = JSON.parse(strict.stdout) as {
+      items: { issues: { rule: string; level: string; message: string }[] }[]
+    }
+    const found = parsed.items[0]!.issues.filter((i) => i.rule === 'change/unknown-metadata-key')
+    expect(found).toHaveLength(1)
+    expect(found[0]!.level).toBe('WARNING')
+    expect(found[0]!.message).toContain('X-Tracker, skip_design')
+
+    const status = await cospec(['status', '--change', 'with-unknown', '--json'], { cwd: root })
+    const doc = JSON.parse(status.stdout) as { warnings?: { code: string; message: string }[] }
+    const warnings = doc.warnings ?? []
+    expect(warnings.filter((w) => w.code === 'unknown_metadata_key')).toHaveLength(1)
+    // The binary's own copy of the same warning is not relayed beside cospec's.
+    expect(JSON.stringify(doc)).not.toContain('Unrecognized key name(s)')
   })
 })

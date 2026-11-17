@@ -47,6 +47,7 @@ import {
 import { readConfigFile } from '../core/project-config-read.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
+import { configRulesIssues } from '../core/rules/config.ts'
 import {
   adapterFor,
   commandPath,
@@ -426,6 +427,14 @@ async function checkConfig(root: Root, cwd: string, findings: Finding[]): Promis
   }
   const doc = read.doc
   await checkRuleKeys(root, rel, doc, findings)
+  for (const issue of configRulesIssues(doc, rel)) {
+    findings.push({
+      level: 'WARNING',
+      check: 'config',
+      message: issue.message,
+      remedy: issue.hint ?? 'quote the rules item',
+    })
+  }
   const schema =
     doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).schema : undefined
   if (typeof schema === 'string' && !(COSPEC_TYPES as readonly string[]).includes(schema)) {

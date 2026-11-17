@@ -97,11 +97,11 @@ dropped, a non-array read as empty, `sync-specs` added just before the first
 
 A global `delivery` key SHALL select where workflows are written: `skills`,
 `commands` or `both` (any other value, or unset). Each harness row is
-`adapter-backed` (has a command surface), `skills-invocable` (`codex`) or
-`none`; skills SHALL be generated unless delivery is `commands` and the row is
-not `skills-invocable`, commands only for `adapter-backed` rows unless delivery
-is `skills`. A switch SHALL remove the dropped surface's managed files, the
-workflow staying installed.
+`adapter-backed` (has a command surface), `skills-invocable` (`codex`, `warp`)
+or `none`; skills SHALL be generated unless delivery is `commands` and the row
+is not `skills-invocable`, commands only for `adapter-backed` rows unless
+delivery is `skills`. A switch SHALL remove the dropped surface's managed files,
+the workflow staying installed.
 
 #### Scenario: Skills only
 

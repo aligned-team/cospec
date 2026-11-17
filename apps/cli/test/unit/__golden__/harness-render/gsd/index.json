@@ -1,0 +1,110 @@
+[
+  {
+    "path": ".agents/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "gsd",
+    "contentHash": "sha256:681e47bde157e739522e40a1805fbc683ce60766dcab372fe77d40f78883296e",
+    "bytes": 6463,
+    "sha256": "19ae2266491a7bed78f606973c6b565ee2533dfecf63a44a0a95a6c27b7366e3"
+  },
+  {
+    "path": ".agents/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "gsd",
+    "contentHash": "sha256:b5c0f584062f9058e14d4207e5ac9140481bbb3073c7e8f91839f7536b81e48a",
+    "bytes": 8467,
+    "sha256": "931f9a78a6c699209bacea567da141b4a97062f5cfc8e5fe0fed940a39a593cb"
+  },
+  {
+    "path": ".agents/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "gsd",
+    "contentHash": "sha256:31e9d7238067ece5fb085030eee0abbf4c139ebd73a8c2fec66fc52e9c27ec1a",
+    "bytes": 13447,
+    "sha256": "1168b37450e5b6c8fd4b36b73a11416333f718f8b4db5fdf4e0694ddf5701e2f"
+  },
+  {
+    "path": ".agents/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "gsd",
+    "contentHash": "sha256:84821f129ff00cb68c5df45cc30f4105eed9a6ba3e13abd9791fecbd15b1b3f3",
+    "bytes": 6239,
+    "sha256": "b5c8cb95717809c6065b77c70b99775c81ccc2c452083bb318761ea4942f4598"
+  },
+  {
+    "path": ".agents/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "gsd",
+    "contentHash": "sha256:11f112c7b5ad364037b4db7f550b6618465f6059c29a89d5a577f6c2aed45cdb",
+    "bytes": 10162,
+    "sha256": "05d335f5cddb45de0b290dd4707942cc1dde009ec4790393745e194f01f68c6e"
+  },
+  {
+    "path": ".agents/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "gsd",
+    "contentHash": "sha256:c46387bee7fa23f42a32622a3b09f9e1da1c9e227d10aef7f9318328e65078a9",
+    "bytes": 8070,
+    "sha256": "20e89dedf5ddc3b5978fe6cb679352659a4005eee1a8d3985ab990d88fa09c59"
+  },
+  {
+    "path": ".agents/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "gsd",
+    "contentHash": "sha256:0ef9b0c921d7006e365648288b4e1f2964f907060739d8d01606e23d7bec1df3",
+    "bytes": 6130,
+    "sha256": "6218fb7f79923a223b0d3930e20410792427144c60b475e6007d82ab827f3950"
+  },
+  {
+    "path": ".agents/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "gsd",
+    "contentHash": "sha256:41a45985264a1b4849f3517e341edfb5df7ec7c9815b7e6ce31efcf814816dbf",
+    "bytes": 6321,
+    "sha256": "5a4ded9a56c7f0c8f41c28bd5fdd88fc79ac7b3545fa907fce68fce1eb47a504"
+  },
+  {
+    "path": ".agents/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "gsd",
+    "contentHash": "sha256:6ca22ada2f0b3f3500864dcf424682318f889fd5ff6c482884bc7c741d4ceab1",
+    "bytes": 10722,
+    "sha256": "17a7b602b5902626eeb80b8567340a2e0daf3cccd4d3494a74867e634eea44c1"
+  },
+  {
+    "path": ".agents/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "gsd",
+    "contentHash": "sha256:d3618cae80897d463433b9ab7945e6e114d84e61b4c0d31a4ee06d27fd948635",
+    "bytes": 5816,
+    "sha256": "9091a6fa1e28e5d1cb386be1a3ce3cb881f2c70c84563c5dd1d887e71e05c8ae"
+  },
+  {
+    "path": ".agents/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "gsd",
+    "contentHash": "sha256:baeda75795c771990ae770d6bfa94902c7208b035f3341d85b2f274ef2d40b70",
+    "bytes": 8617,
+    "sha256": "d138ccad0b7c7b309dceb39272c3a3a3be7885fcd1ed837e2d536ba10be697ac"
+  },
+  {
+    "path": ".agents/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "gsd",
+    "contentHash": "sha256:da56d090c74b49274ce227adea41f4e92ac93aa9252a16891026694404c9ec5b",
+    "bytes": 9563,
+    "sha256": "6b485591f6be66e57fb0c55b27cb238c1b0a00b61825c76cbab687ada46f8f79"
+  }
+]

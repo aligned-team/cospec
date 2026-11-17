@@ -580,7 +580,7 @@ checksum = "sha256:1177b4137ba5adaa56354ae40f1080c7450e8ae09cecb47da459d1c52ac99
 url = "https://nodejs.org/dist/v22.23.2/node-v22.23.2-win-x64.zip"
 
 [[tools."npm:@fission-ai/openspec"]]
-version = "1.13.1"
+version = "1.15.0"
 backend = "npm:@fission-ai/openspec"
 
 [[tools."npm:oxlint"]]

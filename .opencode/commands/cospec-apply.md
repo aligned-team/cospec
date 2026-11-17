@@ -3,7 +3,7 @@ description: Run the apply gate for a change and implement its tasks, obeying th
 metadata:
   author: cospec
   generatedBy: cospec@0.11.2
-  contentHash: sha256:9fe5d010a326b70a28a1be28aec1230c47324ed7341f53647ef959b87a0c244d
+  contentHash: sha256:1172221c5f2d1d68f5ce6fa433835656559ad62399c7f05199bb17ea8eb3df01
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -112,5 +112,8 @@ Obey the exit code:
 
 ## 3. Finish
 
-When every task is checked, tell the user the change is ready to archive — next
-step `/cospec-archive`.
+When every tracked task is checked, tell the user the tracked tasks are complete
+— not that the change is ready to archive. The next step is to review and verify
+it with `/cospec-verify`, then `/cospec-archive`. Plain
+bullets under `## Workflow follow-up` in `tasks.md` are steps for after archive,
+not tasks to check off here.

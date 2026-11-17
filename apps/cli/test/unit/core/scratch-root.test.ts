@@ -240,6 +240,50 @@ describe('syncThroughScratch: links and unreadable entries', () => {
   )
 })
 
+describe('syncThroughScratch: in-project spec links (1.14.3)', () => {
+  test('a living spec.md linked to a file elsewhere in the project is merged through the link', async () => {
+    const dir = root()
+    writeFiles(dir, { 'docs/widgets-spec.md': LIVING })
+    rmSync(join(dir, 'openspec/specs/widgets/spec.md'))
+    symlinkSync('../../../docs/widgets-spec.md', join(dir, 'openspec/specs/widgets/spec.md'))
+    expect(symlinkEscape(dir, 'c1')).toBeUndefined()
+    const result = await syncThroughScratch(dir, 'c1', async (scratch) => {
+      const spec = join(scratch, 'openspec/specs/widgets/spec.md')
+      expect(lstatSync(spec).isFile()).toBe(true)
+      writeFileSync(spec, `${readFileSync(spec, 'utf8')}\nmerged\n`)
+      archiveIn(scratch, 'c1')
+      return ok
+    })
+    expect(result.written).toEqual(['openspec/specs/widgets/spec.md'])
+    expect(lstatSync(join(dir, 'openspec/specs/widgets/spec.md')).isSymbolicLink()).toBe(true)
+    expect(await Bun.file(join(dir, 'docs/widgets-spec.md')).text()).toBe(`${LIVING}\nmerged\n`)
+  })
+
+  test('a delta spec.md linked elsewhere in the project is read', () => {
+    const dir = root()
+    writeFiles(dir, { 'docs/delta.md': '## ADDED Requirements\n' })
+    rmSync(join(dir, 'openspec/changes/c1/specs/widgets/spec.md'))
+    symlinkSync(join(dir, 'docs/delta.md'), join(dir, 'openspec/changes/c1/specs/widgets/spec.md'))
+    expect(symlinkEscape(dir, 'c1')).toBeUndefined()
+  })
+
+  test('a spec.md link resolving outside the project is still an escape', () => {
+    const dir = root()
+    const outside = mkTempRepo()
+    writeFiles(outside, { 'spec.md': LIVING })
+    rmSync(join(dir, 'openspec/specs/widgets/spec.md'))
+    symlinkSync(join(outside, 'spec.md'), join(dir, 'openspec/specs/widgets/spec.md'))
+    expect(symlinkEscape(dir, 'c1')).toBe('openspec/specs/widgets/spec.md')
+  })
+
+  test('a non-spec link to elsewhere in the project is still an escape', () => {
+    const dir = root()
+    writeFiles(dir, { 'docs/notes.md': 'notes\n' })
+    symlinkSync(join(dir, 'docs/notes.md'), join(dir, 'openspec/specs/widgets/notes.md'))
+    expect(symlinkEscape(dir, 'c1')).toBe('openspec/specs/widgets/notes.md')
+  })
+})
+
 describe('symlinkEscape', () => {
   test('a link inside the copied tree is kept; one leading out is named', () => {
     const dir = root()

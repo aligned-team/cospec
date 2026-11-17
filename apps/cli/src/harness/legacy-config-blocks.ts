@@ -7,6 +7,7 @@
 import { readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { detectLineEnding } from '../core/lines.ts'
 import { isInsideNestedCheckout, isOutsideProject } from './scan-walk.ts'
 
 /** `LEGACY_CONFIG_FILES`, in the binary's order. */
@@ -54,9 +55,10 @@ function findMarkerIndex(content: string, marker: string, fromIndex = 0): number
 }
 
 /**
- * `removeMarkerBlock`: the whole start-to-end line range goes when both markers stand alone on
- * their lines, runs of three or more newlines collapse to two, and the rest is trimmed at the
- * end and keeps the file's `\r\n` or `\n` style. A file that is only the block becomes empty.
+ * `removeMarkerBlock` (1.13.2+): the whole start-to-end line range goes when both markers stand
+ * alone on their lines, runs of three or more newlines collapse to two, and the rest is trimmed
+ * at the end. Every ending it writes — the collapse separator and the final newline — is the
+ * file's dominant one, so a CRLF file stays CRLF. A file that is only the block becomes empty.
  */
 export function removeMarkerBlock(content: string): string {
   const startIndex = findMarkerIndex(content, MARKERS.start)
@@ -70,12 +72,13 @@ export function removeMarkerBlock(content: string): string {
   let lineEnd = endIndex + MARKERS.end.length
   while (lineEnd < content.length && content[lineEnd] !== '\n') lineEnd++
   if (lineEnd < content.length && content[lineEnd] === '\n') lineEnd++
+  // Dominant, not "any CRLF": one stray CRLF in an LF file must not pull it to CRLF.
+  const newline = detectLineEnding(content) ?? '\n'
   const result = (content.substring(0, lineStart) + content.substring(lineEnd)).replace(
     /(\r?\n){3,}/g,
-    '\n\n',
+    newline + newline,
   )
   if (result.trimEnd() === '') return ''
-  const newline = content.includes('\r\n') ? '\r\n' : '\n'
   return result.trimEnd() + newline
 }
 

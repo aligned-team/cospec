@@ -1,6 +1,7 @@
 // meta/* and change/artifact-missing rules (DESIGN §4.3). Rule IDs are frozen
 // public API — do not rename.
 
+import { unknownMetadataKeysMessage } from '../change-metadata.ts'
 import { checkedSurfaces } from '../proposal.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange, SchemaInfo } from './schema-info.ts'
@@ -92,8 +93,28 @@ export function openspecYamlIssues(y: LoadedChange['openspecYaml']): Issue[] {
         message:
           'x-cospec-schema-version (legacy: schemaVersion) must be a positive integer when present',
       })
+    issues.push(...unknownMetadataKeyIssues(y.unknownKeys ?? []))
   }
   return issues
+}
+
+/**
+ * `change/unknown-metadata-key` (OpenSpec 1.14 parity): a top-level
+ * `.openspec.yaml` key neither openspec nor cospec reads still loads, but does
+ * nothing — one WARNING names every such key, as the binary's one warning
+ * does. Lowercase `x-` extension keys are never reported.
+ */
+export function unknownMetadataKeyIssues(keys: readonly string[]): Issue[] {
+  if (keys.length === 0) return []
+  return [
+    {
+      level: 'WARNING',
+      rule: 'change/unknown-metadata-key',
+      path: '.openspec.yaml',
+      message: unknownMetadataKeysMessage(keys),
+      hint: 'remove the key, or rename it with a lowercase x- prefix to keep it as tool metadata',
+    },
+  ]
 }
 
 /**

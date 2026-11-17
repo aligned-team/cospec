@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { parseAdvisoryDelta, parseDeltaSpec } from '../../../src/core/deltas.ts'
 import {
+  DELTAS_DELEGATED_TWINS,
   deltasRules,
   skipSpecsConflictIssues,
   unreadDeltaFileIssues,
@@ -230,18 +231,21 @@ describe('deltasRules — orphaned requirements', () => {
   test('deltas/orphaned-requirement warns and names the section', () => {
     const text = `${GOOD}\n## Notes\n\n### Requirement: Stray\n`
     const issues = deltasRules(delta('specs/x/spec.md', 'x', text))
-    expect(issues).toHaveLength(1)
-    expect(issues[0]!.rule).toBe('deltas/orphaned-requirement')
-    expect(issues[0]!.level).toBe('WARNING')
-    expect(issues[0]!.message).toContain('under "## Notes"')
-    expect(issues[0]!.hint).toContain('## ADDED Requirements')
+    // The section it sits in is also text archive drops (openspec 1.14.2 reports both).
+    expect(rules(issues)).toEqual(['deltas/dropped-text', 'deltas/orphaned-requirement'])
+    const orphan = issues.find((i) => i.rule === 'deltas/orphaned-requirement')!
+    expect(orphan.level).toBe('WARNING')
+    expect(orphan.message).toContain('under "## Notes"')
+    expect(orphan.hint).toContain('## ADDED Requirements')
   })
 
   test('a requirement above every section reports the above-first-section wording', () => {
     const text = `### Requirement: Stray\n\n${GOOD}`
     const issues = deltasRules(delta('specs/x/spec.md', 'x', text))
-    expect(rules(issues)).toEqual(['deltas/orphaned-requirement'])
-    expect(issues[0]!.message).toContain('above the first "## " section')
+    expect(rules(issues)).toEqual(['deltas/dropped-text', 'deltas/orphaned-requirement'])
+    expect(issues.find((i) => i.rule === 'deltas/orphaned-requirement')!.message).toContain(
+      'above the first "## " section',
+    )
   })
 
   // header-present already stops the file, so the orphan is not piled on top.
@@ -696,5 +700,94 @@ describe('deltas/scenario-depth quotes its header', () => {
         'scenario heading "### Scenario: Shallow <!-- c -->" uses 3 hashtags; must be `#### Scenario:`',
       ],
     ])
+  })
+})
+
+const SCENARIO = '#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+const block = (statement: string) => `### Requirement: Long one\n\n${statement}\n\n${SCENARIO}`
+
+describe('specs/requirement-too-long in a delta (1.14.1)', () => {
+  const long = `The system SHALL ${'x'.repeat(602)}.`
+
+  test('a 620-character ADDED requirement warns, naming it', () => {
+    expect(long).toHaveLength(620)
+    const found = deltasRules(
+      delta('specs/x/spec.md', 'x', `## ADDED Requirements\n\n${block(long)}`),
+    ).filter((i) => i.rule === 'specs/requirement-too-long')
+    expect(found).toEqual([
+      {
+        level: 'WARNING',
+        rule: 'specs/requirement-too-long',
+        path: 'specs/x/spec.md',
+        line: 3,
+        message:
+          'ADDED "Long one" requirement text is 620 characters, over the 500-character limit',
+        hint: expect.stringContaining('keep every existing scenario'),
+      },
+    ])
+  })
+
+  test('a MODIFIED requirement is measured too; REMOVED is not', () => {
+    const modified = deltasRules(
+      delta('specs/x/spec.md', 'x', `## MODIFIED Requirements\n\n${block(long)}`),
+    )
+    expect(modified.filter((i) => i.rule === 'specs/requirement-too-long')).toHaveLength(1)
+    const removed = deltasRules(
+      delta('specs/x/spec.md', 'x', '## REMOVED Requirements\n\n### Requirement: Long one\n'),
+    )
+    expect(removed.filter((i) => i.rule === 'specs/requirement-too-long')).toEqual([])
+  })
+
+  test('scenario text is excluded from the measure', () => {
+    const found = deltasRules(
+      delta(
+        'specs/x/spec.md',
+        'x',
+        `## ADDED Requirements\n\n### Requirement: R\n\nThe system SHALL r.\n\n#### Scenario: s\n\n- **WHEN** ${'a'.repeat(800)}\n- **THEN** b\n`,
+      ),
+    )
+    expect(found.filter((i) => i.rule === 'specs/requirement-too-long')).toEqual([])
+  })
+})
+
+describe('deltas/dropped-text (1.14.2)', () => {
+  const dropped = (text: string) =>
+    deltasRules(delta('specs/x/spec.md', 'x', text)).filter((i) => i.rule === 'deltas/dropped-text')
+
+  test('a foreign ## Notes section warns that it will not reach the main spec', () => {
+    expect(dropped(`${GOOD}\n## Notes\n\nSome context.\n`)).toEqual([
+      {
+        level: 'WARNING',
+        rule: 'deltas/dropped-text',
+        path: 'specs/x/spec.md',
+        line: 12,
+        message: 'Section "## Notes" is not carried into the main spec by archive',
+        hint: 'move it into a requirement, or into proposal.md or design.md',
+      },
+    ])
+  })
+
+  test('a preamble and prose before the first requirement warn; a clean delta does not', () => {
+    expect(dropped(`Intro.\n\n${GOOD}`).map((i) => i.message)).toEqual([
+      'Text above the first "## " section is not carried into the main spec by archive',
+    ])
+    expect(
+      dropped(GOOD.replace('### Requirement: X', 'Why we add it.\n\n### Requirement: X')).map(
+        (i) => i.message,
+      ),
+    ).toEqual([
+      'Text before the first requirement in "## ADDED Requirements" is not carried into the main spec by archive',
+    ])
+    expect(dropped(GOOD)).toEqual([])
+  })
+
+  test("the delegated twin pairs with openspec's own warning on the same text", () => {
+    const [twin] = DELTAS_DELEGATED_TWINS
+    const upstream =
+      'Section "## Notes" is not carried into the main spec by archive. Move it into a requirement, or into proposal.md or design.md.'
+    expect(twin.delegated.exec(upstream)?.[1]).toBe('Section "## Notes"')
+    expect(
+      twin.nativeKey.exec('Section "## Notes" is not carried into the main spec by archive')?.[1],
+    ).toBe('Section "## Notes"')
   })
 })

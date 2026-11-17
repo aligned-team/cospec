@@ -55,8 +55,8 @@ export interface CommandSurface {
   readonly extension: '.md' | '.prompt' | '.prompt.md' | '.toml'
   /**
    * `markdown` carries YAML frontmatter, and with it cospec's provenance. The other three
-   * carry none and are manifest-tracked: `toml` (Gemini), `markdown-header` (a `# <name>`
-   * title, the description, then the body) and `plain` (the body alone).
+   * carry none and are manifest-tracked: `toml` (Gemini, EasyCode), `markdown-header` (a
+   * `# <name>` title, the description, then the body) and `plain` (the body alone).
    */
   readonly serializer: CommandSerializer
   /** Markdown serializer only. */
@@ -67,6 +67,12 @@ export interface CommandSurface {
    * `**Provided arguments**: <placeholder>` paragraph (see `injectArgumentPlaceholder`).
    */
   readonly injectArguments?: ArgumentPlaceholder
+  /**
+   * A paragraph every command body opens with, ahead of the canon (upstream's Continue
+   * adapter): a tool that injects an invoked prompt into the model's context can otherwise
+   * have a small local model mistake the workflow name for a tool to call.
+   */
+  readonly preamble?: string
 }
 
 /** A tool root an earlier OpenSpec used, whose files move to the current root (`LEGACY_TOOL_ROOTS`). */
@@ -132,6 +138,12 @@ export interface HarnessAdapter {
    * (upstream's natural-language skill tools); absent, `/<skill>`. See `harness/delivery.ts`.
    */
   readonly skillsOnlyDialect?: 'prose'
+  /**
+   * Upstream's `skills-invocable` command surface (`core/command-surface.js`): the tool invokes
+   * skills by name and gets no command files, so its skills survive delivery `commands`.
+   * Codex and Warp.
+   */
+  readonly skillsInvocable?: true
   /** A non-markdown, manifest-tracked rules file (Codex's prefix-rule allowlist). */
   readonly rulesPath?: string
   readonly requiresIdeRestart: boolean
@@ -150,6 +162,32 @@ export interface HarnessAdapter {
 /** The three commands the old slash-command registry wrote into each directory. */
 const LEGACY_DIRECTORY_COMMAND_FILES = ['proposal.md', 'apply.md', 'archive.md'] as const
 const LEGACY_GEMINI_COMMAND_FILES = ['proposal.toml', 'apply.toml', 'archive.toml'] as const
+
+/**
+ * The Kilo Code workflow files OpenSpec wrote before its commands moved to `.kilo/command/`
+ * (upstream's `LEGACY_KILOCODE_COMMAND_FILES`): every opsx workflow plus the three pre-opsx
+ * commands, by exact name, so a user's own file in `.kilocode/workflows/` is never matched.
+ * cospec's own `cospec-*.md` there are manifest-tracked and pruned as stale by `update`.
+ */
+const LEGACY_KILOCODE_COMMAND_FILES = [
+  ...[
+    'propose',
+    'explore',
+    'new',
+    'continue',
+    'apply',
+    'update',
+    'ff',
+    'sync',
+    'archive',
+    'bulk-archive',
+    'verify',
+    'onboard',
+  ].map((workflow) => `.kilocode/workflows/opsx-${workflow}.md`),
+  '.kilocode/workflows/openspec-proposal.md',
+  '.kilocode/workflows/openspec-apply.md',
+  '.kilocode/workflows/openspec-archive.md',
+]
 
 /**
  * The one declaration of every tool cospec generates project files for (DESIGN §6.1).
@@ -195,6 +233,7 @@ export const HARNESS_TABLE = [
     legacyCommandPaths: [{ type: 'files', patterns: ['.codex/prompts/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'shared',
+    skillsInvocable: true,
     rulesPath: '.codex/rules/cospec.rules',
     requiresIdeRestart: false,
     // Upstream's paths; `.agents/skills` selects codex only as that root's writer
@@ -270,6 +309,19 @@ export const HARNESS_TABLE = [
     detectionPaths: ['.amazonq'],
   },
   {
+    id: 'amp',
+    displayName: 'Amp',
+    skillsDir: '.agents',
+    invocationPrefix: '/',
+    // Amp reads the shared `.agents/skills` root, so it spells references as that root's
+    // other readers do.
+    bodyDialect: 'shared',
+    requiresIdeRestart: false,
+    detectionPaths: ['.amp', '.agents/skills'],
+    setupNote:
+      'Amp reads the shared .agents/skills; start a new session to load the skills. No slash commands are generated for this target.',
+  },
+  {
     id: 'antigravity',
     displayName: 'Antigravity',
     skillsDir: '.agents',
@@ -288,6 +340,24 @@ export const HARNESS_TABLE = [
     bodyDialect: 'flat',
     requiresIdeRestart: true,
     detectionPaths: ['.agent', '.agents/workflows'],
+  },
+  {
+    id: 'atomcode',
+    displayName: 'AtomCode',
+    skillsDir: '.atomcode',
+    commands: {
+      dir: '.atomcode/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildAtomcodeCommandFrontmatter,
+      injectArguments: '$ARGUMENTS',
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.atomcode'],
   },
   {
     id: 'auggie',
@@ -309,7 +379,7 @@ export const HARNESS_TABLE = [
   },
   {
     id: 'bob',
-    displayName: 'Bob Shell',
+    displayName: 'IBM Bob',
     skillsDir: '.bob',
     commands: {
       dir: '.bob/commands',
@@ -366,6 +436,15 @@ export const HARNESS_TABLE = [
     bodyDialect: 'skill',
     requiresIdeRestart: false,
     detectionPaths: ['.codeartsdoer'],
+  },
+  {
+    id: 'dsh',
+    displayName: 'DeepSeek Harness',
+    skillsDir: '.dsh',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: ['.dsh'],
   },
   {
     id: 'devin',
@@ -430,6 +509,23 @@ export const HARNESS_TABLE = [
     detectionPaths: ['.codebuddy'],
   },
   {
+    id: 'codestudio',
+    displayName: 'Code Studio',
+    skillsDir: '.codestudio',
+    commands: {
+      dir: '.codestudio/prompts',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.prompt.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.codestudio'],
+  },
+  {
     id: 'continue',
     displayName: 'Continue',
     skillsDir: '.continue',
@@ -440,6 +536,8 @@ export const HARNESS_TABLE = [
       extension: '.prompt',
       serializer: 'markdown',
       frontmatter: buildInvokableCommandFrontmatter,
+      preamble:
+        'This workflow prompt is already active. Follow its instructions directly. Do not call a tool named after this workflow.',
     },
     legacyCommandPaths: [{ type: 'files', patterns: ['.continue/prompts/openspec-*.prompt'] }],
     invocationPrefix: '/',
@@ -509,6 +607,22 @@ export const HARNESS_TABLE = [
     detectionPaths: ['.cursor'],
   },
   {
+    id: 'easycode',
+    displayName: 'EasyCode',
+    skillsDir: '.easycode',
+    commands: {
+      dir: '.easycode/commands',
+      namespacing: 'namespaced',
+      file: 'cospec/{command}',
+      extension: '.toml',
+      serializer: 'toml',
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'canonical',
+    requiresIdeRestart: false,
+    detectionPaths: ['.easycode'],
+  },
+  {
     id: 'factory',
     displayName: 'Factory Droid',
     skillsDir: '.factory',
@@ -576,6 +690,44 @@ export const HARNESS_TABLE = [
     ],
   },
   {
+    id: 'gigacode',
+    displayName: 'GigaCode',
+    skillsDir: '.gigacode',
+    commands: {
+      dir: '.gigacode/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.gigacode'],
+  },
+  {
+    id: 'grok',
+    displayName: 'Grok Build',
+    skillsDir: '.grok',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: ['.grok'],
+  },
+  {
+    id: 'gsd',
+    displayName: 'GSD',
+    skillsDir: '.agents',
+    invocationPrefix: '/',
+    // Upstream's natural-language skill tool: GSD has no slash invocation for skills.
+    bodyDialect: 'prose',
+    requiresIdeRestart: false,
+    detectionPaths: ['.gsd'],
+    setupNote:
+      'GSD reads the shared .agents/skills and picks a skill by its description; ask it to use a cospec skill by name. No slash commands are generated for this target.',
+  },
+  {
     id: 'hermes',
     displayName: 'Hermes Agent',
     skillsDir: '.hermes',
@@ -627,13 +779,13 @@ export const HARNESS_TABLE = [
     displayName: 'Kilo Code',
     skillsDir: '.kilocode',
     commands: {
-      dir: '.kilocode/workflows',
+      dir: '.kilo/command',
       namespacing: 'flat',
       file: 'cospec-{command}',
       extension: '.md',
       serializer: 'plain',
     },
-    legacyCommandPaths: [{ type: 'files', patterns: ['.kilocode/workflows/openspec-*.md'] }],
+    legacyCommandPaths: [{ type: 'files', patterns: LEGACY_KILOCODE_COMMAND_FILES }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -846,6 +998,25 @@ export const HARNESS_TABLE = [
     bodyDialect: 'flat',
     requiresIdeRestart: true,
     detectionPaths: ['.trae'],
+  },
+  {
+    id: 'veai',
+    displayName: 'Veai',
+    skillsDir: '.veai',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: ['.veai'],
+  },
+  {
+    id: 'warp',
+    displayName: 'Warp',
+    skillsDir: '.warp',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    skillsInvocable: true,
+    requiresIdeRestart: false,
+    detectionPaths: ['.warp', 'WARP.md'],
   },
   {
     id: 'zed',
@@ -1354,6 +1525,26 @@ export function buildNameDescriptionHintCommandFrontmatter(
     name: `COSPEC: ${w.title}`,
     description: w.description,
     'argument-hint': '[command arguments]',
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/**
+ * AtomCode's `name` (the file's own command name), `description` and `args`, as upstream writes
+ * them: `optional` only for a workflow that reads invocation input, because AtomCode runs an
+ * `args: none` command straight from the slash menu while `optional` waits for a second Enter.
+ * The row's `injectArguments` gives the same workflows the `$ARGUMENTS` placeholder. `name` and
+ * `args` must serialize unquoted: AtomCode reads them literally, without YAML unquoting.
+ */
+export function buildAtomcodeCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `cospec-${w.command}`,
+    description: w.description,
+    args: w.takesArguments === true ? 'optional' : 'none',
     metadata: provenance(version, contentHash),
   }
 }

@@ -4,54 +4,54 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "codeartsagent",
-    "contentHash": "sha256:f63a84d30cae975d76c66398b115d8e1c3512057aea53a3c3a52a223e869b58e",
-    "bytes": 6214,
-    "sha256": "826ae326779b7a9abbad87427beb795b74ac5d4bbeaee64fa9c01ba8146a6db4"
+    "contentHash": "sha256:6ade88390b64d12c9831b7ca4345b5a42d830d3c62d822c3e61b28a862a5ccf5",
+    "bytes": 6445,
+    "sha256": "13ff84babbe99c105b4051b53bb3d5f23a69d01a96b9d3441e3a0640cd6dd238"
   },
   {
     "path": ".codeartsdoer/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "codeartsagent",
-    "contentHash": "sha256:64abc18f95a1a9a33d9c02a68e18f89fb88a99bcc0c8a3edd5a29a953f99b365",
-    "bytes": 7295,
-    "sha256": "65c10202a7d4068e148ad96e0a5974a6ff12cea7ede574fc9242d340538dd3d6"
+    "contentHash": "sha256:ad51857402ba10f85454dfe91c5548485adeddf1a0927c3111fec632b34ef863",
+    "bytes": 8449,
+    "sha256": "2f6b89ea247ac8d029138183eeea2a9e27fa4a1734c526082e8f1f9575a0a83c"
   },
   {
     "path": ".codeartsdoer/skills/cospec-bulk-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "codeartsagent",
-    "contentHash": "sha256:a94c1d1b723c0ed6b2b74ff9560c040048da07ef6c1a4d3fdc354b2e8129ebde",
-    "bytes": 12574,
-    "sha256": "869d3cd72338f1ac364ed520efa274f9c1c3628255d1443abbda133a31ec5823"
+    "contentHash": "sha256:a1bb5fd1dd5f85eb57967778573003ef0cee66003204237bc8bc710a86913ac3",
+    "bytes": 13438,
+    "sha256": "1268615fc96b5fce2a1f0248dba288bcf20db6810c9249d056f8d52970da0989"
   },
   {
     "path": ".codeartsdoer/skills/cospec-continue-change/SKILL.md",
     "kind": "skill",
     "workflow": "continue",
     "harness": "codeartsagent",
-    "contentHash": "sha256:e23bccd2b3bd223f628e9983e6cec1f6fa5254e196ef4f27a9b67f8ff80a159e",
-    "bytes": 5167,
-    "sha256": "d42a070d64f1d9cd34b5f11474c03883f866cc981c57fa7b21000afe4328653e"
+    "contentHash": "sha256:c4b77434cfc7d7a0427232bb7ac534bf46f3c20f5e02b6015cbc3cda621aa965",
+    "bytes": 6212,
+    "sha256": "50ee58436d8e749bed225041d0afbfdff107c78c807bbdc020266f0ea318f850"
   },
   {
     "path": ".codeartsdoer/skills/cospec-explore/SKILL.md",
     "kind": "skill",
     "workflow": "explore",
     "harness": "codeartsagent",
-    "contentHash": "sha256:38a41e9feda9d9ab41dd1e98a7ee31d35ef54e430f0785e022ffc7290e257bfe",
-    "bytes": 9761,
-    "sha256": "9a9d415cf6296329ec31f4586dc84f64151693ab849c87a68916f3a9ec5d984f"
+    "contentHash": "sha256:86da332d5c3724b161e5678bc32b63efa5b4d314033c4056dbe94db096a851e0",
+    "bytes": 10108,
+    "sha256": "496e2f3bdebda073c8439b43c03fadaa56102345ce6d22c1c02350fe0d3f9fea"
   },
   {
     "path": ".codeartsdoer/skills/cospec-ff-change/SKILL.md",
     "kind": "skill",
     "workflow": "ff",
     "harness": "codeartsagent",
-    "contentHash": "sha256:88327ec53e7fc3062cd3c3643fec5cbac4099d65b9b4ec3019b1140f9e6f036c",
-    "bytes": 7489,
-    "sha256": "dac5ec4f758cf21c0455905e60b3caf76f9a44b3ab1e2607de8e829ef436b814"
+    "contentHash": "sha256:5736cf38e7c3513544ce80e72edd45357fb09d41c22e66fa3b3779b53e2cd953",
+    "bytes": 8043,
+    "sha256": "f538c7a9e45f22868aabe19836cc33c6d8ec637b80135505c8f2e753f4d42313"
   },
   {
     "path": ".codeartsdoer/skills/cospec-new-change/SKILL.md",
@@ -67,18 +67,18 @@
     "kind": "skill",
     "workflow": "onboard",
     "harness": "codeartsagent",
-    "contentHash": "sha256:e386a13dd90dfa381ee21f20016d04845ed028f38dca6f61e18dbd96f68a15c9",
-    "bytes": 5872,
-    "sha256": "9a3b3e7fee2e1655d90f552e9d0dc05ff7289d4030b7bb2ad85b172673db1b47"
+    "contentHash": "sha256:7a4a60b2ad76402f661314a45c6767c1d3fdfd5a035dff0c96931a806522b9a6",
+    "bytes": 6285,
+    "sha256": "19374286420240ef54cbb547643d5673291b2fd0edf437d4ff644465032aae25"
   },
   {
     "path": ".codeartsdoer/skills/cospec-propose/SKILL.md",
     "kind": "skill",
     "workflow": "propose",
     "harness": "codeartsagent",
-    "contentHash": "sha256:83a74cbb884b51a02a169b13aa0288fcb4daa343731fe6b01c73f106e7065366",
-    "bytes": 10353,
-    "sha256": "89456b7ac69057b2a4ddfdfc80f68b3a6872fce24508015342b8c64f9b92d652"
+    "contentHash": "sha256:3f9f22442891e27e6febfd6eb84eb683a8a4a031e057b249722821304e7c4dbe",
+    "bytes": 10713,
+    "sha256": "96068a4c9295a88ee6c7a5b2a5a8fd8814cf72b6ea999c5581e7c87683d32627"
   },
   {
     "path": ".codeartsdoer/skills/cospec-sync-specs/SKILL.md",
@@ -94,17 +94,17 @@
     "kind": "skill",
     "workflow": "update",
     "harness": "codeartsagent",
-    "contentHash": "sha256:02de73b59d2e5e559df32e62f12e768199dea35cc8850574871ba91525e27181",
-    "bytes": 7003,
-    "sha256": "697310261c739bd9d8f7d894de4d25edbf865c0109f2cf3f9a766dc7aa99ccf8"
+    "contentHash": "sha256:5d6de4e01dda4f45b2822d8151cae068a37cdb38bbefcb7746ebf498752a650a",
+    "bytes": 8509,
+    "sha256": "a3755ba7c6354a5ecfdde08a9bf4e99528b169078abf001bd9019f5828a3d83d"
   },
   {
     "path": ".codeartsdoer/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "codeartsagent",
-    "contentHash": "sha256:21f419192053b92dd16e6150e0d4bdf99db60b7c3c655bfa9465e45a1850e2e0",
-    "bytes": 5370,
-    "sha256": "479ac99f0219e38ac78ae3887ffd6fff7398c5af3f1b8542752c2e3b78ab00a9"
+    "contentHash": "sha256:cda160f54f6e10c55fa4f960bd3840e1f265cd4ffce377ef8baf323d61786fb0",
+    "bytes": 9527,
+    "sha256": "8d21f5f0110e6b2012c7bbbaf5d296233bc10171a3f78a474605ed19320ee203"
   }
 ]

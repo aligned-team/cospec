@@ -1,0 +1,218 @@
+[
+  {
+    "path": ".gigacode/commands/cospec-apply.md",
+    "kind": "command",
+    "workflow": "apply",
+    "harness": "gigacode",
+    "contentHash": "sha256:cd03b86b4c63bd3088a00cf111bc5ec06a30de927d4c40e9072d38e222d5b3eb",
+    "bytes": 6329,
+    "sha256": "1c30aead1d7e5ff76334b49f3db72e4671b800e64cf5e1bfe9d728f5a897671d"
+  },
+  {
+    "path": ".gigacode/commands/cospec-archive.md",
+    "kind": "command",
+    "workflow": "archive",
+    "harness": "gigacode",
+    "contentHash": "sha256:eb03158edfae964ba6662a16b94d5fdc388cf86b02be4ca2a18b73c728f338d8",
+    "bytes": 8338,
+    "sha256": "d45b62d4e482e8148b13f5d26ccf7e5eda1a8cda28bee55f5c4ca6daa60191cd"
+  },
+  {
+    "path": ".gigacode/commands/cospec-bulk-archive.md",
+    "kind": "command",
+    "workflow": "bulk-archive",
+    "harness": "gigacode",
+    "contentHash": "sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8",
+    "bytes": 13322,
+    "sha256": "5be0ec83071de4a10ffacc1485a1a1436b6e5d588b2ea9591a7114421e610653"
+  },
+  {
+    "path": ".gigacode/commands/cospec-continue.md",
+    "kind": "command",
+    "workflow": "continue",
+    "harness": "gigacode",
+    "contentHash": "sha256:531a28ebfd11763bf2e6fe4e3f04d0206da8191ec23e0d2b22be07324b513b3e",
+    "bytes": 6093,
+    "sha256": "014342bd10a7b43bd217c8d4d555e00f811bdece09b51d6de4fa0e7351c9624e"
+  },
+  {
+    "path": ".gigacode/commands/cospec-explore.md",
+    "kind": "command",
+    "workflow": "explore",
+    "harness": "gigacode",
+    "contentHash": "sha256:d5ccf8e47a1ae1d9b9077e2e90eed5afbf260101343aabb9cc56e531e704265e",
+    "bytes": 9990,
+    "sha256": "32dcee1edd730cf3f25cd2a92989328dacf136cc1f836be9ccce256d77d16aeb"
+  },
+  {
+    "path": ".gigacode/commands/cospec-ff.md",
+    "kind": "command",
+    "workflow": "ff",
+    "harness": "gigacode",
+    "contentHash": "sha256:45677d9ea78ac10ec4888b5704df01bd6334dd09164a060fe335864a75943eb3",
+    "bytes": 7923,
+    "sha256": "5e9220e570bb935eebf70937fefdd64b3506df911b5c3f123a3946a66d615d55"
+  },
+  {
+    "path": ".gigacode/commands/cospec-new.md",
+    "kind": "command",
+    "workflow": "new",
+    "harness": "gigacode",
+    "contentHash": "sha256:9b1950cae259d0ee747cd16b2932abe5220b885eecefe0cceed707914db9ffcf",
+    "bytes": 5966,
+    "sha256": "66f8ef2678dc70945e433e7cd67c865300a475975b54080132c7fd6727bd0a1b"
+  },
+  {
+    "path": ".gigacode/commands/cospec-onboard.md",
+    "kind": "command",
+    "workflow": "onboard",
+    "harness": "gigacode",
+    "contentHash": "sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d",
+    "bytes": 6167,
+    "sha256": "2599ba3b79979cf367765f0ca36a51c3010a316fd597825610a6c9a9b787f953"
+  },
+  {
+    "path": ".gigacode/commands/cospec-propose.md",
+    "kind": "command",
+    "workflow": "propose",
+    "harness": "gigacode",
+    "contentHash": "sha256:01d95f06409f0c2be3dd83454a1ebb9a5251269282c2d4e4d013c133bd7d2dd8",
+    "bytes": 10609,
+    "sha256": "9aa12c2169f4d75a2420dba18ccdc717b48ded66be209be04a32c4e18ee95118"
+  },
+  {
+    "path": ".gigacode/commands/cospec-sync-specs.md",
+    "kind": "command",
+    "workflow": "sync-specs",
+    "harness": "gigacode",
+    "contentHash": "sha256:5d452b2bc2b61597d8ef08c0522a5465e6be741de1fbb7f4c82a9486eb5f1818",
+    "bytes": 5700,
+    "sha256": "fe3e712aaf328a6f43bf88392763563ab37d00f1821d349850fa697d0f04eb55"
+  },
+  {
+    "path": ".gigacode/commands/cospec-update.md",
+    "kind": "command",
+    "workflow": "update",
+    "harness": "gigacode",
+    "contentHash": "sha256:5400252751e6cbdb1d01f2f81a6f82ab1dd3e9f60a87f1cac15a6db06701415d",
+    "bytes": 8322,
+    "sha256": "ea82ce5e6e13aa25d7fdd627ad05d7091d5c248562adebd8b2c82e6f180e3627"
+  },
+  {
+    "path": ".gigacode/commands/cospec-verify.md",
+    "kind": "command",
+    "workflow": "verify",
+    "harness": "gigacode",
+    "contentHash": "sha256:4a6bdd47ec9a00d80a6925c4a39d0527e78be868fff38ed637f85e04a8621c5a",
+    "bytes": 9403,
+    "sha256": "b0af2e7d0a8dd31f213d4836c72fe9fe1e6bae5c87c7652feb41a02379638e66"
+  },
+  {
+    "path": ".gigacode/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "gigacode",
+    "contentHash": "sha256:cd03b86b4c63bd3088a00cf111bc5ec06a30de927d4c40e9072d38e222d5b3eb",
+    "bytes": 6431,
+    "sha256": "1e7e88cae29a346d8927522c24605017f9c3549a535d56681c0088f3b24f137b"
+  },
+  {
+    "path": ".gigacode/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "gigacode",
+    "contentHash": "sha256:eb03158edfae964ba6662a16b94d5fdc388cf86b02be4ca2a18b73c728f338d8",
+    "bytes": 8442,
+    "sha256": "dfd413c24d4ae89d95a00a2c6f5338c2d153dcc67ed30415fcc772d5bdf36576"
+  },
+  {
+    "path": ".gigacode/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "gigacode",
+    "contentHash": "sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8",
+    "bytes": 13431,
+    "sha256": "7ed7b7e026bffaa4fe193d260d3a5ba494d7a926473058c3ce515a90640e72f6"
+  },
+  {
+    "path": ".gigacode/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "gigacode",
+    "contentHash": "sha256:531a28ebfd11763bf2e6fe4e3f04d0206da8191ec23e0d2b22be07324b513b3e",
+    "bytes": 6198,
+    "sha256": "0b8f6a1b04a938e82265382faa5024a90a4329fc8ca7aec08dc6ebf45019fa00"
+  },
+  {
+    "path": ".gigacode/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "gigacode",
+    "contentHash": "sha256:d5ccf8e47a1ae1d9b9077e2e90eed5afbf260101343aabb9cc56e531e704265e",
+    "bytes": 10087,
+    "sha256": "9668130bb14bf44785ae9a246e6206f3b8339d6ffac6cc88f52bfa832bd32826"
+  },
+  {
+    "path": ".gigacode/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "gigacode",
+    "contentHash": "sha256:45677d9ea78ac10ec4888b5704df01bd6334dd09164a060fe335864a75943eb3",
+    "bytes": 8022,
+    "sha256": "f63c93d1ce5de3161e25cd1c14fd38eef7008f1446b8df900f417a1f6a9ed9ed"
+  },
+  {
+    "path": ".gigacode/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "gigacode",
+    "contentHash": "sha256:9b1950cae259d0ee747cd16b2932abe5220b885eecefe0cceed707914db9ffcf",
+    "bytes": 6066,
+    "sha256": "b516a9b054044f7ff6743b98da184fb5ff195d5c3476725c62a3fd095417d7fc"
+  },
+  {
+    "path": ".gigacode/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "gigacode",
+    "contentHash": "sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d",
+    "bytes": 6264,
+    "sha256": "360b3b9ed6eb98696b89cd3a0e879e68bfd6d8c81e3dc4d82e2317822d3c75c5"
+  },
+  {
+    "path": ".gigacode/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "gigacode",
+    "contentHash": "sha256:01d95f06409f0c2be3dd83454a1ebb9a5251269282c2d4e4d013c133bd7d2dd8",
+    "bytes": 10706,
+    "sha256": "0cebe3c7214c7bdd09dd04a2db2ed925b4af79367d74ad52038fcdc761587a48"
+  },
+  {
+    "path": ".gigacode/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "gigacode",
+    "contentHash": "sha256:5d452b2bc2b61597d8ef08c0522a5465e6be741de1fbb7f4c82a9486eb5f1818",
+    "bytes": 5800,
+    "sha256": "c301ca5dcb6a6dbb5ed74ee23ecdcb1c05fc51154d3f88734379de618c2758fc"
+  },
+  {
+    "path": ".gigacode/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "gigacode",
+    "contentHash": "sha256:5400252751e6cbdb1d01f2f81a6f82ab1dd3e9f60a87f1cac15a6db06701415d",
+    "bytes": 8425,
+    "sha256": "ea5381d7c10f8a58bc690b4cafd845d8f469cad6e3826b75df04e741182c5551"
+  },
+  {
+    "path": ".gigacode/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "gigacode",
+    "contentHash": "sha256:4a6bdd47ec9a00d80a6925c4a39d0527e78be868fff38ed637f85e04a8621c5a",
+    "bytes": 9506,
+    "sha256": "290c158980fdd42f104eba51654377ad25a602aeab3148ef71cac4e310106e9b"
+  }
+]

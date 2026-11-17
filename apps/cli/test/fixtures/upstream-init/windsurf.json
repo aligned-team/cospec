@@ -1,5 +1,5 @@
 {
-  "openspec": "1.13.1",
+  "openspec": "1.15.0",
   "argv": ["--no-color", "init", "--tools", "windsurf"],
   "globalConfig": {
     "profile": "custom",
@@ -26,144 +26,144 @@
     {
       "path": ".devin/skills/openspec-apply-change/SKILL.md",
       "scope": "project",
-      "bytes": 10534,
-      "sha256": "8f5918f08585e791e65bfaa9c5bbf59c19a02d7c20922ea9ddcf686867a12ccf",
+      "bytes": 11183,
+      "sha256": "36bd006eaf0eded66454461d52e15f38f0b08cb2be76fef7787282c4ecef3cb8",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-apply-change\ndescription: Implement tasks from an OpenSpec change. Use when the user wants to start implementing, continue implementation, or work through tasks. Also use when the user says \"openspec apply\", \"opsx apply\", or \"openspec implement\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-apply-change\ndescription: Implement tasks from an OpenSpec change. Use when the user wants to start implementing, continue implementation, or work through tasks. Also use when the user says \"openspec apply\", \"opsx apply\", or \"openspec implement\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-archive-change/SKILL.md",
       "scope": "project",
-      "bytes": 14859,
-      "sha256": "974cc69699f9f422a225c7edfde06631bdcb9ec5fba0fadcd1ea8c1dc9d55f47",
+      "bytes": 16594,
+      "sha256": "afb21e0fa08e6ff580fc98d69edf1eb5b0f04e4e6639d51f8c98fc58babf7154",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-archive-change\ndescription: Archive a completed OpenSpec change in the experimental workflow. Use when the user wants to finalize and archive a change after implementation is complete. Also use when the user says \"openspec archive\" or \"opsx archive\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-archive-change\ndescription: Archive a completed OpenSpec change in the experimental workflow. Use when the user wants to finalize and archive a change after implementation is complete. Also use when the user says \"openspec archive\" or \"opsx archive\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-bulk-archive-change/SKILL.md",
       "scope": "project",
-      "bytes": 21351,
-      "sha256": "a7ca5de5fdd259c12e6e3a1f889182bc666be5c8e3d4b77c3baa3d88c6abddbb",
+      "bytes": 22320,
+      "sha256": "898dd2135d4c05833794200261c3e3544c7079042a9eeb9ce0cda5c6ef1bc914",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-bulk-archive-change\ndescription: Archive multiple completed OpenSpec changes at once. Use when archiving several parallel changes. Also use for a plural archive request - \"openspec bulk-archive\", \"opsx bulk-archive\", \"openspec archive all\", or \"openspec archive these changes\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-bulk-archive-change\ndescription: Archive multiple completed OpenSpec changes at once. Use when archiving several parallel changes. Also use for a plural archive request - \"openspec bulk-archive\", \"opsx bulk-archive\", \"openspec archive all\", or \"openspec archive these changes\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-continue-change/SKILL.md",
       "scope": "project",
-      "bytes": 9004,
-      "sha256": "d79e7e541b21cd43ee30a249e71f69c5858f709f3c2f75519f8ef4b6d5ef2c74",
+      "bytes": 10718,
+      "sha256": "fbddb7a1f78f564aae9ca8d59ae9cedeebea265ec2868411d70767e8fab72075",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-continue-change\ndescription: Continue working on an OpenSpec change by creating the next artifact. Use when the user wants to progress their change, create the next artifact, or continue their workflow. Also use when the user says \"openspec continue\" or \"opsx continue\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-continue-change\ndescription: Continue working on an OpenSpec change by creating the next artifact. Use when the user wants to progress their change, create the next artifact, or continue their workflow. Also use when the user says \"openspec continue\" or \"opsx continue\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-explore/SKILL.md",
       "scope": "project",
-      "bytes": 22826,
-      "sha256": "fd8c1a091cdc065f2afe5102a16a31cc808a13ae87927127ed0f331559168001",
+      "bytes": 23506,
+      "sha256": "825de485de62cd270c674c1a7891789bf30844f5e9444545eedf1fcc3ef3b5b2",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-explore\ndescription: Enter OpenSpec explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements in a project that uses OpenSpec. Use when the user wants to think through something before or during an OpenSpec change. Also use when the user says \"openspec explore\" or \"opsx explore\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-explore\ndescription: Enter OpenSpec explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements in a project that uses OpenSpec. Use when the user wants to think through something before or during an OpenSpec change. Also use when the user says \"openspec explore\" or \"opsx explore\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-ff-change/SKILL.md",
       "scope": "project",
-      "bytes": 11187,
-      "sha256": "4d9252b1eb91a4753e8fcccf92103cc1f748c7257139d800a1dea19e0479acbd",
+      "bytes": 11635,
+      "sha256": "6446edf5601711e8e795a5c2eac4c35fbe69abfa78ecaefa807c109a58a716f7",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-ff-change\ndescription: Fast-forward through OpenSpec artifact creation. Use when the user wants to quickly create all artifacts needed for implementation without stepping through each one individually. Also use when the user says \"openspec ff\" or \"opsx ff\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-ff-change\ndescription: Fast-forward through OpenSpec artifact creation. Use when the user wants to quickly create all artifacts needed for implementation without stepping through each one individually. Also use when the user says \"openspec ff\" or \"opsx ff\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-new-change/SKILL.md",
       "scope": "project",
       "bytes": 5894,
-      "sha256": "52382f0e22c21f718bec40bafa0896e8a92ae3cdf7a9740349c65c74e3f2da8f",
+      "sha256": "dc058f0e3d0529f3da4186923ab0bf2e8aa4a5ba63a133e460655561e6760c7a",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-new-change\ndescription: Start a new OpenSpec change using the experimental artifact workflow. Use when the user wants to create a new feature, fix, or modification with a structured step-by-step approach. Also use when the user says \"openspec new change\" or \"opsx new\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-new-change\ndescription: Start a new OpenSpec change using the experimental artifact workflow. Use when the user wants to create a new feature, fix, or modification with a structured step-by-step approach. Also use when the user says \"openspec new change\" or \"opsx new\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-onboard/SKILL.md",
       "scope": "project",
-      "bytes": 18191,
-      "sha256": "53fdfd6413d96e82e9bd3ac1b93a2d7d3dd67270afc9e8435f60fbcb9c40fa6a",
+      "bytes": 18430,
+      "sha256": "bf5c8ab8775d2333e630af0d377e9a6245a7f438b2327c3a1aa7c349a7d9d65f",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-onboard\ndescription: Guided onboarding for OpenSpec - walk through a complete workflow cycle with narration and real codebase work. Also use when the user says \"openspec onboard\" or \"opsx onboard\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-onboard\ndescription: Guided onboarding for OpenSpec - walk through a complete workflow cycle with narration and real codebase work. Also use when the user says \"openspec onboard\" or \"opsx onboard\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-propose/SKILL.md",
       "scope": "project",
-      "bytes": 16263,
-      "sha256": "f02e83dedfa563edca349043ebe700e14a613a480759c4887de4967b85409a17",
+      "bytes": 16700,
+      "sha256": "02600726b0c2c1aebc6bc5a4aac1e4a6320eb6d78f43bab8a9832d7c064d26fb",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-propose\ndescription: Propose a new OpenSpec change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation. Also use when the user says \"openspec propose\" or \"opsx propose\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-propose\ndescription: Propose a new OpenSpec change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation. Also use when the user says \"openspec propose\" or \"opsx propose\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-sync-specs/SKILL.md",
       "scope": "project",
       "bytes": 15779,
-      "sha256": "b301c28c5c6c00f4e3329b09677e415d6bf5ebbbf450fb59fe1c7cd19caf0c80",
+      "sha256": "7c56a433d1a90c3558f1a280b5f8c15116245bb9307a8b15e244d98466472580",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-sync-specs\ndescription: Sync delta specs from an OpenSpec change to main specs. Use when the user wants to update main specs with changes from a delta spec, without archiving the change. Also use when the user says \"openspec sync\" or \"opsx sync\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-sync-specs\ndescription: Sync delta specs from an OpenSpec change to main specs. Use when the user wants to update main specs with changes from a delta spec, without archiving the change. Also use when the user says \"openspec sync\" or \"opsx sync\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-update-change/SKILL.md",
       "scope": "project",
-      "bytes": 9033,
-      "sha256": "542b3baba71800fcef45223b0eb9fe3936dd42b0bc60ee40c4412e1270d1843d",
+      "bytes": 11198,
+      "sha256": "7ddb4d94a483baba2b58c89d7b2b905d5465d5fe295f9c0b9315f395d425801d",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-update-change\ndescription: Update an OpenSpec change by revising its existing planning artifacts and keeping them coherent with one another. Use when the user wants to revise a change's plan, fold new decisions into it, or reconcile its artifacts after an edit. Also use when the user says \"openspec update change\" or \"opsx update\". If the user means the openspec update CLI command, which refreshes generated files, run that command instead. Never edits code.\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-update-change\ndescription: Update an OpenSpec change by revising its existing planning artifacts and keeping them coherent with one another. Use when the user wants to revise a change's plan, fold new decisions into it, or reconcile its artifacts after an edit. Also use when the user says \"openspec update change\" or \"opsx update\". If the user means the openspec update CLI command, which refreshes generated files, run that command instead. Never edits code.\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/skills/openspec-verify-change/SKILL.md",
       "scope": "project",
-      "bytes": 10026,
-      "sha256": "25d61eecd23e60b1a51949427eefd52bdff2ab0bee5486245e407874767b8a55",
+      "bytes": 20480,
+      "sha256": "db9391f8ae5a9246ccd36cefd508da8a5c90db859302eccdb5c9f552dbc7f479",
       "headRule": "yaml-frontmatter",
-      "head": "---\nname: openspec-verify-change\ndescription: Verify implementation matches OpenSpec change artifacts. Use when the user wants to validate that implementation is complete, correct, and coherent before archiving. Also use when the user says \"openspec verify\" or \"opsx verify\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+      "head": "---\nname: openspec-verify-change\ndescription: Verify implementation matches OpenSpec change artifacts. Use when the user wants to validate that implementation is complete, correct, and coherent before archiving. Also use when the user says \"openspec verify\" or \"opsx verify\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.15.0\"\n---\n"
     },
     {
       "path": ".devin/workflows/opsx-apply.md",
       "scope": "project",
-      "bytes": 10234,
-      "sha256": "fbbe5dfe2a1cb3a20ba0fd7f72fdd5966f064f3f0f0be97bb68aeb997be2845d",
+      "bytes": 10883,
+      "sha256": "08c13eed6d1fda18168a0a8ff1dad4b8041555decaf0692eb92e122cf65e9a9f",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Apply\"\ndescription: \"Implement tasks from an OpenSpec change (Experimental)\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"artifacts\", \"experimental\"]\n---\n"
     },
     {
       "path": ".devin/workflows/opsx-archive.md",
       "scope": "project",
-      "bytes": 15563,
-      "sha256": "9c4f8bec31f78ee3c011d663ac17cba0dc4b13d19e3cbdcd14e77e57ca3e3b98",
+      "bytes": 17298,
+      "sha256": "63c753fb4fe3a5a4fe97e9310ecf432e0f184366ab7b3d1ac7afb3cea4d5314b",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Archive\"\ndescription: \"Archive a completed change in the experimental workflow\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"archive\", \"experimental\"]\n---\n"
     },
     {
       "path": ".devin/workflows/opsx-bulk-archive.md",
       "scope": "project",
-      "bytes": 21047,
-      "sha256": "b50fa70606c4ae39297c83f7381dfbe00c9f88a30ea80d18994d48a42ff2b2b9",
+      "bytes": 22016,
+      "sha256": "8eec4149684a0cb0a70ed6ded55878cc042d19315a87325e32554f4ad4ed6003",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Bulk Archive\"\ndescription: \"Archive multiple completed changes at once\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"archive\", \"experimental\", \"bulk\"]\n---\n"
     },
     {
       "path": ".devin/workflows/opsx-continue.md",
       "scope": "project",
-      "bytes": 8808,
-      "sha256": "ab37bab3ba065cc23388f223c20d4baa4b947489f320fbc88158c4800b720215",
+      "bytes": 10522,
+      "sha256": "3876574031921d7e9194a242d20b41fcfa965765e8ac9d13fb6071d83681cd88",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Continue\"\ndescription: \"Continue working on a change - create the next artifact (Experimental)\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"artifacts\", \"experimental\"]\n---\n"
     },
     {
       "path": ".devin/workflows/opsx-explore.md",
       "scope": "project",
-      "bytes": 19747,
-      "sha256": "70fdc7bf4652482a5ddecc0fcde33faaea5d0df1229e3472c2e4a7ae77956c4d",
+      "bytes": 20427,
+      "sha256": "bf21b2dba77c49b044b4763cb4822ee32608987ecd21c1c8801aac2185d16c1c",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Explore\"\ndescription: \"Enter explore mode - think through ideas, investigate problems, clarify requirements\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"explore\", \"experimental\", \"thinking\"]\n---\n"
     },
     {
       "path": ".devin/workflows/opsx-ff.md",
       "scope": "project",
-      "bytes": 10914,
-      "sha256": "d99ee283b9750d1074dbd023a57f729afe163e1b5521e260f27d620109fd6610",
+      "bytes": 11362,
+      "sha256": "02bd23082cb0ba64d611c309e13c22b664eeaa9f9e7c72bf41cae8f73affff06",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Fast Forward\"\ndescription: \"Create a change and generate all artifacts needed for implementation in one go\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"artifacts\", \"experimental\"]\n---\n"
     },
@@ -178,16 +178,16 @@
     {
       "path": ".devin/workflows/opsx-onboard.md",
       "scope": "project",
-      "bytes": 17837,
-      "sha256": "c90da75c8e5a6d9a7c470c61a8c681eebaca8f82c97a7814061edbba56726e44",
+      "bytes": 18076,
+      "sha256": "390dff6d24662ee209600901e973d9c9736aa09d40d55bb1150d009f0172c4ab",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Onboard\"\ndescription: \"Guided onboarding - walk through a complete OpenSpec workflow cycle with narration\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"onboarding\", \"tutorial\", \"learning\"]\n---\n"
     },
     {
       "path": ".devin/workflows/opsx-propose.md",
       "scope": "project",
-      "bytes": 15926,
-      "sha256": "dec527d114ac9e9f28ef0be586e1e055c7b3dbbeee9228da2cb1a33dccea7dd8",
+      "bytes": 16363,
+      "sha256": "bc47ee40d6dd29942fe8cada196def2ff44f9b3a5caabe3fa6d128fd4f956d53",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Propose\"\ndescription: \"Propose a new change - create it and generate all artifacts in one step\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"artifacts\", \"experimental\"]\n---\n"
     },
@@ -202,16 +202,16 @@
     {
       "path": ".devin/workflows/opsx-update.md",
       "scope": "project",
-      "bytes": 8543,
-      "sha256": "58e9ecd4bfef29919f1e7a671f94126e62927314b82ec60740d258043787819b",
+      "bytes": 10708,
+      "sha256": "b2d4f6056c431546fc75efaa70c3866ef500f61911ba6f78ef1591843910789f",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Update\"\ndescription: \"Update a change - revise existing planning artifacts and keep them coherent (Experimental)\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"artifacts\", \"experimental\"]\n---\n"
     },
     {
       "path": ".devin/workflows/opsx-verify.md",
       "scope": "project",
-      "bytes": 9809,
-      "sha256": "c617568f2210839654b83fa3732b45f784956019aeeb2ab9a5d4813294e1889b",
+      "bytes": 20262,
+      "sha256": "745c6d782319e8f7a330b9f3fc9f1e0ed3101e55d293c37e06904555b43a650e",
       "headRule": "yaml-frontmatter",
       "head": "---\nname: \"OPSX: Verify\"\ndescription: \"Verify implementation matches change artifacts before archiving\"\ncategory: \"Workflow\"\ntags: [\"workflow\", \"verify\", \"experimental\"]\n---\n"
     },
@@ -226,8 +226,8 @@
     {
       "path": "openspec/config.yaml",
       "scope": "project",
-      "bytes": 922,
-      "sha256": "2a791b0ccc50e2c2ebbb3ba28692a4ad0e4b6ab94ed2151375ac404d7056e89a",
+      "bytes": 998,
+      "sha256": "f0082e9c22e8ce1d611c0f3b4d4915ce445e7ff2553cda6b713b6c25f390984c",
       "headRule": "none",
       "head": ""
     },

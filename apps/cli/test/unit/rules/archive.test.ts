@@ -689,7 +689,10 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
     const issue = archiveRules(change(text, { living: TWO_SCENARIO_LIVING })).find(
       (i) => i.rule === 'archive/scenario-preservation',
     )
-    expect(issue?.message).toBe('MODIFIED "Existing" drops scenario(s) "s2" (living 2 -> delta 1)')
+    expect(issue?.message).toBe(
+      'MODIFIED "Existing" drops scenario(s) "s2" (living 2 -> delta 1).' +
+        ' The modified block has 1 scenario; the current spec has 2 scenarios. It adds none.',
+    )
   })
 
   // The shape the count-only gate waved through entirely.
@@ -700,7 +703,11 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
       strict: true,
     }).find((i) => i.rule === 'archive/scenario-preservation')
     expect(issue?.level).toBe('ERROR')
-    expect(issue?.message).toBe('MODIFIED "Existing" drops scenario(s) "s2" (living 2 -> delta 2)')
+    // 1.14.2's balance names the scenario the block introduces, so a rename reads as one.
+    expect(issue?.message).toBe(
+      'MODIFIED "Existing" drops scenario(s) "s2" (living 2 -> delta 2).' +
+        ' The modified block has 2 scenarios; the current spec has 2 scenarios. It adds 1 scenario not in the current spec: "s3".',
+    )
   })
 
   test('reordering the living scenarios never fires', () => {
@@ -728,7 +735,10 @@ describe('archive gates count only scenarios that have a body', () => {
     expect(issue?.level).toBe('ERROR')
     // Both names are present on both sides, so the identity arm is satisfied and
     // the count arm — the belt-and-braces one — is what refuses.
-    expect(issue?.message).toBe('MODIFIED "Existing" drops scenario count from 2 to 1')
+    expect(issue?.message).toBe(
+      'MODIFIED "Existing" drops scenario count from 2 to 1.' +
+        ' The modified block has 2 scenarios; the current spec has 2 scenarios. It adds none.',
+    )
   })
 
   // The other direction: gating the delta side alone would refuse a faithful
@@ -1008,7 +1018,8 @@ describe('archiveRules read the verbatim view the archive merges', () => {
     expect(found.map((i) => [i.rule, i.message])).toEqual([
       [
         'archive/scenario-preservation',
-        'MODIFIED "Existing" drops scenario(s) "hidden" (living 2 -> delta 1)',
+        'MODIFIED "Existing" drops scenario(s) "hidden" (living 2 -> delta 1).' +
+          ' The modified block has 1 scenario; the current spec has 2 scenarios. It adds none.',
       ],
     ])
   })
@@ -1025,7 +1036,8 @@ describe('archiveRules read the verbatim view the archive merges', () => {
     )
     const found = archiveRules(change(text, { living }), { strict: true })
     expect(found.map((i) => i.message)).toEqual([
-      'MODIFIED "Existing <!-- c -->" drops scenario(s) "t" (living 2 -> delta 1)',
+      'MODIFIED "Existing <!-- c -->" drops scenario(s) "t" (living 2 -> delta 1).' +
+        ' The modified block has 1 scenario; the current spec has 2 scenarios. It adds none.',
     ])
   })
 })

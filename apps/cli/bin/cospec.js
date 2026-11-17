@@ -17,6 +17,7 @@
 // stdio, and propagates the child's exit code and terminating signal.
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 
@@ -88,7 +89,13 @@ try {
   process.exit(1)
 }
 
-const result = spawnSync(binary, process.argv.slice(2), { stdio: 'inherit' })
+// The binary cannot tell an npm install from a standalone one by its own path
+// (both run the same compiled executable), so the launcher names itself:
+// `cospec version` reads this to report npm-global, npx or bunx.
+const result = spawnSync(binary, process.argv.slice(2), {
+  stdio: 'inherit',
+  env: { ...process.env, COSPEC_NPM_LAUNCHER: fileURLToPath(import.meta.url) },
+})
 
 if (result.error !== undefined && result.error !== null) {
   process.stderr.write(`cospec: failed to launch ${binary}: ${result.error.message}\n`)

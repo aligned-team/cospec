@@ -126,6 +126,7 @@ const KNOWN_OWNERS: ReadonlySet<string> = new Set([
   'github-copilot',
   'completion-install',
   'workflow-profiles',
+  'standalone-install',
 ])
 
 type PendingKind = 'command' | 'flag' | 'positional' | 'positional-value' | 'tool' | 'tool-alias'
@@ -875,6 +876,17 @@ function deprecationMarked(
 
 // --- loading the live model -------------------------------------------------------
 
+/**
+ * The fixture's files, minus Bun's transpiler cache under the sandboxed HOME: a probe's first
+ * load of a 1.15.0 dist module can write cache entries there, which is the runtime writing, not
+ * the binary.
+ */
+function fixtureHash(root: string): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(hashTree(root)).filter(([rel]) => !rel.startsWith('.oracle-home/.cache/')),
+  )
+}
+
 const listStderr = new Map<string, string>()
 const hiddenFound: Entry[] = []
 let probesChangedRoot = false
@@ -889,9 +901,9 @@ beforeAll(async () => {
   )
   for (const [i, dep] of runtime.entries())
     listStderr.set(dep.upstream.path.join(' '), listRuns[i]!.stderr)
-  const beforeProbes = hashTree(root)
+  const beforeProbes = fixtureHash(root)
   const probes = await Promise.all(HIDDEN_FIXTURES.map((f) => oracle(f.probe, root)))
-  probesChangedRoot = JSON.stringify(hashTree(root)) !== JSON.stringify(beforeProbes)
+  probesChangedRoot = JSON.stringify(fixtureHash(root)) !== JSON.stringify(beforeProbes)
   unknownCompleteType = await oracle(['__complete', 'no-such-type'], root)
   for (const [i, fixture] of HIDDEN_FIXTURES.entries())
     if (fixture.present(probes[i]!)) hiddenFound.push(fixture.entry)
@@ -958,8 +970,10 @@ describe('reachability: every pinned OpenSpec surface resolves exactly once', ()
 })
 
 describe('parity data files', () => {
-  test('parity-pending.yaml is empty: every pinned surface is reachable', () => {
-    expect(PENDING).toEqual([])
+  test('parity-pending.yaml holds only `install`, owned by standalone-install', () => {
+    expect(PENDING.map((pe) => ({ kind: pe.kind, path: pe.path, owner: pe.owner }))).toEqual([
+      { kind: 'command', path: ['install'], owner: 'standalone-install' },
+    ])
   })
 
   test('every parity-pending.yaml entry carries a known owner slug', () => {

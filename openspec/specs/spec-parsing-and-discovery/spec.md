@@ -126,8 +126,7 @@ short list.
 
 #### Scenario: An escaping symlink is rejected
 
-- **WHEN** a capability's `spec.md` is a symlink resolving outside that
-  capability's directory
+- **WHEN** a capability's `spec.md` is a symlink resolving outside the project
 - **THEN** discovery reports an error for that capability rather than including
   it
 
@@ -141,8 +140,9 @@ short list.
 #### Scenario: Symlinked spec files are confined to their capability
 
 - **WHEN** a capability's `spec.md` is a symlink
-- **THEN** discovery resolves it when it stays inside its capability directory,
-  rejects it when it resolves outside, and skips it when it dangles
+- **THEN** discovery resolves it when it stays inside its capability directory
+  or anywhere else inside the project, rejects it when it resolves outside the
+  project, and skips it when it dangles
 
 ### Requirement: Root-level specs/spec.md is refused
 
@@ -160,11 +160,11 @@ capability literally named `spec.md`. The message SHALL name the expected
 ### Requirement: Placeholder Purpose is flagged
 
 The `specs/purpose-tbd` rule SHALL fire both for the archive-generated
-`TBD - created by archiving` text it matches today and for a `## Purpose`
-section whose first non-blank line opens with a `TBD` or `TODO` marker at a word
-boundary. The rule id and its WARNING severity (ERROR under `--strict`) SHALL be
-unchanged, an empty `## Purpose` SHALL keep its existing handling, and the two
-placeholder forms SHALL NOT both fire for one spec.
+`TBD - created by archiving` text and for a `## Purpose` section whose first
+non-blank line opens with a placeholder marker: `TBD`/`TODO` in capitals
+whatever follows, or any other casing only when followed by the end of the
+Purpose, a line break, or marker punctuation. Rule id, severity, empty-Purpose
+handling, and single reporting SHALL be unchanged.
 
 #### Scenario: Leading TODO purpose is flagged
 
@@ -183,6 +183,11 @@ placeholder forms SHALL NOT both fire for one spec.
 - **WHEN** a capability spec's `## Purpose` section is empty
 - **THEN** the issues reported for that spec are unchanged from before this
   change
+
+#### Scenario: Ordinary word Todo is not a marker
+
+- **WHEN** a spec's Purpose begins "Todo el flujo de pago…" or "Todo o fluxo…"
+- **THEN** `specs/purpose-tbd` does not fire, while `todo -` and `tbd.` still do
 
 ### Requirement: Delegated duplicates are suppressed
 
@@ -859,3 +864,47 @@ contains `"`, so `### Requirement: Widget "quoted" name` is reported once.
   quote-heavy defect lines followed by a line that doesn't match
 - **THEN** it finishes within the unit test's bound, a bound the previous
   pattern exceeds on the same input
+
+### Requirement: Symlinked layouts inside the project are accepted
+
+`list --specs`, `show`, `validate`, `sync-specs`, and `archive` SHALL accept a
+symlinked `openspec/`, `openspec/changes`, or `openspec/specs` wherever it
+resolves. A symlinked `specs/<capability>/spec.md` SHALL be accepted only when
+its realpath stays inside the project, and refused otherwise. An `archive/`
+directory SHALL be accepted only when it resolves inside `changes/`.
+
+#### Scenario: Linked spec file
+
+- **WHEN** `openspec/specs/auth/spec.md` is a symlink to `docs/auth-spec.md`
+- **THEN** `cospec validate --strict` and `cospec archive` treat it as a normal
+  spec
+
+#### Scenario: Escaping link
+
+- **WHEN** a symlinked `specs/<capability>/spec.md` resolves outside the project
+  root
+- **THEN** cospec refuses with an error naming the path
+
+#### Scenario: Linked directories resolve anywhere
+
+- **WHEN** `openspec/specs` is a symlink to a directory outside the project
+- **THEN** `cospec validate --strict` and `cospec archive` accept it and read
+  the specs through the link
+
+#### Scenario: Archive directory escaping changes
+
+- **WHEN** `openspec/changes/archive` resolves outside `openspec/changes/`
+- **THEN** `cospec archive` refuses with an error naming the path
+
+### Requirement: Glob patterns are bounded
+
+An artifact `generates` or `apply.tracks` pattern that nests braces or
+parentheses more than 16 levels, or brace-expands to more than 1024 paths, SHALL
+be rejected with a clear error before matching. Brace-expanded paths SHALL stay
+confined to the change directory.
+
+#### Scenario: Deep nesting
+
+- **WHEN** a schema declares a `generates` pattern with 17 nested brace levels
+- **THEN** `cospec status` exits with an error naming the artifact and limit,
+  not a stack overflow
