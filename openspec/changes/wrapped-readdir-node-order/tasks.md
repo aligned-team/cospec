@@ -16,8 +16,11 @@
       `preloadedArgv`; update `json-envelope.test.ts`'s spawn stub and assert no
       wrapped spawn lacks it.
 - [x] 2.3 Unit-test the preload against Node across every import form the dist
-      uses, with the precondition that Bun alone differs.
-- [x] 2.4 Add the contract guard over the pinned dist's directory listings.
+      uses, and its sorting on entries a stand-in `fs` hands it unsorted, so the
+      proof holds on a filesystem that already lists byte order.
+- [x] 2.4 Add the contract guard over the pinned dist's directory listings,
+      reading each call's arguments through a balanced scan that skips strings,
+      templates, regular expressions and comments.
 - [x] 2.5 Verify the regression row now passes, the compiled binary lists in
       upstream's order, and `mise run check` passes.
 

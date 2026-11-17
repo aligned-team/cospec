@@ -1,7 +1,9 @@
 // The readdir preload (change `wrapped-readdir-node-order`, ledger 1.2): behind
 // it, every import form the pinned dist lists a directory through returns what
 // the same script returns under Node — entries sorted by the bytes of each name
-// — where Bun alone returns the filesystem's own order.
+// — where Bun alone returns the filesystem's own order. The sorting itself is
+// proven on entries handed over unsorted by a stand-in `fs`, so it holds on a
+// filesystem that already lists byte order too.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -72,14 +74,74 @@ function underNode(): Record<string, string[]> {
   return run([node, CONSUMER, dir])
 }
 
-describe.skipIf(process.platform === 'win32')('the readdir preload lists as Node does', () => {
-  test('precondition: Node sorts by name bytes, and Bun alone lists another order', () => {
-    const node = underNode()
-    const byBytes = [...CREATION_ORDER, 'zfile.txt'].toSorted((a, b) =>
-      Buffer.compare(Buffer.from(a), Buffer.from(b)),
+const BY_BYTES = [...CREATION_ORDER, 'zfile.txt'].toSorted((a, b) =>
+  Buffer.compare(Buffer.from(a), Buffer.from(b)),
+)
+
+interface StandIn {
+  readdirSync: (...args: unknown[]) => unknown
+  readdir: (...args: unknown[]) => unknown
+  promises: { readdir: (...args: unknown[]) => Promise<unknown> }
+}
+
+/**
+ * Runs the preload source against a stand-in `fs` whose listings are `entries()` — always
+ * unsorted — on `platform`, and returns that `fs` as the preload left it.
+ */
+function behindPreload(entries: () => unknown[], platform = 'linux'): StandIn {
+  const promises = { readdir: async (): Promise<unknown> => entries() }
+  const fs: StandIn = {
+    readdirSync: () => entries(),
+    readdir: (...args) => (args.at(-1) as (e: null, l: unknown) => void)(null, entries()),
+    promises,
+  }
+  const load = new Function('require', 'process', READDIR_PRELOAD_SOURCE) as (
+    require: (id: string) => unknown,
+    process: { platform: string },
+  ) => void
+  load((id) => (id === 'node:fs' ? fs : id === 'node:fs/promises' ? promises : undefined), {
+    platform,
+  })
+  return fs
+}
+
+const UNSORTED = [...CREATION_ORDER, 'zfile.txt']
+
+describe('the readdir preload sorts what it is handed, whatever the filesystem lists', () => {
+  test('every form returns names in byte order', async () => {
+    const fs = behindPreload(() => [...UNSORTED])
+    expect(fs.readdirSync('x')).toEqual(BY_BYTES)
+    expect(await fs.promises.readdir('x')).toEqual(BY_BYTES)
+    const viaCallback = await new Promise((resolve) =>
+      fs.readdir('x', {}, (_: null, l: unknown) => resolve(l)),
     )
-    expect(node.nsNodeFsSync).toEqual(byBytes)
-    expect(run([process.execPath, CONSUMER, dir]).nsNodeFsSync).not.toEqual(byBytes)
+    expect(viaCallback).toEqual(BY_BYTES)
+  })
+
+  test('Dirents sort by name, byte arrays by their bytes', () => {
+    const dirents = behindPreload(() => UNSORTED.map((name) => ({ name })))
+    expect(
+      (dirents.readdirSync('x', { withFileTypes: true }) as { name: string }[]).map((d) => d.name),
+    ).toEqual(BY_BYTES)
+    const bytes = behindPreload(() => UNSORTED.map((name) => new TextEncoder().encode(name)))
+    expect(
+      (bytes.readdirSync('x', { encoding: 'buffer' }) as Uint8Array[]).map((b) =>
+        new TextDecoder().decode(b),
+      ),
+    ).toEqual(BY_BYTES)
+  })
+
+  test('a recursive read, and every read on Windows, keeps the order it was handed', () => {
+    expect(behindPreload(() => [...UNSORTED]).readdirSync('x', { recursive: true })).toEqual(
+      UNSORTED,
+    )
+    expect(behindPreload(() => [...UNSORTED], 'win32').readdirSync('x')).toEqual(UNSORTED)
+  })
+})
+
+describe.skipIf(process.platform === 'win32')('the readdir preload lists as Node does', () => {
+  test('precondition: Node sorts by name bytes', () => {
+    expect(underNode().nsNodeFsSync).toEqual(BY_BYTES)
   })
 
   test('behind the preload, every form returns exactly what Node returns', () => {
