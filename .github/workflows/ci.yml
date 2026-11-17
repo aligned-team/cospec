@@ -5,13 +5,9 @@ on:
   push:
     branches: [main]
   merge_group:
-  # release.yml runs this whole workflow on the commit it is about to release.
+  # release.yml runs this whole workflow on the dispatched main commit it then releases (the
+  # triggering commit: a called run checks out the caller's).
   workflow_call:
-    inputs:
-      ref:
-        description: The commit to check (default the triggering one)
-        type: string
-        default: ''
 
 # A called run's `github.workflow` is the caller's, so a release's checks never queue behind (or
 # displace) CI's own runs on main.
@@ -36,8 +32,6 @@ jobs:
       docs: ${{ steps.filter.outputs.docs || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ inputs.ref }}
       # Pushes to main, the merge queue and a release run every job, and every test suite whole;
       # only a pull request is scoped to what it changes.
       - id: all
@@ -78,7 +72,6 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ inputs.ref }}
           fetch-depth: 0 # a pull request's test selection diffs against its base commit
       - uses: ./.github/actions/setup-mise
       # mise.lock must be exactly what the min_version mise release writes, for
@@ -152,8 +145,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ inputs.ref }}
       - uses: ./.github/actions/setup-mise
       - run: bun install --frozen-lockfile
       - name: Validate changes and specs (strict)
@@ -171,8 +162,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ inputs.ref }}
       - uses: ./.github/actions/setup-mise
       - name: ShellCheck hook + task scripts
         run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/mise-tasks/agents/sync scripts/mise-tasks/vendor/openspec scripts/mise-tasks/lock
@@ -183,8 +172,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ inputs.ref }}
       - uses: ./.github/actions/setup-mise
       - run: mise exec -- actionlint
 
@@ -195,7 +182,6 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ inputs.ref }}
           fetch-depth: 0 # VitePress lastUpdated needs full history
       - uses: ./.github/actions/setup-mise
       # VitePress 2.0.0-alpha.18 requires Node >= 22 at build time — see

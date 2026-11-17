@@ -28,8 +28,9 @@
       commit runs the new steps
 - [ ] 2.2 Rework `ci.yml` (unconditional `ci-bun`, PR-scoped contract and
       integration, full runs off pull requests, bench and release tests,
-      `workflow_call` with `ref`) and add `release.yml`'s `check` job, and
-      verify actionlint passes and this PR's CI runs the selection
+      `workflow_call` on the triggering commit) and add `release.yml`'s
+      main-only dispatch and `check` job, and verify actionlint passes and this
+      PR's CI runs the selection
 
 ## 3. Docs
 

@@ -40,10 +40,13 @@ release ran none of the suites.
   the contract and integration suites run the `test:changed` selection against
   the PR's base (the unit suite stays whole for its coverage gate); pushes to
   `main`, the merge queue and `workflow_call` run every job and every suite
-  whole. Adds the bench unit tests and the release-script test; every checkout
-  takes the `ref` input; the concurrency group includes the workflow name.
-- `.github/workflows/release.yml`: a `check` job calls `ci.yml` on the `main`
-  commit `version` names; `bump` needs it and builds on exactly that commit.
+  whole. Adds the bench unit tests and the release-script test; the concurrency
+  group includes the workflow name. `workflow_call` takes no ref input: a called
+  run checking out a ref its caller chose would run that code with the default
+  branch's cache (CodeQL's cache-poisoning rule).
+- `.github/workflows/release.yml`: `version` refuses a dispatch from anything
+  but `main`; a `check` job calls `ci.yml` on the dispatched commit; `bump`
+  needs it and builds on exactly that commit.
 - `.agents/shared.md` (synced into `CLAUDE.md` / `AGENTS.md`),
   `CONTRIBUTING.md`, `docs/release.md`: the new process.
 

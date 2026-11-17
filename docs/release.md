@@ -3,7 +3,9 @@
 `Release` (`.github/workflows/release.yml`) is the single entry point that cuts
 a new cospec release: **eight npm packages** plus a compiled-binary GitHub
 release. It is `workflow_dispatch`-only — no push or tag trigger — so a
-maintainer always chooses the moment and the bump explicitly.
+maintainer always chooses the moment and the bump explicitly. Dispatch it from
+`main`: the release builds on the dispatched commit, and `version` refuses any
+other ref.
 
 ## Package layout
 
@@ -63,15 +65,16 @@ release).
 
 ## The seven jobs
 
-1. **`version`** — computes the next semver with cocogitto
-   (`cog bump --dry-run`; no manifest edit, no commit), strips a leading `v`,
-   regex-validates the result is an exact `x.y.z` (guarding against cog's
-   "nothing to bump" message leaking into `$GITHUB_OUTPUT`), and fails if the
-   derived tag already exists on origin. Also names the commit on `main` the
-   release builds on (`main_sha`).
-2. **`check`** — calls `ci.yml` (`workflow_call`, with that commit as `ref`):
+1. **`version`** — refuses a dispatch from anything but `main`, then computes
+   the next semver with cocogitto (`cog bump --dry-run`; no manifest edit, no
+   commit), strips a leading `v`, regex-validates the result is an exact `x.y.z`
+   (guarding against cog's "nothing to bump" message leaking into
+   `$GITHUB_OUTPUT`), and fails if the derived tag already exists on origin.
+2. **`check`** — calls `ci.yml` (`workflow_call`) on the dispatched commit:
    every CI job, and the unit, contract and integration suites whole — never the
-   pull-request selection — before anything is written. `bump` needs it.
+   pull-request selection — before anything is written. `bump` needs it. There
+   is no ref input: a called run that checked out a ref its caller chose would
+   run that ref's code with the default branch's cache.
 3. **`bump`** — checks out the commit `check` ran CI on (no deploy key, no SSH),
    runs `mise run release:set-version -- <v>` to stamp the version into
    **every** manifest — `apps/cli/package.json` (including its
@@ -94,12 +97,12 @@ release).
    `generate` runs before the `git diff` that becomes the mutation's
    `fileChanges`, the version stamp and any regenerated managed files land in
    the **same** bump commit — never split across two. `expectedHeadOid` guards
-   the mutation against a race (main moved since `version` named the commit); a
-   mismatch fails the step clean, so nothing CI did not check is released, and a
-   re-dispatch recovers. Idempotent: if the manifests are already at that
-   version (and `generate` finds no drift), the commit is skipped and only the
-   tag is created. Outputs the bump commit's `sha`. See "Signed commits without
-   a bypass actor" below for why this replaces the old SSH deploy-key push.
+   the mutation against a race (main moved since the dispatch); a mismatch fails
+   the step clean, so nothing CI did not check is released, and a re-dispatch
+   recovers. Idempotent: if the manifests are already at that version (and
+   `generate` finds no drift), the commit is skipped and only the tag is
+   created. Outputs the bump commit's `sha`. See "Signed commits without a
+   bypass actor" below for why this replaces the old SSH deploy-key push.
 4. **`build`** — a matrix on `ubuntu-latest` that cross-compiles
    `bun build --compile --target=<t>` for `bun-linux-x64`, `bun-linux-x64-musl`,
    `bun-linux-arm64`, `bun-linux-arm64-musl`, `bun-darwin-x64`,
