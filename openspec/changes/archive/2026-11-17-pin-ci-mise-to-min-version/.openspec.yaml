@@ -1,0 +1,4 @@
+schema: ci
+created: 2026-11-17
+skip_specs: true
+schemaVersion: 2

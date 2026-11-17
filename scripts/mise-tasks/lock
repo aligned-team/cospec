@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Regenerate (or, with --check, verify) mise.lock with the mise release that
+# mise.toml's `min_version` names. CI pins mise to that same release
+# (.github/actions/setup-mise reads the field), so the lockfile is identical
+# whatever mise is installed locally: mise releases write different lockfile
+# metadata and even resolve different assets, so a lockfile any other release
+# wrote drifts.
+#
+#   scripts/mise-tasks/lock           rewrite mise.lock in place
+#   scripts/mise-tasks/lock --check   fail if mise.lock is not what that
+#                                     release writes (runs on a scratch copy)
+#
+# The release binary is downloaded once, checksum-verified against the
+# release's SHASUMS256.txt, and run with its own data, cache, state and config
+# dirs, so neither the installed mise's state nor a global mise config (its
+# `lockfile_platforms`, say) changes what it writes. mise's hooks stay off
+# (mise.toml's postinstall would run `hk install` against that empty data dir).
+#
+# `mise lock` can exit 0 after failing to resolve an entry, leaving the old one
+# in place, so a run fails on any warning or error it logs, or a summary that
+# skipped an entry — otherwise a stale lockfile would pass --check.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CHECK=0
+if [[ "${1:-}" == "--check" ]]; then CHECK=1; fi
+
+version="$(sed -nE 's/^min_version = "([^"]+)"$/\1/p' "${ROOT}/mise.toml")"
+if [[ -z "${version}" ]]; then
+  echo "lock: mise.toml sets no min_version to lock with" >&2
+  exit 1
+fi
+
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64) asset="macos-arm64" ;;
+  Darwin-x86_64) asset="macos-x64" ;;
+  Linux-x86_64) asset="linux-x64" ;;
+  Linux-aarch64 | Linux-arm64) asset="linux-arm64" ;;
+  *)
+    echo "lock: no mise ${version} release binary for $(uname -s)-$(uname -m)" >&2
+    exit 1
+    ;;
+esac
+
+home="${XDG_CACHE_HOME:-${HOME}/.cache}/cospec-dev/mise-${version}"
+bin="${home}/mise"
+if [[ ! -x "${bin}" ]]; then
+  mkdir -p "${home}"
+  base="https://github.com/jdx/mise/releases/download/v${version}"
+  name="mise-v${version}-${asset}"
+  # Each run downloads to its own file and renames it into place, so two first
+  # runs at once (two worktrees' checks) never share a partial download.
+  download="$(mktemp "${home}/mise.download.XXXXXX")"
+  trap 'rm -f "${download}"' EXIT
+  curl -fsSL -o "${download}" "${base}/${name}"
+  expected="$(curl -fsSL "${base}/SHASUMS256.txt" | awk -v f="./${name}" '$2 == f { print $1 }')"
+  actual="$(shasum -a 256 "${download}" | awk '{ print $1 }')"
+  if [[ -z "${expected}" || "${expected}" != "${actual}" ]]; then
+    echo "lock: ${name} does not match the checksum in its release's SHASUMS256.txt" >&2
+    exit 1
+  fi
+  chmod +x "${download}"
+  mv -f "${download}" "${bin}"
+  trap - EXIT
+fi
+
+export MISE_DATA_DIR="${home}/data" MISE_CACHE_DIR="${home}/cache"
+export MISE_STATE_DIR="${home}/state" MISE_CONFIG_DIR="${home}/config"
+export MISE_YES=1 MISE_NO_HOOKS=1
+
+# Runs `mise lock` in $1, its output in $2; fails unless every entry resolved.
+lock_in() {
+  if ! (cd "$1" && "${bin}" lock > "$2" 2>&1); then
+    cat "$2" >&2
+    echo "lock: mise ${version} lock failed" >&2
+    return 1
+  fi
+  if grep -qE '^mise (WARN|ERROR)' "$2" || ! grep -qE 'platform entries \(0 skipped\)' "$2"; then
+    cat "$2" >&2
+    echo "lock: mise ${version} could not resolve every entry (see its warnings above)" >&2
+    return 1
+  fi
+}
+
+if [[ "${CHECK}" == 0 ]]; then
+  export MISE_TRUSTED_CONFIG_PATHS="${ROOT}"
+  log="$(mktemp)"
+  trap 'rm -f "${log}"' EXIT
+  lock_in "${ROOT}" "${log}"
+  cat "${log}"
+  exit 0
+fi
+
+# Check on a scratch copy of every tracked mise.toml plus mise.lock, so the
+# working tree is never rewritten while other tasks read it.
+scratch="$(mktemp -d)"
+trap 'rm -rf "${scratch}"' EXIT
+while IFS= read -r file; do
+  mkdir -p "${scratch}/$(dirname "${file}")"
+  cp "${ROOT}/${file}" "${scratch}/${file}"
+done < <(git -C "${ROOT}" ls-files -- 'mise.toml' '*/mise.toml' 'mise.lock')
+export MISE_TRUSTED_CONFIG_PATHS="${scratch}"
+lock_in "${scratch}" "${scratch}/lock.log"
+if ! cmp -s "${ROOT}/mise.lock" "${scratch}/mise.lock"; then
+  diff -u "${ROOT}/mise.lock" "${scratch}/mise.lock" >&2 || true
+  echo "lock: mise.lock is not what mise ${version} (mise.toml's min_version) writes." >&2
+  echo "Run 'mise run lock' and commit the result." >&2
+  exit 1
+fi
+echo "lock: mise.lock is what mise ${version} writes."

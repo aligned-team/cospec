@@ -62,31 +62,33 @@ cospec/
 
 All operations run through mise tasks — never raw tool invocations:
 
-| Task                | Command                             |
-| ------------------- | ----------------------------------- |
-| Run the CLI         | `mise run cospec -- <args>`         |
-| Build the binary    | `mise run build`                    |
-| Lint                | `mise run lint`                     |
-| Lint (fix)          | `mise run lint:fix`                 |
-| Format (check)      | `mise run format:check`             |
-| Format (fix)        | `mise run format:fix`               |
-| Typecheck           | `mise run typecheck`                |
-| Unit tests          | `mise run test`                     |
-| Contract tests      | `mise run test:contract`            |
-| Integration tests   | `mise run test:integration`         |
-| Bench unit tests    | `mise run test:bench`               |
-| Pack smoke          | `mise run test:pack`                |
-| Regenerate managed  | `mise run generate`                 |
-| Drift check         | `mise run generate:check`           |
-| Schema validate     | `mise run openspec:schema:validate` |
-| Sync agent docs     | `mise run agents:sync`              |
-| Agent-doc drift     | `mise run agents:check`             |
-| Docs site (build)   | `mise run docs:build`               |
-| Docs site (dev)     | `mise run docs:dev`                 |
-| E2E eval (advisory) | `mise run eval:e2e`                 |
-| Bench (advisory)    | `mise run bench`                    |
-| Bench smoke         | `mise run bench:smoke`              |
-| Full CI gate        | `mise run check`                    |
+| Task                 | Command                             |
+| -------------------- | ----------------------------------- |
+| Run the CLI          | `mise run cospec -- <args>`         |
+| Build the binary     | `mise run build`                    |
+| Lint                 | `mise run lint`                     |
+| Lint (fix)           | `mise run lint:fix`                 |
+| Format (check)       | `mise run format:check`             |
+| Format (fix)         | `mise run format:fix`               |
+| Typecheck            | `mise run typecheck`                |
+| Unit tests           | `mise run test`                     |
+| Contract tests       | `mise run test:contract`            |
+| Integration tests    | `mise run test:integration`         |
+| Bench unit tests     | `mise run test:bench`               |
+| Pack smoke           | `mise run test:pack`                |
+| Regenerate managed   | `mise run generate`                 |
+| Drift check          | `mise run generate:check`           |
+| Regenerate mise.lock | `mise run lock`                     |
+| mise.lock drift      | `mise run lock:check`               |
+| Schema validate      | `mise run openspec:schema:validate` |
+| Sync agent docs      | `mise run agents:sync`              |
+| Agent-doc drift      | `mise run agents:check`             |
+| Docs site (build)    | `mise run docs:build`               |
+| Docs site (dev)      | `mise run docs:dev`                 |
+| E2E eval (advisory)  | `mise run eval:e2e`                 |
+| Bench (advisory)     | `mise run bench`                    |
+| Bench smoke          | `mise run bench:smoke`              |
+| Full CI gate         | `mise run check`                    |
 
 Run `mise run check` before every commit. Never bypass hk with `--no-verify`.
 
@@ -373,9 +375,14 @@ running the contract suite and re-probing before updating
 `EXPECTED_OPENSPEC_VERSION`, and moving the exact `fast-glob` devDependency to
 the version the new pin resolves (`core/glob.ts` ports the binary's glob
 matching over it; `test/contract/glob.test.ts` fails until they agree). Tool
-pins in `mise.toml` are lockfile-backed — bump a version and regenerate
-`mise.lock` in the same commit; CI's "mise lockfile drift gate" step
-(`mise install` then `git diff --exit-code mise.lock`) fails the PR otherwise.
+pins in `mise.toml` are lockfile-backed — bump a version and run `mise run lock`
+in the same commit. `mise.lock` is always what the mise release `mise.toml`'s
+`min_version` names writes, never the mise you have installed: `mise run lock`
+downloads that release (checksum-verified) and runs its `mise lock`, CI runs
+mise at that same release (`.github/actions/setup-mise` reads `min_version`),
+and `mise run lock:check` — CI's "mise lockfile drift gate" and part of
+`mise run check` — fails otherwise. Bumping `min_version` means `mise run lock`
+again.
 
 **Tests** — every command change lands with a contract or integration test.
 Contract tests run the real pinned binary; a false archive PASS is a release
