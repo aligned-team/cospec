@@ -74,12 +74,11 @@ artifact matrix. Declaring the marker while any file exists under the change's
 ### Requirement: retire_capabilities and the post-archive spot check
 
 `cospec archive`'s post-archive spot check SHALL treat a capability whose living
-`spec.md` was removed by the wrapped archive as an intentional retirement when
-the change declares `retire_capabilities: true` and its deltas remove the
-capability's last requirement. In that case cospec SHALL NOT report the
-capability as missing from the living spec and SHALL NOT print its
-invariant-breach "please file a bug" message. Without the marker, cospec SHALL
-relay the wrapped binary's own refusal unchanged.
+`spec.md` the wrapped archive removed as an intentional retirement when the
+change declares `retire_capabilities: true` and its deltas remove the
+capability's last requirement; cospec SHALL then neither report the capability
+missing nor print its invariant-breach "please file a bug" message. Without the
+marker, cospec SHALL relay the wrapped binary's refusal unchanged.
 
 #### Scenario: Declared retirement archives cleanly
 
