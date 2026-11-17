@@ -3,13 +3,13 @@
 ## Context (root cause)
 
 The 1.15.0 parity change adds a `requirement-too-long` rule that matches
-OpenSpec 1.14.1: a requirement description over 500 characters is an error.
-Descriptions here are measured as the text between the requirement heading and
-its first scenario, stripped. This repo's living specs have many requirements
-over that limit, and `cospec validate --all --strict` runs in the pre-commit
-hook and CI, so the rule cannot land until the specs are under it. PR #100
-shortened every over-limit requirement it touched, some of them together with a
-behaviour change.
+OpenSpec 1.14.1: a requirement description over 500 characters is a WARNING,
+which `--strict` turns into a failure. Descriptions here are measured as the
+text between the requirement heading and its first scenario, stripped. This
+repo's living specs have many requirements over that limit, and
+`cospec validate --all --strict` runs in the pre-commit hook and CI, so the rule
+cannot land until the specs are under it. PR #100 shortened every over-limit
+requirement it touched, some of them together with a behaviour change.
 
 The change sits directly on `main`, beneath `change-stamp-x-prefix`. It is a
 `fix` rather than a `refactor` because the refactor schema allows only `RENAMED`

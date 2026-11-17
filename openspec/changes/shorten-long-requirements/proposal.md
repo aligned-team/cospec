@@ -4,11 +4,11 @@
 
 151 living requirements in 27 capabilities have descriptions longer than
 OpenSpec's 500-character requirement limit. OpenSpec 1.14.1 and later report
-that limit as an error, and the 1.15.0 parity change adopts it as cospec's
-`specs/requirement-too-long` rule. That rule would fail this repo's own
-`cospec validate --all --strict` on every one of them, so the specs are wrong
-against the contract cospec is about to enforce, and they have to come down
-before the rule can land.
+that limit as a WARNING, which `--strict` turns into a failure, and the 1.15.0
+parity change adopts it as cospec's `specs/requirement-too-long` rule. That rule
+would fail this repo's own `cospec validate --all --strict` on every one of
+them, so the specs are wrong against the contract cospec is about to enforce,
+and they have to come down before the rule can land.
 
 The rewording is split out of the parity change so that change's real spec
 changes (new obligations, new rules, new commands) stay reviewable instead of
