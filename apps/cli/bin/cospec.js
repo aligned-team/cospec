@@ -2,7 +2,7 @@
 // Runtime-agnostic launcher for the `cospec` bin.
 //
 // The npm package ships NO runtime source: `@aligned-team/cospec` is a thin
-// launcher plus seven `optionalDependencies`, one per platform
+// launcher plus eight `optionalDependencies`, one per platform
 // (`@aligned-team/cospec-<platform>`), each carrying a single standalone
 // `bun build --compile` executable. npm/pnpm/bun install only the platform
 // package whose `os`/`cpu`/`libc` match the host, so exactly one binary lands
@@ -48,15 +48,15 @@ function platformPackage() {
   if (platform === 'darwin' && (arch === 'x64' || arch === 'arm64')) {
     return `@aligned-team/cospec-darwin-${arch}`
   }
-  if (platform === 'win32' && arch === 'x64') {
-    return '@aligned-team/cospec-win32-x64'
+  if (platform === 'win32' && (arch === 'x64' || arch === 'arm64')) {
+    return `@aligned-team/cospec-win32-${arch}`
   }
   return undefined
 }
 
 const SUPPORTED =
   'linux-x64-gnu, linux-x64-musl, linux-arm64-gnu, linux-arm64-musl, ' +
-  'darwin-x64, darwin-arm64, win32-x64'
+  'darwin-x64, darwin-arm64, win32-x64, win32-arm64'
 
 function resolveBinary() {
   const pkg = platformPackage()

@@ -1,0 +1,21 @@
+{
+  "version": "0.11.2",
+  "assets": {
+    "aarch64-darwin": {
+      "name": "cospec-0.11.2-macos-arm64.tar.gz",
+      "sha256": "01ea6d50196061f10a63795f83169106eee48af8779bfd2281d66bbe5e46de10"
+    },
+    "aarch64-linux": {
+      "name": "cospec-0.11.2-linux-arm64.tar.gz",
+      "sha256": "3a4c93bd016d429b998448fb8a77177972e952ef678cc0a9055e570f68891aca"
+    },
+    "x86_64-darwin": {
+      "name": "cospec-0.11.2-macos-x64.tar.gz",
+      "sha256": "79c02ef46c238c60296c5fe33fce992dc1a16222a2683a025737c947a3044059"
+    },
+    "x86_64-linux": {
+      "name": "cospec-0.11.2-linux-x64.tar.gz",
+      "sha256": "6a9a946f9ad5af413025c8573b83fdf7756838bbcccbbfc8abee264d7cdb3357"
+    }
+  }
+}

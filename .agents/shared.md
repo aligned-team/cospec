@@ -54,7 +54,8 @@ cospec/
 ├── e2e/eval/          DeepSeek e2e eval harness (advisory)
 ├── packages/bench/    cospec-vs-openspec benchmark harness (advisory)
 ├── openspec/          self-hosted: cospec-managed schemas + changes + specs
-├── scripts/           hook entrypoints + mise task scripts
+├── scripts/           hook entrypoints, mise task scripts, install.sh/install.ps1
+├── flake.nix, nix/    Nix package + overlay wrapping the release binaries
 └── .agents/shared.md  source for the shared block in CLAUDE.md / AGENTS.md
 ```
 
@@ -77,6 +78,10 @@ All operations run through mise tasks — never raw tool invocations:
 | Tests a change reaches | `mise run test:changed -- [--base <ref> \| --staged] <suite>...` |
 | Bench unit tests       | `mise run test:bench`                                            |
 | Pack smoke             | `mise run test:pack`                                             |
+| Installer tests        | `mise run test:install`                                          |
+| Installer (Windows)    | `mise run test:install:ps1`                                      |
+| Nix flake build        | `mise run test:flake`                                            |
+| Pin Nix flake          | `mise run release:flake-pin -- <v>`                              |
 | Regenerate managed     | `mise run generate`                                              |
 | Drift check            | `mise run generate:check`                                        |
 | Regenerate mise.lock   | `mise run lock`                                                  |
@@ -183,9 +188,10 @@ any OpenSpec user can switch with zero regressions: the change lifecycle, plus
 `store` (`setup`/`register` auto-run `cospec init`), `context`, `workset`,
 `show`, `view`, `schemas`/`schema`, `templates`, `config` (machine-global,
 `path`/`list`/`get`/`set`/`unset`/`reset`/`edit`/`profile`), native
-`completion`, and `feedback` — so there is never a reason to call bare
-`openspec`. `init`/`update` stay cospec-native by design. Read-only and personal
-surfaces are disciplined passthroughs (no gate, full wrapped-call discipline);
+`completion`, `feedback`, and `install` (cospec's own standalone binary, through
+the release installer) — so there is never a reason to call bare `openspec`.
+`init`/`update` stay cospec-native by design. Read-only and personal surfaces
+are disciplined passthroughs (no gate, full wrapped-call discipline);
 `config edit`/`profile`/`reset --all` (no `-y`) join `workset open` in the
 terminal-handover class instead (inherited stdio, verbatim child exit code, no
 `--json`), each pre-validated before the handover — its argv refused by the

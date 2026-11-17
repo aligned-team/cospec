@@ -970,10 +970,8 @@ describe('reachability: every pinned OpenSpec surface resolves exactly once', ()
 })
 
 describe('parity data files', () => {
-  test('parity-pending.yaml holds only `install`, owned by standalone-install', () => {
-    expect(PENDING.map((pe) => ({ kind: pe.kind, path: pe.path, owner: pe.owner }))).toEqual([
-      { kind: 'command', path: ['install'], owner: 'standalone-install' },
-    ])
+  test('parity-pending.yaml is empty: every pinned surface is reachable', () => {
+    expect(PENDING).toEqual([])
   })
 
   test('every parity-pending.yaml entry carries a known owner slug', () => {

@@ -1,9 +1,15 @@
-// `cospec version` (change openspec-1-15-parity, task 5.1): install-type
-// detection, the registry endpoint rules, version comparison, and the document
-// shape — all pure, no network, no spawn.
+// `cospec version` (change openspec-1-15-parity, task 5.1) and `cospec install`:
+// install-type detection, the registry endpoint rules, version comparison, the
+// document shape, and the installer helpers — all pure, no network, no spawn.
 
 import { describe, expect, test } from 'bun:test'
 
+import {
+  checkSource,
+  installerEnv,
+  installerUrl,
+  removeCommandFor,
+} from '../../../src/commands/install.ts'
 import {
   buildDocument,
   compareVersions,
@@ -155,29 +161,14 @@ describe('the version document', () => {
   })
 
   test('an available update names the command for the install type', () => {
-    const npm: InstallInfo = {
-      ...install,
-      packageManager: 'npm',
-      scope: 'global',
-      type: 'npm-global',
-    }
-    const doc = buildDocument('0.12.0', npm, wrapped, { status: 'available', latest: '0.13.0' })
+    const doc = buildDocument('0.12.0', install, wrapped, { status: 'available', latest: '0.13.0' })
     expect(doc.update).toEqual({
       status: 'available',
       latest: '0.13.0',
-      command: 'npm install -g @aligned-team/cospec@latest',
+      command: 'cospec install',
       canSelfUpgrade: false,
     })
-    expect(renderText(doc)).toContain(
-      'Update available: 0.13.0\n  npm install -g @aligned-team/cospec@latest\n',
-    )
-  })
-
-  test('a standalone install has no upgrade command, so the report names none', () => {
-    const doc = buildDocument('0.12.0', install, wrapped, { status: 'available', latest: '0.13.0' })
-    expect(doc.update?.command).toBeNull()
-    expect(renderText(doc)).toContain('Update available: 0.13.0\n')
-    expect(renderText(doc)).not.toContain('Update available: 0.13.0\n  ')
+    expect(renderText(doc)).toContain('Update available: 0.13.0\n  cospec install\n')
   })
 
   test('no command unless an update is available', () => {
@@ -187,12 +178,12 @@ describe('the version document', () => {
       ).toBe(null)
   })
 
-  test('each package-manager install type has its upgrade spelling; standalone and source have none', () => {
+  test('each install type has its upgrade spelling; a source checkout has none', () => {
     expect(upgradeCommand('npm-global')).toBe('npm install -g @aligned-team/cospec@latest')
     expect(upgradeCommand('npx')).toBe('npx @aligned-team/cospec@latest')
     expect(upgradeCommand('bunx')).toBe('bunx @aligned-team/cospec@latest')
     expect(upgradeCommand('mise')).toBe('mise upgrade')
-    expect(upgradeCommand('standalone')).toBeNull()
+    expect(upgradeCommand('standalone')).toBe('cospec install')
     expect(upgradeCommand('source')).toBeNull()
   })
 
@@ -202,6 +193,59 @@ describe('the version document', () => {
     expect(out.remedy).toContain('outside >=1.0.0 <2.0.0')
     expect(renderText(buildDocument('1.0.0', install, out))).toContain('OUT OF RANGE')
     expect(describeWrapped('unknown', 'package').inRange).toBe(false)
+  })
+})
+
+describe('cospec install helpers', () => {
+  const standalone: InstallInfo = {
+    location: '/opt/bin',
+    packageManager: null,
+    scope: 'standalone',
+    type: 'standalone',
+  }
+  const npm: InstallInfo = {
+    ...standalone,
+    packageManager: 'npm',
+    scope: 'global',
+    type: 'npm-global',
+  }
+
+  test('the installer comes from the latest release unless COSPEC_INSTALLER_BASE overrides it', () => {
+    expect(installerUrl({}, 'darwin')).toBe(
+      'https://github.com/aligned-team/cospec/releases/latest/download/install.sh',
+    )
+    expect(installerUrl({}, 'win32')).toBe(
+      'https://github.com/aligned-team/cospec/releases/latest/download/install.ps1',
+    )
+    expect(installerUrl({ COSPEC_INSTALLER_BASE: 'http://localhost:8080/x/' }, 'linux')).toBe(
+      'http://localhost:8080/x/install.sh',
+    )
+    expect(() => installerUrl({ COSPEC_INSTALLER_BASE: 'http://evil.example' }, 'linux')).toThrow(
+      'must use https',
+    )
+  })
+
+  test('checkSource refuses a user part and remote cleartext', () => {
+    expect(() => checkSource('X', 'http://localhost:80@evil.example/')).toThrow()
+    expect(() => checkSource('X', 'ftp://example.com')).toThrow()
+    expect(checkSource('X', 'https://example.com/a/')).toBe('https://example.com/a')
+  })
+
+  test('a standalone cospec reinstalls where it runs; a requested version is passed bare', () => {
+    const env = installerEnv('v1.2.3', standalone, '/opt/bin/cospec', {})
+    expect(env.COSPEC_VERSION).toBe('1.2.3')
+    expect(env.COSPEC_INSTALL_DIR).toBe('/opt/bin')
+    expect(
+      installerEnv(undefined, standalone, '/opt/bin/cospec', { COSPEC_INSTALL_DIR: '/x' })
+        .COSPEC_INSTALL_DIR,
+    ).toBe('/x')
+    expect(installerEnv('latest', npm, '/opt/bin/cospec', {}).COSPEC_VERSION).toBeUndefined()
+    expect(installerEnv(undefined, npm, '/opt/bin/cospec', {}).COSPEC_INSTALL_DIR).toBeUndefined()
+  })
+
+  test('only a package-manager copy has a removal command', () => {
+    expect(removeCommandFor(npm)).toBe('npm uninstall -g @aligned-team/cospec')
+    expect(removeCommandFor(standalone)).toBeNull()
   })
 })
 
