@@ -35,6 +35,12 @@ import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/apply.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/new.ts'
+import '../../src/commands/schema.ts'
+
 afterAll(cleanupAll)
 
 interface ApplyJson {

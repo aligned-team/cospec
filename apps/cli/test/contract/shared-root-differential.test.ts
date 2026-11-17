@@ -15,6 +15,9 @@ import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.t
 import { assertNoAncestorOpenspec, CAPTURE_GLOBAL_CONFIG } from './support/upstream-init-capture.ts'
 import { oracleSpawn } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+
 afterAll(cleanupAll)
 
 const { AI_TOOLS } = (await import(join(openspecPackageDir(), 'dist/core/config.js'))) as {

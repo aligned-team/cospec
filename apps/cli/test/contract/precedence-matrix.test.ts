@@ -58,6 +58,32 @@ import { cleanupAll, cospec, mkTempRepo, type SpawnResult } from '../fixtures/su
 import { documentCount, type Outcome, outcome } from './support/parse-class.ts'
 import { oracle, oracleEnv, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/apply.ts'
+import '../../src/commands/archive.ts'
+import '../../src/commands/check-commit.ts'
+import '../../src/commands/complete.ts'
+import '../../src/commands/completion.ts'
+import '../../src/commands/config.ts'
+import '../../src/commands/context.ts'
+import '../../src/commands/feedback.ts'
+import '../../src/commands/help.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/instructions.ts'
+import '../../src/commands/list.ts'
+import '../../src/commands/migrate.ts'
+import '../../src/commands/new.ts'
+import '../../src/commands/schema.ts'
+import '../../src/commands/schemas.ts'
+import '../../src/commands/show.ts'
+import '../../src/commands/status.ts'
+import '../../src/commands/store.ts'
+import '../../src/commands/sync-blockers.ts'
+import '../../src/commands/templates.ts'
+import '../../src/commands/update.ts'
+import '../../src/commands/validate.ts'
+import '../../src/commands/workset.ts'
+
 afterAll(cleanupAll)
 
 let template: string

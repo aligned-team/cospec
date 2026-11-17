@@ -9,6 +9,10 @@ import { join } from 'node:path'
 import { cleanupAll, cospec, hashTree, listTree, mkTempRepo } from '../fixtures/support.ts'
 import { claudeInitPaths } from './support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+import '../../src/commands/update.ts'
+
 afterAll(cleanupAll)
 
 describe('cospec init — repo-state matrix', () => {

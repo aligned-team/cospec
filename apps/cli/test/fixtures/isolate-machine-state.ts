@@ -19,6 +19,14 @@
 // 4. A guard: before every test, the global config path the environment resolves to must lie
 //    outside the real home. A test that deletes or reassigns those variables and does not
 //    restore them fails the next test, not a later machine.
+// 5. The repository: a git hook (the hooks run the tests) exports GIT_DIR, GIT_INDEX_FILE and the
+//    rest of `git rev-parse --local-env-vars` for this repository. Inherited, a test's `git init`
+//    or `git commit` in its temporary repository acts on this one instead (it once re-initialized
+//    it as bare), so they are removed before any test runs.
+// 6. Test selection: a test file under apps/cli/test that spawns the CLI entry must import the
+//    module of the command it runs, or `bun test --changed` (the hooks' and PR CI's selection)
+//    would skip it when that command changes. The wrapped spawn refuses one that does not
+//    (`assertSpawnSelectable`, test/fixtures/test-scope.ts).
 
 import { afterAll, beforeEach, mock } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
@@ -29,9 +37,11 @@ import {
   assertGlobalConfigOffRealHome,
   REAL_HOMES_KEY,
   realHomes,
+  REPOSITORY_GIT_KEYS,
   SANDBOXED_KEYS,
   STARTED_ENV_KEY,
 } from './machine-isolation.ts'
+import { assertSpawnSelectable } from './test-scope.ts'
 
 // `spawn(cmd[], options?)` or `spawn({ cmd, ...options })`; an `env` of `undefined` is no env.
 type Spawn = (...args: unknown[]) => unknown
@@ -41,10 +51,13 @@ const withEnv = (options: unknown): Record<string, unknown> => {
 }
 const sandboxed =
   (spawn: Spawn): Spawn =>
-  (first, ...rest) =>
-    Array.isArray(first)
+  (first, ...rest) => {
+    const cmd = Array.isArray(first) ? first : (first as { cmd?: unknown } | undefined)?.cmd
+    if (Array.isArray(cmd)) assertSpawnSelectable(cmd)
+    return Array.isArray(first)
       ? spawn(first, withEnv(rest[0]), ...rest.slice(1))
       : spawn(withEnv(first), ...rest)
+  }
 
 const registry = globalThis as {
   [REAL_HOMES_KEY]?: readonly string[]
@@ -54,6 +67,7 @@ const registry = globalThis as {
 // A second load (a `--preload` flag beside the bunfig's) must not sandbox the sandbox.
 if (registry[REAL_HOMES_KEY] === undefined) {
   process.env.OPENSPEC_NO_COMPLETIONS = '1'
+  for (const key of REPOSITORY_GIT_KEYS) delete process.env[key]
 
   const homes = realHomes({ HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE })
   registry[REAL_HOMES_KEY] = homes

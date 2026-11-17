@@ -22,6 +22,14 @@ import {
   scaffoldOracleRoot,
 } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/config.ts'
+import '../../src/commands/context.ts'
+import '../../src/commands/doctor.ts'
+import '../../src/commands/schemas.ts'
+import '../../src/commands/store.ts'
+import '../../src/commands/workset.ts'
+
 afterAll(cleanupAll)
 
 let template: string

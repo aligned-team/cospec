@@ -17,6 +17,9 @@ import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.t
 import { assertNoAncestorOpenspec } from './support/upstream-init-capture.ts'
 import { oracle } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+
 afterAll(cleanupAll)
 
 type Tool = 'github-copilot' | 'claude'

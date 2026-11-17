@@ -56,6 +56,20 @@ import {
 } from './support/root-sandbox.ts'
 import { oracle } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/context.ts'
+import '../../src/commands/doctor.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/list.ts'
+import '../../src/commands/new.ts'
+import '../../src/commands/schema.ts'
+import '../../src/commands/schemas.ts'
+import '../../src/commands/show.ts'
+import '../../src/commands/status.ts'
+import '../../src/commands/store.ts'
+import '../../src/commands/templates.ts'
+import '../../src/commands/view.ts'
+
 afterAll(cleanupAll)
 
 /** `list`'s null-shape ahead of `status` in its `--json` failure document, as the binary prints it. */

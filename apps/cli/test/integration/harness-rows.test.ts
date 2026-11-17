@@ -9,6 +9,11 @@ import { join } from 'node:path'
 import { readFixture } from '../contract/support/upstream-init-capture.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/doctor.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/update.ts'
+
 afterAll(cleanupAll)
 
 interface Repo {

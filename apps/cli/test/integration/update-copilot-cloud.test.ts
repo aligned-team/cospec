@@ -10,6 +10,11 @@ import { join } from 'node:path'
 import { ptyRun, terminalText } from '../contract/support/pty.ts'
 import { cleanupAll, CLI_ENTRY, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/doctor.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/update.ts'
+
 afterAll(cleanupAll)
 
 const WORKFLOW = '.github/workflows/copilot-setup-steps.yml'

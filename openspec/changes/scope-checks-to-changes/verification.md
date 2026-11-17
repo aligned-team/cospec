@@ -1,0 +1,16 @@
+# Verification
+
+## 1. Pull-request CI runs the selection [critical]
+
+- [ ] 1.1 @runtime (agent) this PR's `ci-bun` job on GitHub's `ubuntu-latest` runner, a `pull_request` event -> the contract and integration steps print their `test:changed` decision, the unit coverage gate and the bench and release steps run, `ci-gate` is green
+- [x] 1.2 @integration (agent) `mise run test:changed -- --base origin/main unit` with only a module under `apps/cli/src/commands/` changed -> `bun test --changed` runs the reached files, not the whole suite -> with only `src/commands/feedback.ts` changed (base HEAD): unit "the tests 1 changed file(s) since <HEAD> reach", bun ran 23/119 files; integration 25/40 — 22 command modules import `EXIT` from `cli.ts`, whose registry reaches every command, so a test importing one reaches all; weighted by CI durations a typical `src` change selects about 57% of the contract suite's time and 59% of integration's (a non-`src` change none); the test preload's own change picked every suite whole
+
+## 2. Every spawn is selectable
+
+- [x] 2.1 @integration (agent) the unit, contract and integration suites run whole with the spawn guard refusing -> no test file fails on a missing command import -> `mise run check` with the guard refusing and every recorded import added (last run on the restacked branch): unit 3203 pass, integration 404 pass, contract 3235 pass, 0 fail (bench 343, release 14 pass); the imports came from one full run with the guard recording instead of refusing — 216 across 61 files, none in the unit suite — plus three it cannot see (`generate-self-home` runs `cospec update` through `scripts/generate-self`; both pack tests run the packed CLI, so they import `cli.ts`)
+- [x] 2.2 @unit (agent) `support-test-scope.test.ts` and `support-test-scope-dispatch.test.ts` -> pass -> 27 + 36 pass; with every registry loader replaced by a recorder, `run()` loads no module `dispatchedCommand` did not name, across 20 argvs (globals, `--`, version, help, refusals), at least 8 of which reach a loader
+
+## 3. Hooks
+
+- [x] 3.1 @integration (agent) a real `git commit` in the worktree -> hk's pre-commit runs typecheck and `test:changed -- unit` -> committing the implementation (d38e7fb after rebasing): hk pre-commit ran bun-fmt, oxlint, taplo, actionlint, agents:check, cospec-validate, cospec-sync-blockers, typecheck (`bun check`, every workspace) and test (`mise run test:changed -- unit`: the whole unit suite, 3198 pass, since the change touches the preload), all passing
+- [ ] 3.2 @integration (agent) push this branch through the new pre-push hook (git exports the repository's `GIT_DIR`) -> the unit and integration tests it selects pass, and the repository's config and refs are as they were

@@ -6,6 +6,10 @@ import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+import '../../src/commands/update.ts'
+
 afterAll(cleanupAll)
 
 test('init writes claude, fails cursor with exit 1, and update retries it with exit 0', async () => {

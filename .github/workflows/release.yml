@@ -1,13 +1,18 @@
 # cospec release pipeline — the SINGLE entry point that cuts a new
 # `@aligned-team/cospec` npm release and its compiled-binary GitHub release.
 #
-# Flow: dispatch → version → bump (commit to main via the GitHub API) → build +
-# stage-npm → publish → cleanup.
+# Flow: dispatch → version → check → bump (commit to main via the GitHub API)
+# → build + stage-npm → publish → cleanup.
 #
 #   1. version    — compute the next semver with cocogitto (`cog bump
 #                   --dry-run`, no manifest edit, no commit), derive the tag
 #                   `v<n>.<n>.<n>`, and fail fast if that tag already exists
-#                   on origin.
+#                   on origin. Also names the main commit the release builds
+#                   on.
+#      check      — the whole CI workflow (ci.yml: every job, every test
+#                   suite whole) on that commit, before anything is written.
+#                   `bump` builds on exactly that commit: if main has moved
+#                   since, its expectedHeadOid refuses the bump commit.
 #   2. bump       — stamp that ONE version into `apps/cli/package.json` (and
 #                   the matching `bun.lock` workspace entry) with
 #                   `mise run release:set-version`, then run `mise run
@@ -120,6 +125,7 @@ jobs:
     outputs:
       version: ${{ steps.compute.outputs.version }}
       tag: ${{ steps.compute.outputs.tag }}
+      main_sha: ${{ steps.main.outputs.sha }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -129,6 +135,11 @@ jobs:
       # setup-mise's `mise install` already fetched it — no ad-hoc `mise use -g`
       # (which would resolve latest upstream and make the release non-reproducible).
       - uses: ./.github/actions/setup-mise
+
+      # The commit `check` runs CI on and `bump` builds on.
+      - name: Resolve main
+        id: main
+        run: echo "sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
 
       # cog computes the next semver from conventional commits (or the
       # dispatched override) WITHOUT side effects (--dry-run makes no manifest
@@ -212,10 +223,21 @@ jobs:
             echo "tag=${TAG}"
           } >> "$GITHUB_OUTPUT"
 
+  # ── The whole CI workflow on the main commit the release builds on ──────────
+  check:
+    name: Full CI
+    needs: version
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.version.outputs.main_sha }}
+
   # ── Commit the version bump to main + create the tag, both via the GitHub API
   bump:
     name: Commit version bump
-    needs: version
+    needs: [version, check]
     runs-on: ubuntu-latest
     # GITHUB_TOKEN only checks out the repo here; every write (commit, tag)
     # rides the cospec-release app token minted below.
@@ -224,11 +246,13 @@ jobs:
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
     steps:
-      # Plain checkout — no ssh-key. fetch-depth 0 keeps history for the
-      # later tag; HEAD's sha is used as expectedHeadOid below.
+      # Plain checkout — no ssh-key — of the main commit `check` ran CI on.
+      # fetch-depth 0 keeps history for the later tag; HEAD's sha is used as
+      # expectedHeadOid below, so a main that moved after `check` refuses the
+      # bump commit.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: main
+          ref: ${{ needs.version.outputs.main_sha }}
           fetch-depth: 0
 
       - uses: ./.github/actions/setup-mise

@@ -13,6 +13,10 @@ import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.t
 import { assertNoAncestorOpenspec, CAPTURE_GLOBAL_CONFIG } from './support/upstream-init-capture.ts'
 import { oracleSpawn } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/doctor.ts'
+import '../../src/commands/init.ts'
+
 afterAll(cleanupAll)
 
 /** Every file under `dir` (relative, sorted), skipping `.git` and the repo's `openspec/` tree. */

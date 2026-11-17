@@ -61,27 +61,32 @@ informational message instead of a version; the `version` job treats that as a
 failure (re-dispatch with an explicit `patch`/`minor`/`major` to force a
 release).
 
-## The six jobs
+## The seven jobs
 
 1. **`version`** — computes the next semver with cocogitto
    (`cog bump --dry-run`; no manifest edit, no commit), strips a leading `v`,
    regex-validates the result is an exact `x.y.z` (guarding against cog's
    "nothing to bump" message leaking into `$GITHUB_OUTPUT`), and fails if the
-   derived tag already exists on origin.
-2. **`bump`** — checks out `main` normally (no deploy key, no SSH), runs
-   `mise run release:set-version -- <v>` to stamp the version into **every**
-   manifest — `apps/cli/package.json` (including its `optionalDependencies`
-   pins), all seven `apps/cli/npm/<platform>/package.json`, the matching
-   workspace entry + optional-dependency pins in `bun.lock` (which bun never
-   refreshes on install), and the `"npm:@aligned-team/cospec"` pin in the
-   commit-gate template `apps/cli/src/canon/gate/mise.toml.tpl` (which
-   `cospec init` writes into a user's `mise.toml`) — then runs
-   `mise run generate` so every managed file's `generatedBy: cospec@<version>`
-   provenance stamp (`.claude/`, `.codex/`, `.opencode/`, `openspec/schemas/`)
-   matches the version just stamped. This ordering is load-bearing: `generate`
-   reads `COSPEC_VERSION` from `apps/cli/package.json` at process start, so it
-   must run **after** `release:set-version`. Only then does the job mint a
-   short-lived installation token from the `cospec-release` GitHub App
+   derived tag already exists on origin. Also names the commit on `main` the
+   release builds on (`main_sha`).
+2. **`check`** — calls `ci.yml` (`workflow_call`, with that commit as `ref`):
+   every CI job, and the unit, contract and integration suites whole — never the
+   pull-request selection — before anything is written. `bump` needs it.
+3. **`bump`** — checks out the commit `check` ran CI on (no deploy key, no SSH),
+   runs `mise run release:set-version -- <v>` to stamp the version into
+   **every** manifest — `apps/cli/package.json` (including its
+   `optionalDependencies` pins), all seven
+   `apps/cli/npm/<platform>/package.json`, the matching workspace entry +
+   optional-dependency pins in `bun.lock` (which bun never refreshes on
+   install), and the `"npm:@aligned-team/cospec"` pin in the commit-gate
+   template `apps/cli/src/canon/gate/mise.toml.tpl` (which `cospec init` writes
+   into a user's `mise.toml`) — then runs `mise run generate` so every managed
+   file's `generatedBy: cospec@<version>` provenance stamp (`.claude/`,
+   `.codex/`, `.opencode/`, `openspec/schemas/`) matches the version just
+   stamped. This ordering is load-bearing: `generate` reads `COSPEC_VERSION`
+   from `apps/cli/package.json` at process start, so it must run **after**
+   `release:set-version`. Only then does the job mint a short-lived installation
+   token from the `cospec-release` GitHub App
    (`actions/create-github-app-token`, variable `RELEASE_APP_ID` + secret
    `RELEASE_APP_PRIVATE_KEY`) and create the commit via GitHub's GraphQL
    `createCommitOnBranch` mutation and the annotated tag via the REST
@@ -89,13 +94,13 @@ release).
    `generate` runs before the `git diff` that becomes the mutation's
    `fileChanges`, the version stamp and any regenerated managed files land in
    the **same** bump commit — never split across two. `expectedHeadOid` guards
-   the mutation against a race (main moved since checkout); a mismatch fails the
-   step clean and a re-dispatch recovers. Idempotent: if the manifests are
-   already at that version (and `generate` finds no drift), the commit is
-   skipped and only the tag is created. Outputs the bump commit's `sha`. See
-   "Signed commits without a bypass actor" below for why this replaces the old
-   SSH deploy-key push.
-3. **`build`** — a matrix on `ubuntu-latest` that cross-compiles
+   the mutation against a race (main moved since `version` named the commit); a
+   mismatch fails the step clean, so nothing CI did not check is released, and a
+   re-dispatch recovers. Idempotent: if the manifests are already at that
+   version (and `generate` finds no drift), the commit is skipped and only the
+   tag is created. Outputs the bump commit's `sha`. See "Signed commits without
+   a bypass actor" below for why this replaces the old SSH deploy-key push.
+4. **`build`** — a matrix on `ubuntu-latest` that cross-compiles
    `bun build --compile --target=<t>` for `bun-linux-x64`, `bun-linux-x64-musl`,
    `bun-linux-arm64`, `bun-linux-arm64-musl`, `bun-darwin-x64`,
    `bun-darwin-arm64`, and `bun-windows-x64`. Each leg emits **two** artifacts
@@ -111,13 +116,13 @@ release).
    committed, drift-gated in CI by `vendor:openspec:check`, and embedded into
    every target by the ordinary `--compile` static import — the build matrix is
    unchanged.
-4. **`stage-npm`** — checks out the bump commit, runs `mise run test:pack`, then
+5. **`stage-npm`** — checks out the bump commit, runs `mise run test:pack`, then
    the bun-less standalone gate `mise run test:pack:standalone`: builds the host
    (linux-x64-gnu) platform package, `npm install`s the launcher + platform
    tarballs with **bun stripped from PATH**, and runs `cospec --version` + a
    real subcommand on Node only. Then `bun pm pack`s `apps/cli` to produce the
    **exact** main tarball `publish` ships, and uploads it as an artifact.
-5. **`publish`** — downloads the release archives (`archive-*`) and the eight
+6. **`publish`** — downloads the release archives (`archive-*`) and the eight
    npm tarballs (`npm-*`), generates `SHA256SUMS` over the archives (the
    mise-verifiable release assets), runs `communique` to write
    `RELEASE_NOTES.md` (using `ANTHROPIC_API_KEY_COMMUNIQUE`), creates a
@@ -140,7 +145,7 @@ release).
    failure that leaves the first N platform packages published is therefore
    recoverable — a re-dispatch at the same version skips the live packages and
    resumes with the remaining packages + the main launcher.
-6. **`cleanup`** — runs only `if: failure()`. It may run after some platform
+7. **`cleanup`** — runs only `if: failure()`. It may run after some platform
    packages have already published (the loop is not atomic); deleting the tag +
    release is still safe because the publish loop is idempotent, so a
    re-dispatch at the same version recreates them and resumes only the gaps.

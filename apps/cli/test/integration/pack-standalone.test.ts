@@ -22,6 +22,10 @@ import {
   writeFiles,
 } from '../fixtures/support.ts'
 
+// Packs and runs the whole CLI: cli.ts's command registry reaches every module, so
+// `bun test --changed` selects this file whatever changes in src.
+import '../../src/cli.ts'
+
 afterAll(cleanupAll)
 
 const cliDir = join(REPO_ROOT, 'apps/cli')

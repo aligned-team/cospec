@@ -11,6 +11,10 @@ import { openspecPackageDir } from '../../src/core/openspec.ts'
 import { HARNESS_NAMES } from '../../src/harness/adapters.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/doctor.ts'
+import '../../src/commands/init.ts'
+
 afterAll(cleanupAll)
 
 type UpstreamEntry =

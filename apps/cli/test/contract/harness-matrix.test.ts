@@ -38,6 +38,10 @@ import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.t
 import { TEST_VERSION, TYPE_TABLE } from '../unit/harness/fixtures.ts'
 import { cutHead, readFixture, type UpstreamInitCapture } from './support/upstream-init-capture.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+import '../../src/commands/update.ts'
+
 afterAll(cleanupAll)
 
 const DIST = join(openspecPackageDir(), 'dist')

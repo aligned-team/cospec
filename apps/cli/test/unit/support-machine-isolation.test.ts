@@ -4,7 +4,7 @@
 // here by name instead of failing an init test over the profile of whoever ran it.
 
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,6 +18,7 @@ import {
   isUnder,
   REAL_HOMES_KEY,
   realHomes,
+  REPOSITORY_GIT_KEYS,
 } from '../fixtures/machine-isolation.ts'
 
 const preloaded = (globalThis as { [REAL_HOMES_KEY]?: readonly string[] })[REAL_HOMES_KEY]
@@ -151,6 +152,54 @@ describe('every test root loads the preload and cleans up after it', () => {
       expect(`${decode(result.stdout)}${decode(result.stderr)}`).toContain('1 pass')
       expect(result.exitCode).toBe(0)
       expect(readdirSync(tmp)).toEqual([])
+    } finally {
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("a git hook's repository never reaches a test", () => {
+  test('the list is every variable git names as locating a repository', () => {
+    const named = Bun.spawnSync(['git', 'rev-parse', '--local-env-vars'], { env: hostToolEnv() })
+    expect(named.exitCode).toBe(0)
+    const listed: string[] = [...REPOSITORY_GIT_KEYS]
+    expect(listed.toSorted()).toEqual(decode(named.stdout).trim().split('\n').toSorted())
+  })
+
+  // As hk's hooks start it: git has exported this repository's GIT_DIR and friends.
+  test('a run started inside a hook sees none of them, and its git acts on its own repository', () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'cospec-probe-'))
+    try {
+      const probe = join(scratch, 'probe.test.ts')
+      writeFileSync(
+        probe,
+        [
+          "import { expect, test } from 'bun:test'",
+          "import { existsSync, mkdtempSync } from 'node:fs'",
+          "import { tmpdir } from 'node:os'",
+          "import { join } from 'node:path'",
+          "test('git is off the outer repository', () => {",
+          `  for (const key of ${JSON.stringify(REPOSITORY_GIT_KEYS)}) expect(process.env[key]).toBeUndefined()`,
+          "  const repo = mkdtempSync(join(tmpdir(), 'probe-repo-'))",
+          "  expect(Bun.spawnSync(['git', 'init', '-q'], { cwd: repo }).exitCode).toBe(0)",
+          "  expect(existsSync(join(repo, '.git', 'HEAD'))).toBe(true)",
+          '})',
+          '',
+        ].join('\n'),
+      )
+      const outer = join(scratch, 'outer.git')
+      const result = Bun.spawnSync([process.execPath, 'test', probe], {
+        cwd: resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'),
+        env: {
+          ...process.env,
+          GIT_DIR: outer,
+          GIT_WORK_TREE: scratch,
+          GIT_INDEX_FILE: join(outer, 'index'),
+        },
+      })
+      expect(`${decode(result.stdout)}${decode(result.stderr)}`).toContain('1 pass')
+      expect(result.exitCode).toBe(0)
+      expect(existsSync(outer)).toBe(false)
     } finally {
       rmSync(scratch, { recursive: true, force: true })
     }

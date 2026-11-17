@@ -17,6 +17,10 @@ import { openspecCommandLines } from '../fixtures/openspec-command.ts'
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 import { authorCi } from './support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/complete.ts'
+import '../../src/commands/completion.ts'
+
 const LIVING_SPEC = `# widgets Specification
 
 ## Purpose

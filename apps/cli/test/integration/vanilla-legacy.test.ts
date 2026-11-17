@@ -8,6 +8,11 @@ import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/archive.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/validate.ts'
+
 afterAll(cleanupAll)
 
 const TASKS_DONE = `## 1. Implementation

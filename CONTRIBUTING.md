@@ -49,33 +49,36 @@ version than the one mise pins, and running it directly bypasses the pin.
 
 Every operation runs through a mise task — never a raw tool invocation.
 
-| task                                    | command                             |
-| --------------------------------------- | ----------------------------------- |
-| Run the CLI                             | `mise run cospec -- <args>`         |
-| Build the single-file binary            | `mise run build`                    |
-| Lint                                    | `mise run lint`                     |
-| Lint (autofix)                          | `mise run lint:fix`                 |
-| Format (check)                          | `mise run format:check`             |
-| Format (fix)                            | `mise run format:fix`               |
-| Typecheck                               | `mise run typecheck`                |
-| Unit tests                              | `mise run test`                     |
-| Contract tests (real binary)            | `mise run test:contract`            |
-| Integration tests                       | `mise run test:integration`         |
-| Bench unit tests                        | `mise run test:bench`               |
-| Pack smoke                              | `mise run test:pack`                |
-| Regenerate managed files from canon     | `mise run generate`                 |
-| Managed-file drift gate                 | `mise run generate:check`           |
-| Regenerate mise.lock (min_version mise) | `mise run lock`                     |
-| mise.lock drift gate                    | `mise run lock:check`               |
-| Validate composed schemas               | `mise run openspec:schema:validate` |
-| Sync agent docs                         | `mise run agents:sync`              |
-| Agent-doc drift gate                    | `mise run agents:check`             |
-| E2E eval (advisory)                     | `mise run eval:e2e`                 |
-| Bench: cospec vs openspec (advisory)    | `mise run bench`                    |
-| Bench smoke (advisory)                  | `mise run bench:smoke`              |
-| Full CI gate                            | `mise run check`                    |
+| task                                    | command                                              |
+| --------------------------------------- | ---------------------------------------------------- |
+| Run the CLI                             | `mise run cospec -- <args>`                          |
+| Build the single-file binary            | `mise run build`                                     |
+| Lint                                    | `mise run lint`                                      |
+| Lint (autofix)                          | `mise run lint:fix`                                  |
+| Format (check)                          | `mise run format:check`                              |
+| Format (fix)                            | `mise run format:fix`                                |
+| Typecheck                               | `mise run typecheck`                                 |
+| Unit tests                              | `mise run test`                                      |
+| Contract tests (real binary)            | `mise run test:contract`                             |
+| Integration tests                       | `mise run test:integration`                          |
+| Tests the changes since a ref reach     | `mise run test:changed -- [--base <ref>] <suite>...` |
+| Bench unit tests                        | `mise run test:bench`                                |
+| Pack smoke                              | `mise run test:pack`                                 |
+| Regenerate managed files from canon     | `mise run generate`                                  |
+| Managed-file drift gate                 | `mise run generate:check`                            |
+| Regenerate mise.lock (min_version mise) | `mise run lock`                                      |
+| mise.lock drift gate                    | `mise run lock:check`                                |
+| Validate composed schemas               | `mise run openspec:schema:validate`                  |
+| Sync agent docs                         | `mise run agents:sync`                               |
+| Agent-doc drift gate                    | `mise run agents:check`                              |
+| E2E eval (advisory)                     | `mise run eval:e2e`                                  |
+| Bench: cospec vs openspec (advisory)    | `mise run bench`                                     |
+| Bench smoke (advisory)                  | `mise run bench:smoke`                               |
+| Full CI gate                            | `mise run check`                                     |
 
-Run `mise run check` before every commit — it is the same gate CI runs.
+You don't need to run `mise run check` before committing: the git hooks check
+what each commit and push touches (see [Git hooks](#git-hooks-hk)), and CI is
+the full gate. `mise run check` runs everything locally when you want it.
 
 ## Commit format
 
@@ -110,34 +113,44 @@ exits 0. It never blocks.
 Hooks are managed by [hk](https://hk.jdx.dev) via mise. **Never bypass them**
 with `--no-verify` — if a hook fails, fix the root cause.
 
-| hook         | steps                                                                                                                                              |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pre-commit` | bun fmt · oxlint · taplo · shellcheck · actionlint · `agents:check` · `generate:check` · `cospec validate --all --strict` · `cospec sync-blockers` |
-| `commit-msg` | commitlint · `cospec check-commit`                                                                                                                 |
-| `pre-push`   | the linters (bun fmt · oxlint · taplo · shellcheck · actionlint)                                                                                   |
+| hook         | steps                                                                                                                                                                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-commit` | bun fmt · oxlint · taplo · shellcheck · actionlint · `agents:check` · `generate:check` · `cospec validate --all --strict` · `cospec sync-blockers` · typecheck · the unit tests the staged changes reach |
+| `commit-msg` | commitlint · `cospec check-commit`                                                                                                                                                                       |
+| `pre-push`   | the linters (bun fmt · oxlint · taplo · shellcheck · actionlint) · typecheck · the unit and integration tests the branch reaches since it left `origin/main`                                             |
 
-### The slow pre-push gate (opt-in)
+The linters run on the files the commit or push touches. Typecheck runs when a
+TypeScript file or a `tsconfig` changes, over every workspace — type errors
+cross files.
 
-The pre-push hook that `hk install --mise` wires up runs **only the linters** —
-the slow steps (typecheck · unit · contract · integration · build) live behind
-hk's `slow` profile and are skipped by a plain `hk run pre-push`. Do not assume
-your pushes are test-gated after the default setup; `mise run check` before
-every commit remains the real gate (see
-[Mise task workflow](#mise-task-workflow)), and CI re-runs the full gate
-regardless.
+### Which tests run
 
-If you want the slow gate enforced locally on push, install the branch-aware
-wrapper by hand — it is intentionally not wired by `postinstall`:
+The hooks and pull-request CI run `mise run test:changed`
+(`apps/cli/test/fixtures/test-scope.ts`), which picks per suite:
 
-```bash
-install -m 755 scripts/hooks/pre-push-gate \
-  "$(git rev-parse --git-dir)/hooks/pre-push"
-```
+- **the tests the change reaches** — `bun test --changed=<base>`: the test files
+  whose import graph (static imports and literal `import()`s) reaches a changed
+  file; or
+- **the whole suite**, when a change sits outside that graph: the CLI's boot
+  path (`src/index.ts` and what it loads before choosing a command module), the
+  test preload, or any file that is not a JS/TS module (canon YAML and Markdown,
+  fixture trees, golden files, `package.json`, `bun.lock`, `mise.toml`, tool
+  config) unless that suite's `UNREAD` list says none of its tests read it.
 
-Once installed, the wrapper upgrades to the `slow` profile **only when the push
-targets `main`/`master`**; feature-branch pushes still run linters only. Rerun
-the `install` line after any `bun install`, since `hk install --mise` reinstalls
-the plain pre-push hook and overwrites the wrapper.
+A test that spawns the CLI runs it in a child process, so its own imports would
+not reach the command it runs. It imports that command's module instead
+(`import '../../src/commands/validate.ts'`); the test preload refuses a CLI
+spawn from a test file whose imports never reach the dispatched command. A test
+that starts reading a repository path through `fs` takes that path out of
+`UNREAD`.
+
+The contract suite runs the real pinned OpenSpec binary and takes about half an
+hour whole, so no hook runs it: pull-request CI runs the contract and
+integration tests the pull request reaches (and the whole unit suite, for its
+coverage gate); pushes to `main`, the merge queue and every release
+(`release.yml` calls `ci.yml` on the commit it releases) run every suite whole.
+`mise run test:changed -- --base origin/main contract` runs the pull request's
+selection locally.
 
 ## The cospec change workflow (we self-host)
 

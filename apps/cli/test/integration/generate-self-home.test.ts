@@ -34,6 +34,11 @@ import {
   REPO_ROOT,
 } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+// `scripts/generate-self` runs `cospec update` — a grandchild, out of the spawn guard's sight.
+import '../../src/commands/update.ts'
+
 afterAll(cleanupAll)
 
 const SKILLS = '.minimax/skills'

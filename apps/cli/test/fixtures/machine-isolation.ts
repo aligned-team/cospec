@@ -12,6 +12,29 @@ export const REAL_HOMES_KEY = Symbol.for('cospec.test.real-homes')
 /** The variables the preload points at the sandbox, in the form they had when the run started. */
 export const STARTED_ENV_KEY = Symbol.for('cospec.test.started-env')
 
+/**
+ * The variables that point git at one repository — `git rev-parse --local-env-vars`. A git hook
+ * exports them for its own repository, and the hooks run the tests: inherited, every git command
+ * a test runs in its temporary repository would act on this one instead.
+ */
+export const REPOSITORY_GIT_KEYS = [
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_CONFIG',
+  'GIT_CONFIG_PARAMETERS',
+  'GIT_CONFIG_COUNT',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_IMPLICIT_WORK_TREE',
+  'GIT_GRAFT_FILE',
+  'GIT_INDEX_FILE',
+  'GIT_NO_REPLACE_OBJECTS',
+  'GIT_REPLACE_REF_BASE',
+  'GIT_PREFIX',
+  'GIT_SHALLOW_FILE',
+  'GIT_COMMON_DIR',
+] as const
+
 export const SANDBOXED_KEYS = [
   'HOME',
   'USERPROFILE',

@@ -6,6 +6,11 @@ import { afterAll, describe, expect, setDefaultTimeout, test } from 'bun:test'
 
 import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+import '../../src/commands/instructions.ts'
+import '../../src/commands/new.ts'
+
 afterAll(cleanupAll)
 
 setDefaultTimeout(120_000)

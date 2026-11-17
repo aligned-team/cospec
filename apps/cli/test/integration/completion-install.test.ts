@@ -30,6 +30,15 @@ import {
   ptyRun,
 } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/complete.ts'
+import '../../src/commands/completion.ts'
+import '../../src/commands/config.ts'
+import '../../src/commands/help.ts'
+import '../../src/commands/list.ts'
+import '../../src/commands/schemas.ts'
+import '../../src/commands/workset.ts'
+
 const sandboxes: HomeSandbox[] = []
 const TIP = "Tip: Run 'cospec completion install' for shell completions"
 const pty = ptyAvailable() ? test : test.skip
