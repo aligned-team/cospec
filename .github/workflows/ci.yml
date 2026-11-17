@@ -35,12 +35,16 @@ jobs:
         if: github.event_name != 'merge_group'
         id: filter
         with:
+          # `mise.lock` sits beside every `mise.toml`: each job installs its
+          # tools from the lockfile (`mise install --locked`), and ci-bun's
+          # lockfile drift gate must run on a lockfile-only change.
           filters: |
             bun:
               - 'apps/**/*.{ts,tsx,js,jsx,mjs,cjs}'
               - 'package.json'
               - 'bun.lock'
               - 'mise.toml'
+              - 'mise.lock'
               - 'tsconfig*.json'
               - '.oxlintrc.json'
               - 'bunfig.toml'
@@ -49,10 +53,11 @@ jobs:
             canon:
               - 'apps/cli/src/canon/**'
               - 'mise.toml'
+              - 'mise.lock'
               - '.github/workflows/ci.yml'
-            openspec_changes: ['openspec/changes/**', 'mise.toml', '.github/workflows/ci.yml']
-            openspec_specs: ['openspec/specs/**', 'mise.toml', '.github/workflows/ci.yml']
-            openspec_schemas: ['openspec/schemas/**', 'mise.toml', '.github/workflows/ci.yml']
+            openspec_changes: ['openspec/changes/**', 'mise.toml', 'mise.lock', '.github/workflows/ci.yml']
+            openspec_specs: ['openspec/specs/**', 'mise.toml', 'mise.lock', '.github/workflows/ci.yml']
+            openspec_schemas: ['openspec/schemas/**', 'mise.toml', 'mise.lock', '.github/workflows/ci.yml']
             shell: ['scripts/**', '.github/workflows/ci.yml', '.github/actions/**']
             actions: ['.github/workflows/**', '.github/actions/**']
             docs:
@@ -60,6 +65,7 @@ jobs:
               - '.github/workflows/release.yml'
               - '.github/workflows/ci.yml'
               - 'mise.toml'
+              - 'mise.lock'
               - 'package.json'
               - 'bun.lock'
               - '.github/actions/setup-mise/**'
@@ -71,10 +77,10 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
+      # mise.lock must be exactly what the min_version mise release writes, for
+      # every platform — the release setup-mise pins.
       - name: mise lockfile drift gate
-        run: |
-          mise install
-          git diff --exit-code mise.lock
+        run: mise run lock:check
       - run: bun install --frozen-lockfile
       # Neither fish nor zsh has a mise/aqua registry entry (checked:
       # `mise registry | grep -iE 'fish|zsh'` — nothing), so both are
@@ -139,7 +145,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - name: ShellCheck hook + task scripts
-        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/hooks/pre-push-gate scripts/mise-tasks/agents/sync scripts/mise-tasks/vendor/openspec
+        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/hooks/pre-push-gate scripts/mise-tasks/agents/sync scripts/mise-tasks/vendor/openspec scripts/mise-tasks/lock
 
   ci-actions-lint:
     needs: detect-changes

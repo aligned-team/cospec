@@ -10,8 +10,23 @@ inputs:
 runs:
   using: composite
   steps:
+    # mise itself runs at mise.toml's `min_version`, the release mise.lock is
+    # written with (`mise run lock`), so a new mise release never changes what
+    # CI installs or what the lockfile drift gate expects.
+    - name: Read mise.toml's min_version
+      id: mise-version
+      shell: bash
+      run: |
+        version="$(sed -nE 's/^min_version = "([^"]+)"$/\1/p' mise.toml)"
+        if [[ -z "${version}" ]]; then
+          echo "mise.toml sets no min_version for CI to pin mise to" >&2
+          exit 1
+        fi
+        echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
     - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
       with:
+        version: ${{ steps.mise-version.outputs.version }}
         experimental: 'true'
         cache: true
         cache_key_prefix: mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'bun.lock') }}

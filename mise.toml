@@ -1,3 +1,6 @@
+# Also the mise release CI runs (.github/actions/setup-mise reads this field)
+# and the one mise.lock is written with (`mise run lock`): bump it, then run
+# `mise run lock` and commit both.
 min_version = "2026.7.7"
 monorepo_root = true
 
@@ -176,6 +179,14 @@ run = "bash scripts/generate-self update"
 description = "Fail if any managed file drifts from canon (CI/pre-commit gate)"
 run = "bash scripts/generate-self update --check"
 
+[tasks.lock]
+description = "Regenerate mise.lock with the mise release min_version names (the one CI pins)"
+run = "bash scripts/mise-tasks/lock"
+
+[tasks."lock:check"]
+description = "Fail if mise.lock is not what the min_version mise release writes (CI/check gate)"
+run = "bash scripts/mise-tasks/lock --check"
+
 [tasks."vendor:openspec"]
 description = "Regenerate the vendored self-contained openspec bundle the compiled binary embeds"
 run = "bash scripts/mise-tasks/vendor/openspec"
@@ -242,6 +253,7 @@ depends = [
   "//packages/bench:test",
   "//e2e:release-test",
   "generate:check",
+  "lock:check",
   "vendor:openspec:check",
   "agents:check",
   "cospec-validate-all",
