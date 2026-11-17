@@ -18,8 +18,10 @@ lockfile-only change skipped the drift gate entirely.
 - `scripts/mise-tasks/lock` with tasks `lock` / `lock:check` in `mise.toml`:
   download the `min_version` mise release (checksum-verified against its
   `SHASUMS256.txt`), and run its `mise lock` with isolated data, cache, state
-  and config dirs — in place, or on a scratch copy to compare. `lock:check`
-  joins `mise run check`.
+  and config dirs and its hooks off — in place, or on a scratch copy to compare.
+  `mise lock` can exit 0 after failing to resolve an entry, so a run fails on
+  any warning or error it logs or an entry it skipped. `lock:check` joins
+  `mise run check`.
 - `.github/workflows/ci.yml`: the mise lockfile drift gate runs
   `mise run lock:check` (exactly `min_version`'s `mise lock` output for every
   platform) instead of `mise install` plus a diff; `mise.lock` joins every path

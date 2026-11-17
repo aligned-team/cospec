@@ -7,7 +7,10 @@
 - [x] 1.2 Add `scripts/mise-tasks/lock` and the `lock` / `lock:check` tasks
       (`lock:check` in `mise run check`); the CI drift gate runs
       `mise run lock:check`; `mise.lock` joins every path filter that lists
-      `mise.toml`; shellcheck covers the script.
+      `mise.toml`; shellcheck covers the script. A run fails unless `mise lock`
+      resolved every entry (no warning or error, `0 skipped`), runs with mise's
+      hooks off, and each first run downloads to its own temp file before an
+      atomic rename.
 - [x] 1.3 Regenerate `mise.lock` with `mise run lock` (mise 2026.7.7) and verify
       `mise run lock:check` passes, a second run changes nothing, and the
       installed mise's `mise install` leaves it as is.

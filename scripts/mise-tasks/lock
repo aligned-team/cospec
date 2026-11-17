@@ -13,7 +13,12 @@
 # The release binary is downloaded once, checksum-verified against the
 # release's SHASUMS256.txt, and run with its own data, cache, state and config
 # dirs, so neither the installed mise's state nor a global mise config (its
-# `lockfile_platforms`, say) changes what it writes.
+# `lockfile_platforms`, say) changes what it writes. mise's hooks stay off
+# (mise.toml's postinstall would run `hk install` against that empty data dir).
+#
+# `mise lock` can exit 0 after failing to resolve an entry, leaving the old one
+# in place, so a run fails on any warning or error it logs, or a summary that
+# skipped an entry — otherwise a stale lockfile would pass --check.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -43,26 +48,46 @@ if [[ ! -x "${bin}" ]]; then
   mkdir -p "${home}"
   base="https://github.com/jdx/mise/releases/download/v${version}"
   name="mise-v${version}-${asset}"
-  curl -fsSL -o "${bin}.tmp" "${base}/${name}"
+  # Each run downloads to its own file and renames it into place, so two first
+  # runs at once (two worktrees' checks) never share a partial download.
+  download="$(mktemp "${home}/mise.download.XXXXXX")"
+  trap 'rm -f "${download}"' EXIT
+  curl -fsSL -o "${download}" "${base}/${name}"
   expected="$(curl -fsSL "${base}/SHASUMS256.txt" | awk -v f="./${name}" '$2 == f { print $1 }')"
-  actual="$(shasum -a 256 "${bin}.tmp" | awk '{ print $1 }')"
+  actual="$(shasum -a 256 "${download}" | awk '{ print $1 }')"
   if [[ -z "${expected}" || "${expected}" != "${actual}" ]]; then
-    rm -f "${bin}.tmp"
     echo "lock: ${name} does not match the checksum in its release's SHASUMS256.txt" >&2
     exit 1
   fi
-  chmod +x "${bin}.tmp"
-  mv "${bin}.tmp" "${bin}"
+  chmod +x "${download}"
+  mv -f "${download}" "${bin}"
+  trap - EXIT
 fi
 
 export MISE_DATA_DIR="${home}/data" MISE_CACHE_DIR="${home}/cache"
 export MISE_STATE_DIR="${home}/state" MISE_CONFIG_DIR="${home}/config"
-export MISE_YES=1
+export MISE_YES=1 MISE_NO_HOOKS=1
+
+# Runs `mise lock` in $1, its output in $2; fails unless every entry resolved.
+lock_in() {
+  if ! (cd "$1" && "${bin}" lock > "$2" 2>&1); then
+    cat "$2" >&2
+    echo "lock: mise ${version} lock failed" >&2
+    return 1
+  fi
+  if grep -qE '^mise (WARN|ERROR)' "$2" || ! grep -qE 'platform entries \(0 skipped\)' "$2"; then
+    cat "$2" >&2
+    echo "lock: mise ${version} could not resolve every entry (see its warnings above)" >&2
+    return 1
+  fi
+}
 
 if [[ "${CHECK}" == 0 ]]; then
   export MISE_TRUSTED_CONFIG_PATHS="${ROOT}"
-  cd "${ROOT}"
-  "${bin}" lock
+  log="$(mktemp)"
+  trap 'rm -f "${log}"' EXIT
+  lock_in "${ROOT}" "${log}"
+  cat "${log}"
   exit 0
 fi
 
@@ -75,10 +100,7 @@ while IFS= read -r file; do
   cp "${ROOT}/${file}" "${scratch}/${file}"
 done < <(git -C "${ROOT}" ls-files -- 'mise.toml' '*/mise.toml' 'mise.lock')
 export MISE_TRUSTED_CONFIG_PATHS="${scratch}"
-(cd "${scratch}" && "${bin}" lock > "${scratch}/lock.log" 2>&1) || {
-  cat "${scratch}/lock.log" >&2
-  exit 1
-}
+lock_in "${scratch}" "${scratch}/lock.log"
 if ! cmp -s "${ROOT}/mise.lock" "${scratch}/mise.lock"; then
   diff -u "${ROOT}/mise.lock" "${scratch}/mise.lock" >&2 || true
   echo "lock: mise.lock is not what mise ${version} (mise.toml's min_version) writes." >&2
