@@ -98,7 +98,7 @@ and the current pin:
 ## cospec is an opinionated implementation of OpenSpec
 
 cospec spawns OpenSpec; it never imports it — functionally a drop-in
-replacement, with compatibility upheld. Two rules keep the boundary solid:
+replacement, with compatibility upheld. Three rules keep the boundary solid:
 
 - **Resolved by path, never `$PATH`.** cospec looks for a project-local install
   first, falls back to an embedded copy bundled into the compiled binary, and
@@ -108,6 +108,16 @@ replacement, with compatibility upheld. Two rules keep the boundary solid:
 - **Version-asserted before every session.** See the pin above — cospec refuses
   to drive a binary outside the accepted range rather than silently behaving
   unpredictably against it.
+- **Lists come out in OpenSpec's order.** cospec runs OpenSpec with its own
+  runtime, not Node, and the two list a directory differently: Node returns the
+  entries sorted by name on macOS and Linux, cospec's runtime in whatever order
+  the filesystem keeps them. So every OpenSpec call runs behind a small preload
+  that sorts each directory listing the way Node does, and every list OpenSpec
+  prints — the available changes an `instructions` refusal names, specs, schemas
+  — comes out in the order OpenSpec itself prints it. On Windows, where Node
+  does not sort either, nothing changes. cospec keeps the preload in its cache,
+  beside the one described in
+  [Configuration](/reference/configuration#machine-global-openspec-config).
 
 On top of that wrapped binary, cospec adds:
 

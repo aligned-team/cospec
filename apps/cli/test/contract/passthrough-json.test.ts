@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { writeReaddirPreloadInto } from '../../src/core/readdir-preload.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
 import { cleanupAll, cospec, hashTree, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
 import { documentCount } from './support/parse-class.ts'
@@ -728,6 +729,17 @@ function runUncached(argv: string[], root: string): Promise<SpawnResult> {
   })
 }
 
+/**
+ * The fixture's tree with cospec's cache already holding the readdir preload, as
+ * after any earlier cospec run: a forward row (`schemas`) asks the binary in a
+ * scratch directory before it refuses, and that spawn finds the preload in place
+ * instead of writing it, so the tree still shows any write the refusal makes.
+ */
+function warmTree(root: string): Record<string, string> {
+  writeReaddirPreloadInto(join(oracleEnv(root).XDG_CACHE_HOME!, 'cospec'))
+  return hashTree(root)
+}
+
 describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7.2)', () => {
   const COMMANDS: readonly string[][] = [
     ['store', 'list'],
@@ -751,7 +763,7 @@ describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7
     test(`${command.join(' ')} --cwd <missing>: the resolver's text refusal`, async () => {
       const root = plainRoot()
       const missing = join(root, 'no-such-dir')
-      const tree = hashTree(root)
+      const tree = warmTree(root)
       const co = await runUncached([...command, '--cwd', missing], root)
       expect(co.exitCode, detail(co)).toBe(1)
       expect(co.stdout, detail(co)).toBe('')
@@ -762,7 +774,7 @@ describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7
     test(`${command.join(' ')} --cwd <missing> --json: the resolver's document`, async () => {
       const root = plainRoot()
       const missing = join(root, 'no-such-dir')
-      const tree = hashTree(root)
+      const tree = warmTree(root)
       const co = await runUncached([...command, '--cwd', missing, '--json'], root)
       expect(co.exitCode, detail(co)).toBe(1)
       expect(documentCount(co.stdout), detail(co)).toBe(1)

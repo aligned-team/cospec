@@ -16,6 +16,7 @@ import {
   PINNED_OPENSPEC_VERSION,
 } from '../../../src/core/openspec.ts'
 import { respellRemedies } from '../../../src/core/remedies.ts'
+import { fromBinPath } from '../../fixtures/wrapped-argv.ts'
 
 const UPSTREAM_REDIRECT =
   '✖ Error: --store-path is not supported. Register the path with openspec store register <path>, then select it with --store <id>.\n' +
@@ -262,7 +263,7 @@ async function withCannedAnswer<T>(
   })
   // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
   Bun.spawn = (cmd: string[]) => {
-    const args = cmd.slice(3)
+    const args = fromBinPath(cmd).slice(2)
     const version = args.length === 1 && args[0] === '--version'
     if (!version) argv.push(args)
     const answer = version ? { stdout: `${PINNED_OPENSPEC_VERSION}\n` } : canned

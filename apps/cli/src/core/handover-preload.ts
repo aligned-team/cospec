@@ -42,20 +42,8 @@
 // handover whose output reader has exited carries on and exits as the binary
 // leaves it.
 
-import { createHash } from 'node:crypto'
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-
-import { cacheRoot } from './openspec-embedded.ts'
+import { materializePreload, type PreloadFile, writePreloadInto } from './preload-file.ts'
+import { readdirPreload } from './readdir-preload.ts'
 
 /**
  * Every console method the pinned binary calls, and the process stream Node's
@@ -96,55 +84,39 @@ process.on('beforeExit', (code) => {
 })
 `
 
-/**
- * Writes the preload into `root` (content-addressed, atomic, self-healing
- * like the embedded bundle's extraction) and returns its path. Throws when
- * the file on disk does not hold the source afterwards.
- */
+const HANDOVER_PRELOAD: PreloadFile = {
+  stem: 'handover-preload',
+  extension: 'mjs',
+  source: HANDOVER_PRELOAD_SOURCE,
+}
+
+/** Writes the handover preload into `root` (see `writePreloadInto`) and returns its path. */
 export function writeHandoverPreloadInto(root: string): string {
-  const digest = createHash('sha256').update(HANDOVER_PRELOAD_SOURCE).digest('hex')
-  const path = join(root, `handover-preload-${digest.slice(0, 16)}.mjs`)
-  if (existsSync(path) && readFileSync(path, 'utf8') === HANDOVER_PRELOAD_SOURCE) return path
-  mkdirSync(root, { recursive: true })
-  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`
-  writeFileSync(tmp, HANDOVER_PRELOAD_SOURCE)
-  renameSync(tmp, path)
-  if (!existsSync(path) || readFileSync(path, 'utf8') !== HANDOVER_PRELOAD_SOURCE)
-    throw new Error(`cospec: could not write the handover preload to ${path}`)
-  return path
+  return writePreloadInto(root, HANDOVER_PRELOAD)
 }
-
-/** The `errno` codes that mean a directory cannot take the preload's file. */
-const UNWRITABLE = new Set(['EACCES', 'EPERM', 'EROFS', 'ENOTDIR', 'EEXIST'])
-
-function isUnwritable(error: unknown): boolean {
-  const code = (error as NodeJS.ErrnoException | undefined)?.code
-  return code !== undefined && UNWRITABLE.has(code)
-}
-
-let fallback: string | undefined
 
 /**
- * The preload's path: in cospec's cache (`${XDG_CACHE_HOME:-~/.cache}/cospec`),
- * or — when that directory cannot be written — in a directory of this
- * process's own under the temp dir, removed when the process exits, so a
+ * The handover preload's path: in cospec's cache, or — when that directory
+ * cannot be written — under the temp dir (see `materializePreload`), so a
  * read-only cache never stops a handover the binary would run.
  */
 export function handoverPreload(): string {
-  try {
-    return writeHandoverPreloadInto(cacheRoot())
-  } catch (error) {
-    if (!isUnwritable(error)) throw error
-  }
-  if (fallback === undefined) {
-    const dir = mkdtempSync(join(tmpdir(), 'cospec-preload-'))
-    process.once('exit', () => rmSync(dir, { recursive: true, force: true }))
-    fallback = writeHandoverPreloadInto(dir)
-  }
-  return fallback
+  return materializePreload(HANDOVER_PRELOAD)
 }
 
-/** The argv that runs `bin` with `argv` under the current executable's Bun, the preload first. */
+/**
+ * The argv that runs `bin` with `argv` under the current executable's Bun: the
+ * readdir preload first (it must patch `fs` before anything imports it), then
+ * the handover preload.
+ */
 export function preloadedArgv(bin: string, argv: readonly string[]): string[] {
-  return [process.execPath, '--preload', handoverPreload(), bin, ...argv]
+  return [
+    process.execPath,
+    '--preload',
+    readdirPreload(),
+    '--preload',
+    handoverPreload(),
+    bin,
+    ...argv,
+  ]
 }

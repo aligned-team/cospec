@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { formatLocalDate, run as archiveRun } from '../../../src/commands/archive.ts'
 import { ARCHIVE_REFUSAL_REASONS } from '../../../src/core/archive-output.ts'
 import { PINNED_OPENSPEC_VERSION } from '../../../src/core/openspec.ts'
+import { fromBinPath } from '../../fixtures/wrapped-argv.ts'
 import {
   ctx,
   DONE_TASKS,
@@ -220,7 +221,7 @@ async function archiveJson(cwd: string, id: string, binary: Case['binary']) {
   let spawned = 0
   // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
   Bun.spawn = (cmd: string[], opts: Parameters<typeof Bun.spawn>[1]) => {
-    const argv = cmd.slice(3)
+    const argv = fromBinPath(cmd).slice(2)
     // Revalidation's delegated `validate` is the real binary's.
     if (argv[0] === 'validate') return originalSpawn(cmd, opts)
     const version = argv.length === 1 && argv[0] === '--version'

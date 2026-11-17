@@ -16,6 +16,7 @@ import {
   PINNED_OPENSPEC_VERSION,
   WRAPPED_ENV,
 } from '../../src/core/openspec.ts'
+import { readdirPreload } from '../../src/core/readdir-preload.ts'
 import {
   cleanupAll,
   mkTempRepo,
@@ -46,11 +47,17 @@ function forceColorInParent(): void {
 }
 
 describe('the oracle spawns the pinned binary as cospec does', () => {
-  test('under the running executable (Bun), on the package bin, with argv untouched', () => {
+  test('under the running executable (Bun) behind the readdir preload, on the package bin, with argv untouched', () => {
     const root = mkTempRepo()
     const argv = ['--store-path', '/x', 'list', '--json']
     const spawn = oracleSpawn(argv, root)
-    expect(spawn.cmd).toEqual([process.execPath, openspecBinPath(), ...argv])
+    expect(spawn.cmd).toEqual([
+      process.execPath,
+      '--preload',
+      readdirPreload(),
+      openspecBinPath(),
+      ...argv,
+    ])
     expect(spawn.cwd).toBe(root)
     expect(oracleSpawn(argv, root, { cwd: '/elsewhere' }).cwd).toBe('/elsewhere')
   })
@@ -65,11 +72,12 @@ describe('the oracle spawns the pinned binary as cospec does', () => {
     expect(env['HOME']).toBe(oracleEnv(root)['HOME'])
   })
 
-  test('{ runtime: node } swaps only the interpreter', () => {
+  test('{ runtime: node } swaps the interpreter, without the preload Node does not need', () => {
     const root = mkTempRepo()
     const bun = oracleSpawn(['list'], root)
     const node = oracleSpawn(['list'], root, { runtime: 'node' })
-    expect(node.cmd).toEqual([Bun.which('node')!, ...bun.cmd.slice(1)])
+    expect(bun.cmd.slice(1, 3)).toEqual(['--preload', readdirPreload()])
+    expect(node.cmd).toEqual([Bun.which('node')!, ...bun.cmd.slice(3)])
     expect(node.env).toEqual(bun.env)
     expect(node.cwd).toBe(bun.cwd)
   })

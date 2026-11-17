@@ -33,21 +33,47 @@ cospec spawns OpenSpec; it never imports it.
   caught by re-hashing rather than only re-measuring. OpenSpec's built-in
   `schemas/` are not embedded: a cospec-managed project always has project-local
   `openspec/schemas/`, which wins OpenSpec's own resolution order. Either way
-  cospec spawns `<execPath> <bin> <args>` under the forced spawn environment,
-  `WRAPPED_ENV` (`core/openspec.ts`) — a named, exported contract of four keys,
-  which supersedes any config-file opt-out OpenSpec itself offers for the same
-  settings: `--no-color`; `BUN_BE_BUN=1` (the compiled binary is its own bun
-  runtime); `OPENSPEC_TELEMETRY=0`, which does double duty — it silences the
-  first-run telemetry notice that would otherwise print to stdout and corrupt
-  every `--json` read, **and** it disables OpenSpec's own per-command update
-  check (`isCheckEnabled()` is wired into every command, not just `init`/
-  `update`, and returns false when this is `'0'`), keeping every wrapped spawn
-  offline — removing this key does not just re-enable a notice, it re-enables an
-  outbound npm request on every single wrapped call;
-  `OPENSPEC_NO_COMPLETIONS=1`, which silences 1.10.0's stderr shell-completion
-  tip so a cospec user is never told to run a bare `openspec` command. `cwd` is
-  set to the target repo — never whatever happens to be on the developer's
-  `$PATH`.
+  cospec spawns `<execPath> --preload <readdir-preload> <bin> <args>` (the
+  readdir preload below; a handover adds its own preload after it) under the
+  forced spawn environment, `WRAPPED_ENV` (`core/openspec.ts`) — a named,
+  exported contract of four keys, which supersedes any config-file opt-out
+  OpenSpec itself offers for the same settings: `--no-color`; `BUN_BE_BUN=1`
+  (the compiled binary is its own bun runtime); `OPENSPEC_TELEMETRY=0`, which
+  does double duty — it silences the first-run telemetry notice that would
+  otherwise print to stdout and corrupt every `--json` read, **and** it disables
+  OpenSpec's own per-command update check (`isCheckEnabled()` is wired into
+  every command, not just `init`/ `update`, and returns false when this is
+  `'0'`), keeping every wrapped spawn offline — removing this key does not just
+  re-enable a notice, it re-enables an outbound npm request on every single
+  wrapped call; `OPENSPEC_NO_COMPLETIONS=1`, which silences 1.10.0's stderr
+  shell-completion tip so a cospec user is never told to run a bare `openspec`
+  command. `cwd` is set to the target repo — never whatever happens to be on the
+  developer's `$PATH`.
+- **Directory listings in Node's order.** OpenSpec builds several lists straight
+  from `fs.readdir` — `Available changes` in an `instructions` refusal, spec and
+  schema discovery — and its output is defined by Node, whose libuv `scandir`
+  sorts a non-recursive listing by the bytes of each name (`strcmp`) on every
+  platform but Windows. Bun returns the filesystem's own order (APFS and ext4
+  store names by hash), so a list came out of cospec in another order than
+  OpenSpec prints it, by the runner's hash seed. Every wrapped call — `spawnRaw`
+  and `preloadedArgv` — therefore runs behind `core/readdir-preload.ts`, first
+  on the argv: CommonJS that sorts the results of `readdirSync`, callback
+  `readdir` and `promises.readdir` by the UTF-8 bytes of each name (`Dirent`s by
+  their name, byte arrays as they are), leaving Windows and recursive reads
+  alone. It patches `fs` through `require()` before anything imports `node:fs`
+  as an ES module: Bun builds a builtin's ES-module namespace from its CommonJS
+  exports on first import and never re-syncs it (`syncBuiltinESMExports` does
+  nothing), and `Bun.plugin` can neither override nor intercept a builtin — so
+  patched first, every import form the dist uses sees the sorted functions.
+  `test/unit/core/readdir-preload.test.ts` runs each of those forms behind the
+  preload and under Node and requires identical results;
+  `test/contract/readdir-order.test.ts` compares cospec's `instructions` with
+  the binary under Node on a root the filesystem lists out of byte order, and
+  scans the vendored bundle (the dist and every dependency it runs) so a pin
+  that lists a directory through `opendir`, `glob` or a recursive `readdir` —
+  forms the preload leaves alone — fails. Both preloads are written by
+  `core/preload-file.ts`: content-addressed into cospec's cache, or a
+  per-process directory under the temp dir when the cache cannot be written.
 - **Never `import` the package.** Importing OpenSpec's root runs
   `program.parse()` as a side effect. Deep-importing its `dist/*` internals is
   also forbidden — those are not a stable interface.
@@ -71,10 +97,10 @@ cospec spawns OpenSpec; it never imports it.
   `oracle()` (`test/contract/support/upstream-oracle.ts`) or through
   `openspec()`/`openspecRaw()` (`test/fixtures/support.ts`) — and every one of
   them spawns it the way `core/openspec.ts` does: the running executable (Bun)
-  on the resolved bin, under `buildWrappedSpawnEnv` over a private HOME/XDG
-  sandbox (`oracleEnv`), so both sides of a differential run in the runtime
-  cospec's wrapped calls use and the binary never reads or writes the real HOME.
-  In-process calls are covered by the bunfig preload
+  behind the readdir preload on the resolved bin, under `buildWrappedSpawnEnv`
+  over a private HOME/XDG sandbox (`oracleEnv`), so both sides of a differential
+  run in the runtime cospec's wrapped calls use and the binary never reads or
+  writes the real HOME. In-process calls are covered by the bunfig preload
   `test/fixtures/isolate-machine-state.ts`, which every `bun test` run loads
   through the `bunfig.toml` of its working directory (the repo root, `apps/cli`,
   `packages/bench` and `e2e` each name it): it points HOME, USERPROFILE, the XDG
@@ -82,20 +108,21 @@ cospec spawns OpenSpec; it never imports it.
   to every `Bun.spawn`/`Bun.spawnSync` that passes no `env` (Bun would start the
   child with the real HOME), removes the sandbox after the last test, and fails
   any test whose global-config path lies under the real home
-  (`test/unit/support-machine-isolation.test.ts` guards it). The one exception
-  is `{ runtime: 'node' }` for an argv whose first token is `--`, which Bun
-  drops after the script path. That Node is the `mise.toml` `node` pin, for
-  tests and CI only — cospec itself never runs Node. Errno failures are compared
-  by errno code, syscall (`statx` read as `stat`) and path
-  (`test/fixtures/errno.ts`), never by the sentence, which varies by runtime and
-  kernel. The self-hosting tasks are isolated the same way from outside the test
-  runner: `scripts/generate-self` (`mise run generate` and `generate:check`)
-  runs `update` with HOME, USERPROFILE, `CODEX_HOME` and the XDG dirs at one
-  empty temporary directory, so neither the host's global config (its
-  `delivery`) nor a home-scoped skills root under its real home reaches the run
-  or is written by it (`test/integration/generate-self-home.test.ts` guards it,
-  and records the seven variables the script sets plus its completion-tip
-  settings).
+  (`test/unit/support-machine-isolation.test.ts` guards it). The exceptions run
+  the binary under Node with `{ runtime: 'node' }`: an argv whose first token is
+  `--`, which Bun drops after the script path, and a row that pins a runtime gap
+  cospec closes against the binary under Node itself (the handover keys, the
+  readdir order). That Node is the `mise.toml` `node` pin, for tests and CI only
+  — cospec itself never runs Node. Errno failures are compared by errno code,
+  syscall (`statx` read as `stat`) and path (`test/fixtures/errno.ts`), never by
+  the sentence, which varies by runtime and kernel. The self-hosting tasks are
+  isolated the same way from outside the test runner: `scripts/generate-self`
+  (`mise run generate` and `generate:check`) runs `update` with HOME,
+  USERPROFILE, `CODEX_HOME` and the XDG dirs at one empty temporary directory,
+  so neither the host's global config (its `delivery`) nor a home-scoped skills
+  root under its real home reaches the run or is written by it
+  (`test/integration/generate-self-home.test.ts` guards it, and records the
+  seven variables the script sets plus its completion-tip settings).
 
 ## The command table and the reachability test
 
@@ -681,6 +708,8 @@ apps/cli/src/
 ├── core/
 │   ├── global-profile.ts   the one reader of the global profile, workflows and delivery keys
 │   ├── openspec.ts         spawn wrapper, version assert, passthroughOpenspec runner
+│   ├── readdir-preload.ts  the preload every wrapped call runs behind (Node's
+│   │                       readdir order); preload-file.ts writes it to the cache
 │   ├── passthrough-command.ts  global-flag threading for passthrough commands
 │   ├── change.ts           change discovery, .openspec.yaml, archive index,
 │   │                       the namespace-folder detector

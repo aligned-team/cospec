@@ -11,7 +11,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import type { CommandContext } from '../../src/cli.ts'
 import * as configModule from '../../src/commands/config.ts'
@@ -56,25 +56,46 @@ interface Answer {
 interface Spawned {
   /** The wrapped argv of each piped call, after the forced leading `--no-color`. */
   piped: string[][]
-  /** The piped calls that ran with a `--preload` ahead of the bin path, as `piped` records them. */
+  /**
+   * The piped calls that ran with a `--preload` beyond the readdir preload ahead of the bin path,
+   * as `piped` records them.
+   */
   pipedPreloaded: string[][]
   /** The piped calls whose stdin is a pipe cospec forwards input into, as `piped` records them. */
   pipedWithInput: string[][]
-  /** Each handover: its argv after the bin path, its environment, and its `--preload` file. */
+  /** Each handover: its argv after the bin path, its environment, and its handover `--preload` file. */
   handovers: {
     argv: string[]
     env: Record<string, string | undefined>
     preload: string | undefined
   }[]
+  /** Every spawn whose first `--preload` is not the readdir preload, whole. */
+  withoutReaddirPreload: string[][]
   stdout: string
   stderr: string
 }
 
-/** A spawn's `--preload <file>` ahead of the bin path, and the argv from the bin path on. */
-function splitPreload(cmd: string[]): { preload: string | undefined; fromBin: string[] } {
-  return cmd[1] === '--preload'
-    ? { preload: cmd[2], fromBin: cmd.slice(3) }
-    : { preload: undefined, fromBin: cmd.slice(1) }
+/**
+ * A spawn's `--preload <file>` pairs ahead of the bin path: whether the first is the readdir
+ * preload, the one after it (a handover preload), and the argv from the bin path on.
+ */
+function splitPreload(cmd: string[]): {
+  readdirFirst: boolean
+  preload: string | undefined
+  fromBin: string[]
+} {
+  const preloads: string[] = []
+  let at = 1
+  while (cmd[at] === '--preload') {
+    preloads.push(cmd[at + 1] ?? '')
+    at += 2
+  }
+  const readdirFirst = basename(preloads[0] ?? '').startsWith('readdir-preload-')
+  return {
+    readdirFirst,
+    preload: preloads[readdirFirst ? 1 : 0],
+    fromBin: cmd.slice(at),
+  }
 }
 
 /**
@@ -90,6 +111,7 @@ async function stubbed<T>(
     pipedPreloaded: [],
     pipedWithInput: [],
     handovers: [],
+    withoutReaddirPreload: [],
     stdout: '',
     stderr: '',
   }
@@ -98,7 +120,8 @@ async function stubbed<T>(
   const originalErr = process.stderr.write
   // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
   Bun.spawn = (cmd: string[], opts: { stdin?: unknown; env?: Record<string, string> }) => {
-    const { preload, fromBin } = splitPreload(cmd)
+    const { readdirFirst, preload, fromBin } = splitPreload(cmd)
+    if (!readdirFirst) spawned.withoutReaddirPreload.push(cmd)
     if (opts?.stdin === 'inherit') {
       spawned.handovers.push({ argv: fromBin.slice(1), env: opts.env ?? {}, preload })
       return { exited: Promise.resolve(0) }
@@ -133,6 +156,11 @@ async function stubbed<T>(
     Bun.spawn = originalSpawn
     process.stdout.write = originalOut
     process.stderr.write = originalErr
+    // Every wrapped call, piped or handed over, lists directories in Node's order.
+    expect(
+      spawned.withoutReaddirPreload,
+      'a wrapped spawn without the readdir preload first',
+    ).toEqual([])
   }
 }
 

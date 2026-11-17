@@ -24,6 +24,7 @@ import {
   type RootSource,
 } from '../../../src/core/root.ts'
 import { type ErrnoShape, errnoShape } from '../../fixtures/errno.ts'
+import { fromBinPath } from '../../fixtures/wrapped-argv.ts'
 
 // Fixtures live under `tmpdir()` as spelled, which is a symlink on macOS
 // (`/var` -> `/private/var`); the resolver returns canonical paths (design D3),
@@ -816,7 +817,7 @@ describe('resolveRoot — quiet (ledger 5.25, design D7, D8)', () => {
 })
 
 /**
- * The wrapped-binary argv (after `<bun> <openspec bin> --no-color`) of every
+ * The wrapped-binary argv (after `<bun> [--preload <file>…] <openspec bin> --no-color`) of every
  * spawn `fn` makes, minus the memoized version assertion.
  */
 async function spawnedArgs(fn: () => Promise<unknown>): Promise<string[][]> {
@@ -824,7 +825,7 @@ async function spawnedArgs(fn: () => Promise<unknown>): Promise<string[][]> {
   try {
     await fn()
     return spy.mock.calls
-      .map((call) => (call[0] as string[]).slice(3))
+      .map((call) => fromBinPath(call[0] as string[]).slice(2))
       .filter((args) => !(args.length === 1 && args[0] === '--version'))
   } finally {
     spy.mockRestore()
