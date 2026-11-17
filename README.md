@@ -10,6 +10,18 @@ commit type. `feat` gets the full treatment; `ci` takes two minutes.
 cospec ships as standalone executables — one per platform — so it runs with no
 JS runtime required, and installs cleanly on Node, Deno, or Bun.
 
+### Install script
+
+```sh
+curl -fsSL https://github.com/aligned-team/cospec/releases/latest/download/install.sh | sh   # macOS, Linux
+irm https://github.com/aligned-team/cospec/releases/latest/download/install.ps1 | iex       # Windows
+```
+
+Both scripts verify the download against the release's `SHA256SUMS` before
+installing. Version pinning, the install directory, the Nix flake and the full
+platform list are in the
+[installation guide](https://cospec.aligned.team/guide/installation).
+
 ### mise
 
 ```sh
@@ -121,6 +133,7 @@ grandfathering, and a blocking-changes ledger with auto-sync.
 | `cospec completion install`          | write that script and wire your shell to load it; `uninstall` removes both                                                                   |
 | `cospec feedback "<msg>"`            | file a bug report at `aligned-team/cospec` via `gh`; `--upstream` files at OpenSpec's own tracker                                            |
 | `cospec version [--check]`           | cospec's version and install type, the wrapped OpenSpec version and source; `--check` looks for a newer release                              |
+| `cospec install [version]`           | install the standalone binary through the release installer, checksum-verified; no `--json`                                                  |
 
 Global flags on every command: `--json`, `--no-color`, `--cwd <path>`,
 `--store <id>`. `--store` runs the whole change lifecycle against a registered

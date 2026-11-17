@@ -173,6 +173,7 @@ export const FS_READERS: Readonly<Record<string, FsReads>> = {
   'test/integration/harness-wiring.test.ts': {
     reads: ['apps/cli/test/integration/__golden__/harness-wiring/**'],
   },
+  'test/integration/install.test.ts': { reads: ['scripts/install/install.sh'] },
   'test/integration/pack-standalone.test.ts': { reads: PACKAGED },
   'test/integration/pack.test.ts': { reads: PACKAGED },
   'test/integration/verification-format.test.ts': { reads: ['bunfig.toml'] },
