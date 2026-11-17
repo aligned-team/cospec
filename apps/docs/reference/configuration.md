@@ -394,7 +394,10 @@ it. Its error lines (`config edit`'s editor failures, say) print uncoloured, as
 OpenSpec prints them under Node. cospec writes that file to its cache
 (`${XDG_CACHE_HOME:-~/.cache}/cospec`), or — when it cannot write there — to a
 directory of its own under the system temp directory, removed when cospec exits,
-so a read-only cache never stops a prompt.
+so a read-only cache never stops a prompt. The preload every OpenSpec call runs
+behind, which lists directories in Node's order (see
+[How it relates to OpenSpec](/concepts/how-it-relates-to-openspec#cospec-is-an-opinionated-implementation-of-openspec)),
+is written beside it the same way.
 
 `--scope` is a parent-level option (not `--store` — OpenSpec config is
 machine-global, so `cospec config` never resolves a root or threads

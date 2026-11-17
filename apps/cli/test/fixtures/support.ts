@@ -20,6 +20,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { buildWrappedSpawnEnv } from '../../src/core/openspec.ts'
+import { readdirPreload } from '../../src/core/readdir-preload.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -191,7 +192,8 @@ async function runBinary(
   const sandbox = mkdtempSync(join(tmpdir(), 'cospec-binary-home-'))
   try {
     return await run(
-      [process.execPath, openspecBinPath(), ...args],
+      // Behind the readdir preload, as every wrapped call cospec makes runs.
+      [process.execPath, '--preload', readdirPreload(), openspecBinPath(), ...args],
       cwd,
       withSuiteZone(buildWrappedSpawnEnv({ ...oracleEnv(sandbox), ...env })),
     )

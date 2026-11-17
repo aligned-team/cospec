@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { readdirPreload } from '../../src/core/readdir-preload.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
 import {
   cleanupAll,
@@ -158,7 +159,8 @@ async function oracleJsonIn(
 
 /** The pinned binary's raw answer to `argv` from `cwd`, in `root`'s sandbox. */
 async function oracleIn(argv: string[], root: string, cwd: string): Promise<SpawnResult> {
-  const proc = Bun.spawn(['bun', openspecBinPath(), ...argv], {
+  // Behind the readdir preload, as every wrapped call cospec makes runs.
+  const proc = Bun.spawn(['bun', '--preload', readdirPreload(), openspecBinPath(), ...argv], {
     cwd,
     stdin: 'ignore',
     stdout: 'pipe',

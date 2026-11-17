@@ -2,6 +2,7 @@ import { dirname, join } from 'node:path'
 
 import type { ReferenceEntry } from './instructions-render.ts'
 import { extractEmbeddedOpenspec } from './openspec-embedded.ts'
+import { readdirPreload } from './readdir-preload.ts'
 
 /**
  * The exact `@fission-ai/openspec` version this repo pins for dev/CI (the
@@ -87,9 +88,12 @@ export interface RunOptions extends SpawnShape {
   expect?: RunExpectation
 }
 
-/** How a piped wrapped call's child starts beyond its argv: by default, no preload and no stdin. */
+/**
+ * How a piped wrapped call's child starts beyond its argv: by default, only the
+ * readdir preload every wrapped call runs behind, and no stdin.
+ */
 export interface SpawnShape {
-  /** A script the child's Bun runs ahead of the binary (`--preload <file>`). */
+  /** A script the child's Bun runs ahead of the binary, after the readdir preload (`--preload <file>`). */
   preload?: string
   /**
    * Input forwarded to the child's stdin once it has printed its prompt (its
@@ -255,13 +259,20 @@ export function buildWrappedSpawnEnv(
  * BUN_BE_BUN=1 makes the executable behave as the bun runtime for the child
  * (a compiled binary otherwise always runs its embedded entrypoint). This is
  * what keeps the wrapped openspec calls working on machines with no bun.
+ *
+ * The readdir preload runs first on every call, so the binary lists directories
+ * in Node's order (`readdir-preload.ts`).
  */
 async function spawnRaw(
   args: string[],
   cwd: string,
   shape: SpawnShape = {},
 ): Promise<OpenspecResult> {
-  const preload = shape.preload === undefined ? [] : ['--preload', shape.preload]
+  const preload = [
+    '--preload',
+    readdirPreload(),
+    ...(shape.preload === undefined ? [] : ['--preload', shape.preload]),
+  ]
   const proc = Bun.spawn([process.execPath, ...preload, openspecBin(), '--no-color', ...args], {
     cwd,
     stdin: shape.input === undefined ? 'ignore' : 'pipe',

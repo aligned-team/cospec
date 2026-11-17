@@ -11,6 +11,7 @@ import { join } from 'node:path'
 
 import { run } from '../../src/cli.ts'
 import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
+import { fromBinPath } from '../fixtures/wrapped-argv.ts'
 
 afterAll(cleanupAll)
 
@@ -120,7 +121,7 @@ async function countingDoctor(
   Object.assign(process.env, env)
   // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
   Bun.spawn = (cmd: string[], opts: unknown) => {
-    const args = cmd.slice(3)
+    const args = fromBinPath(cmd).slice(2)
     if (args[0] === 'doctor' && args.includes('--json')) doctorCalls++
     return originalSpawn(cmd, opts as never)
   }

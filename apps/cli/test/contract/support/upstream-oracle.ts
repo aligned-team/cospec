@@ -42,6 +42,7 @@
 import { join } from 'node:path'
 
 import { buildWrappedSpawnEnv } from '../../../src/core/openspec.ts'
+import { readdirPreload } from '../../../src/core/readdir-preload.ts'
 import { mkTempRepo, openspecBinPath, oracleEnv, withSuiteZone } from '../../fixtures/support.ts'
 
 // Defined beside `openspec()`/`openspecRaw()`, which run under the same sandbox.
@@ -83,22 +84,23 @@ export interface OracleSpawn {
 
 /**
  * What `oracle(argv, root, opts)` spawns: the pinned binary (resolved by
- * package path, never `$PATH`) under the running executable — as `spawnRaw`
- * does — or under `node` from PATH for `{ runtime: 'node' }`, with `argv`
- * untouched, in `root` (or `opts.cwd`), under
+ * package path, never `$PATH`) under the running executable behind the readdir
+ * preload — as `spawnRaw` does — or under `node` from PATH for
+ * `{ runtime: 'node' }`, which lists directories in that order itself, with
+ * `argv` untouched, in `root` (or `opts.cwd`), under
  * `buildWrappedSpawnEnv(oracleEnv(root))`, with `TZ` pinned to the suite's zone
  * (`withSuiteZone`).
  */
 export function oracleSpawn(argv: string[], root: string, opts: OracleOptions = {}): OracleSpawn {
-  let interpreter = process.execPath
+  let runtime = [process.execPath, '--preload', readdirPreload()]
   if (opts.runtime === 'node') {
     const node = Bun.which('node')
     if (node === null)
       throw new Error('oracle: `node` is not on PATH, so the binary cannot run under Node')
-    interpreter = node
+    runtime = [node]
   }
   return {
-    cmd: [interpreter, openspecBinPath(), ...argv],
+    cmd: [...runtime, openspecBinPath(), ...argv],
     cwd: opts.cwd ?? root,
     env: withSuiteZone({ ...buildWrappedSpawnEnv(oracleEnv(root)), ...opts.env }),
   }

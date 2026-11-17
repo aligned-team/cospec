@@ -19,6 +19,7 @@ import {
   renderJsonDocument,
   respellCommandFields,
 } from '../../../src/core/passthrough-command.ts'
+import { fromBinPath } from '../../fixtures/wrapped-argv.ts'
 
 function result(partial: Partial<OpenspecResult>): OpenspecResult {
   return { stdout: '', stderr: '', exitCode: 0, ...partial }
@@ -146,8 +147,8 @@ function withStubbedSpawn<T>(
   let capturedCwd: string | undefined
   // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
   Bun.spawn = (cmd: string[], opts: { cwd?: string }) => {
-    // cmd is [execPath, openspecBinPath, '--no-color', ...args].
-    const args = cmd.slice(2)
+    // cmd is [execPath, ...preloads, openspecBinPath, '--no-color', ...args].
+    const args = fromBinPath(cmd).slice(1)
     const isVersionProbe = args.length === 2 && args[0] === '--no-color' && args[1] === '--version'
     const response = isVersionProbe
       ? { stdout: `${PINNED_OPENSPEC_VERSION}\n`, stderr: '', exitCode: 0 }
