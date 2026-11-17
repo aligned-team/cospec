@@ -18,7 +18,7 @@
 
 ## 3. Sync and no-behavior-change verification
 
-- [ ] 3.1 Run `cospec sync-specs shorten-long-requirements` and verify it runs
+- [x] 3.1 Run `cospec sync-specs shorten-long-requirements` and verify it runs
       clean through archive's scenario-preservation gate
-- [ ] 3.2 Run `mise run check` and verify the existing suite passes unchanged.
+- [x] 3.2 Run `mise run check` and verify the existing suite passes unchanged.
       The archive commit follows this one
