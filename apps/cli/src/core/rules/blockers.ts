@@ -1,6 +1,6 @@
 // blockers/* rules (DESIGN §4.3, grammar §3.8). Rule IDs are frozen public API.
 
-import { parseBlockers, type GatedSection, type ParsedBlockers } from '../blockers.ts'
+import { type GatedSection, parseBlockers, type ParsedBlockers } from '../blockers.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange, ValidateContext } from './schema-info.ts'
 

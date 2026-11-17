@@ -12,8 +12,8 @@ import {
 import {
   escapeTomlBasicString,
   escapeTomlMultilineBasicString,
-  hashBody,
   type HarnessName,
+  hashBody,
   renderHarnessFiles,
   renderTypeTable,
   serializeMarkdownHeaderCommand,

@@ -6,11 +6,11 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
+  type AdvisoryDeltaOp,
   parseAdvisoryDelta,
   parseDeltaSpec,
-  type AdvisoryDeltaOp,
 } from '../../../src/core/deltas.ts'
-import { scenarioGate, type CapabilityDeltas } from '../../../src/core/scenario-gate.ts'
+import { type CapabilityDeltas, scenarioGate } from '../../../src/core/scenario-gate.ts'
 import { mkTempRepo } from '../../fixtures/support.ts'
 
 const DELTA = `## MODIFIED Requirements

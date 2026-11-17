@@ -11,14 +11,14 @@ import { join, relative } from 'node:path'
 
 import { openspecDir } from './change.ts'
 import {
+  type DeltaOp,
   findScenarioDrops,
+  type LivingSpec,
   parseDeltaSpec,
   parseLivingSpec,
   quoteScenarioNames,
   SCENARIO_DROP_HINT,
   SCENARIO_DROP_NOTE_RETIRED,
-  type DeltaOp,
-  type LivingSpec,
   type ScenarioDrop,
 } from './deltas.ts'
 import { capabilityForDeltaFile, isDeltaSpecFile } from './spec-paths.ts'

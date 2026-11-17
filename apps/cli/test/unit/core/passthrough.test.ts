@@ -8,11 +8,11 @@ import {
   enforcePassthroughJson,
   isOpenspecErrorStatus,
   OpenspecCallError,
+  type OpenspecResult,
   passthroughOpenspec,
   PINNED_OPENSPEC_VERSION,
   stripSuppressedStderr,
   suppressRelayedStderrLine,
-  type OpenspecResult,
 } from '../../../src/core/openspec.ts'
 import {
   callPassthrough,

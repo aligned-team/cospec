@@ -5,12 +5,13 @@
 // "done" — the seeded implementations are already functionally correct, only
 // slow — so the discriminating cases are timing checks. Each uses a data
 // profile and threshold DIFFERENT from `bench/measure.ts` (the scenario's own
-// visible acceptance check: dedupe 15000/7000/150ms, groupBy 20000/9000/80ms,
+// visible acceptance check: dedupe 84000/39000/150ms, groupBy 20000/9000/80ms,
 // search 1500docs/40words/60vocab/200queries/150ms) specifically so an
 // implementation special-cased to those exact profiles would not also clear
 // these — calibrated empirically (cold, single-shot `bun` process, no JIT
-// warmup, this machine): the unmodified implementations took ~1340ms
-// (dedupe, 25000/15000 profile), ~375ms (groupBy, 30000/12000 profile), and
+// warmup, this machine): the unmodified implementations took ~1970ms
+// (dedupe, 110000/66000 profile — raised for Bun 1.4.4, whose JIT runs the
+// nested loop ~13x faster than 1.3's did), ~375ms (groupBy, 30000/12000 profile), and
 // ~815ms (search, 2500 docs/30 words/80 vocab/300 queries); a Set/Map/index
 // -backed rewrite takes ~1-10ms on all three. Thresholds sit far below the
 // slow numbers and far above the fast ones for margin. The remaining cases
@@ -24,9 +25,9 @@ import { groupBy } from '../src/groupBy.ts'
 import { searchBatch } from '../src/search.ts'
 import type { Doc } from '../src/search.ts'
 
-test('dedupe stays fast on a large input with a large result set (25000 values, range 15000)', () => {
+test('dedupe stays fast on a large input with a large result set (110000 values, range 66000)', () => {
   const input: number[] = []
-  for (let i = 0; i < 25000; i += 1) input.push(i % 15000)
+  for (let i = 0; i < 110000; i += 1) input.push(i % 66000)
   const expectedUnique = new Set(input).size
 
   const start = performance.now()

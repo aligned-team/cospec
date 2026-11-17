@@ -41,15 +41,16 @@ describe('envWithoutColorForcing', () => {
 })
 
 // `bun test` leaves `process.env.TZ` unset and runs the suite in UTC, while a child
-// spawned from `{ ...process.env }` falls back to the machine's zone. A row that
+// spawned from a sandbox env (which drops `TZ`) falls back to the machine's zone. A row that
 // expects a date computed in-process then disagrees with the date a child stamped
 // for the hours the two zones are on different calendar days (19:00-24:00 in
 // America/Chicago), so every spawn helper pins the child to the suite's own zone.
 describe('the suite zone reaches every spawned child', () => {
   const originalZone = suiteZone()
 
-  // Restored by assignment, never `delete`: in Bun a `delete` of an assigned `TZ`
-  // leaves later assignments without effect.
+  // Restored by assignment, never `delete`: a `delete` of an assigned `TZ` moves
+  // the suite onto the machine's zone in Bun 1.4 (in 1.3 it left later
+  // assignments without effect).
   afterEach(() => {
     process.env.TZ = originalZone
   })
@@ -87,6 +88,9 @@ describe('the suite zone reaches every spawned child', () => {
   })
 
   test('the sandbox env carries no TZ: suites assign it onto process.env and delete it', () => {
+    // Assigned first: since Bun 1.4 an assigned `TZ` survives `{ ...process.env }`,
+    // so the sandbox env must drop it explicitly.
+    process.env.TZ = 'Etc/GMT+12'
     expect(oracleEnv(mkTempRepo())).not.toHaveProperty('TZ')
     expect(envWithoutColorForcing()).not.toHaveProperty('TZ')
   })

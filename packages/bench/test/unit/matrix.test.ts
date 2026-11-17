@@ -2,12 +2,12 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   ARMS,
+  type Cell,
   cellKey,
   expandMatrix,
+  type MatrixFilters,
   MODELS,
   parseArgs,
-  type Cell,
-  type MatrixFilters,
 } from '../../src/matrix.ts'
 
 describe('parseArgs', () => {

@@ -27,23 +27,23 @@ import {
   findNestedChangesIn,
   isCospecType,
   listChanges,
+  type ProjectLayers,
   projectVerificationLayers,
   readOpenspecYaml,
-  type ProjectLayers,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { artifactOutputExists } from '../core/glob.ts'
 import {
   OpenspecCallError,
   passthroughOpenspec,
-  wrappedCallLabel,
   type Root,
+  wrappedCallLabel,
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
-import { enforcedApplyRequires, type CospecType } from '../core/rules/type-facts.ts'
-import { mergeUpstream, resolveRootOrDocument, type Identities } from '../core/upstream-keys.ts'
+import { type CospecType, enforcedApplyRequires } from '../core/rules/type-facts.ts'
+import { type Identities, mergeUpstream, resolveRootOrDocument } from '../core/upstream-keys.ts'
 import { readVerificationVerdict } from '../core/verification-verdict.ts'
-import { artifactDone, computeGate, isArchiveReady, type Gate } from './apply.ts'
+import { artifactDone, computeGate, type Gate, isArchiveReady } from './apply.ts'
 import {
   gateLabel,
   hasAnyArtifact,

@@ -8,9 +8,9 @@ import { isolatedWriteFailure } from '../core/errno.ts'
 import {
   classifyManagedMarkdown,
   classifyManifestFile,
-  type Manifest,
   type ManagedFrontmatter,
   type ManagedState,
+  type Manifest,
   readManifest,
   renderManaged,
   splitFrontmatter,

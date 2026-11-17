@@ -12,7 +12,7 @@
 // check and every reason below is ported from those files; the wording of each
 // zod issue is zod 4's, as the pinned dist prints it.
 
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync, type Dirent } from 'node:fs'
+import { type Dirent, existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, posix, relative, resolve, sep, win32 } from 'node:path'
 

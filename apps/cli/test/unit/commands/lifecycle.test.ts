@@ -4,7 +4,7 @@
 // spot-check + blocker fan-out (DESIGN §5.1–5.2). These spawn subprocesses.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { run as applyRun } from '../../../src/commands/apply.ts'

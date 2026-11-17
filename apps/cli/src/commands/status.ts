@@ -18,16 +18,16 @@ import {
 } from '../core/change-metadata.ts'
 import {
   archiveDir,
+  type Change,
   changesDir,
   defaultProjectSchema,
   describeNestedChange,
   findNestedChangesIn,
   isCospecType,
   listChanges,
+  type ProjectLayers,
   projectVerificationLayers,
   resolveChange,
-  type Change,
-  type ProjectLayers,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { answeringErrno } from '../core/errno.ts'
@@ -36,16 +36,16 @@ import { respellRemedies, respellWholeRemedy } from '../core/remedies.ts'
 import type { ResolvedRoot } from '../core/root.ts'
 import {
   artifactRequires,
+  type CospecType,
   enforcedApplyRequires,
   TYPE_ARTIFACTS,
-  type CospecType,
 } from '../core/rules/type-facts.ts'
-import { parseTasks, type ParsedTasks } from '../core/tasks.ts'
+import { type ParsedTasks, parseTasks } from '../core/tasks.ts'
 import {
+  type Identities,
   mergeUpstream,
   resolveRootOrDocument,
   rootOutput,
-  type Identities,
 } from '../core/upstream-keys.ts'
 import { readVerificationVerdict } from '../core/verification-verdict.ts'
 import { type VerificationVerdict } from '../core/verification.ts'
@@ -54,9 +54,9 @@ import {
   artifactDone,
   closest,
   computeGate,
+  type Gate,
   hasSpecFiles,
   isArchiveReady,
-  type Gate,
 } from './apply.ts'
 
 /** The `clear | soft-blocked (n) | blocked (n hard)` gate column (DESIGN §2.6). */

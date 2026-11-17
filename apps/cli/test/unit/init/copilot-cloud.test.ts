@@ -10,11 +10,11 @@ import {
   COPILOT_CLOUD_IGNORED_FLAG,
   COPILOT_CLOUD_PROMPT,
   copilotAgentContent,
+  type CopilotCloudDecision,
+  type CopilotCloudDecisionInput,
   copilotCloudDirective,
   copilotSetupStepsContent,
   decideCopilotCloud,
-  type CopilotCloudDecision,
-  type CopilotCloudDecisionInput,
 } from '../../../src/harness/copilot-cloud.ts'
 
 // The decision table of design decision 1, one row per cell: the pre row, tiers 1 to 5, and

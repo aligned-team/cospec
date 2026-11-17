@@ -12,15 +12,15 @@
 
 import {
   buildCodeFenceMask,
+  type DeltaOp,
   findLivingStructureIssues,
   foldRequirementName,
+  type LivingStructureIssue,
   normalizeBlockRaw,
   normalizeRequirementName,
-  scenarioNameFromHeader,
-  type DeltaOp,
-  type LivingStructureIssue,
   type ParsedDelta,
   type RequirementSplit,
+  scenarioNameFromHeader,
 } from './deltas.ts'
 
 /** Where a line of the rebuilt spec came from. */

@@ -9,7 +9,7 @@
 
 # Stamps ONE release version into every manifest that carries it:
 #
-#   apps/cli/package.json   .version (via jq, oxfmt-normalised) — the only
+#   apps/cli/package.json   .version (via jq, bun fmt-normalised) — the only
 #                           manifest cospec ships to npm
 #   bun.lock                the @aligned-team/cospec workspace entry's
 #                           "version" (kept in sync — see below)
@@ -95,16 +95,17 @@ require_file() {
   [[ -f "$1" ]] || { echo "ERROR: expected file not found: $1" >&2; exit 1; }
 }
 
-# Set the .version field in a JSON manifest via jq, then normalise with oxfmt
-# so the result matches .oxfmtrc.json. oxfmt runs on the candidate BEFORE the
-# change compare so the on-disk form is a formatter fixed point — running
-# twice is a true no-op. The temp copy keeps the manifest's REAL basename
-# (e.g. `package.json`) in a scratch directory: oxfmt's package.json-aware
-# array formatting is keyed off the literal filename, not just the `.json`
-# extension, so a mangled temp name (`.package.json.setver.$$.tmp.json`)
-# silently falls back to generic JSON formatting and collapses arrays that
-# oxfmt keeps multi-line for a real `package.json` — the exact drift that
-# went uncaught in the v0.1.0 release bump.
+# Set the .version field in a JSON manifest via jq, then normalise with bun fmt
+# so the result matches bunfig.toml's [fmt]. bun fmt runs on the candidate
+# BEFORE the change compare so the on-disk form is a formatter fixed point —
+# running twice is a true no-op. The temp copy keeps the manifest's REAL basename
+# (e.g. `package.json`) in a scratch directory: the formatter's
+# package.json-aware array formatting is keyed off the literal filename, not
+# just the `.json` extension, so a mangled temp name
+# (`.package.json.setver.$$.tmp.json`) silently falls back to generic JSON
+# formatting and collapses arrays that stay multi-line for a real
+# `package.json` — the exact drift that went uncaught in the v0.1.0 release
+# bump.
 set_json_version() {
   local target="$1"
   # Optional jq filter (bound with --arg v). Defaults to a bare .version stamp;
@@ -114,20 +115,20 @@ set_json_version() {
   base="$(basename "$target")"
   # A sibling of $target, not $TMPDIR: keeps the later `mv` on the same
   # filesystem (atomic — no cross-device copy+delete), and the RETURN trap
-  # guarantees cleanup even if jq or oxfmt fails partway through.
+  # guarantees cleanup even if jq or bun fmt fails partway through.
   tmpdir="$(mktemp -d "$(dirname "$target")/.setver.XXXXXX")"
   trap 'rm -rf "$tmpdir"' RETURN
   tmp="$tmpdir/$base"
   jq --indent 2 --arg v "$VERSION" "$filter" "$target" > "$tmp"
-  # Normalise with oxfmt when available; let a real oxfmt failure abort the run
-  # (the command -v guard already covers the not-installed case) so we never
+  # Normalise with bun fmt when available; let a real bun fmt failure abort the
+  # run (the command -v guard already covers the not-installed case) so we never
   # commit partially-normalised JSON or mask a broken toolchain.
-  if command -v oxfmt >/dev/null 2>&1; then
-    # -c pins THIS SCRIPT's own repo config explicitly: $ROOT may be a
-    # throwaway copy of just a few manifests with no .oxfmtrc.json of its own
-    # (e.g. under test via --root), in which case oxfmt's own upward config
-    # search from $tmp would find nothing.
-    oxfmt -c "$SCRIPT_REPO_ROOT/.oxfmtrc.json" --write "$tmp" >/dev/null 2>&1
+  if command -v bun >/dev/null 2>&1; then
+    # --cwd pins THIS SCRIPT's own repo config explicitly: bun fmt finds
+    # bunfig.toml's [fmt] from the working directory up, and $ROOT may be a
+    # throwaway copy of just a few manifests with no bunfig.toml of its own
+    # (e.g. under test via --root).
+    bun fmt --cwd="$SCRIPT_REPO_ROOT" --write "$tmp" >/dev/null 2>&1
   fi
   if cmp -s "$tmp" "$target"; then
     echo "  unchanged: ${target#"$ROOT"/}"

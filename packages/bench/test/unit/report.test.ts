@@ -9,17 +9,17 @@ import type { ArtifactSnapshot, MechanicalMetrics } from '../../src/mechanical.t
 import {
   aggregate,
   appendCellResult,
+  type CellResult,
   ensureRunDir,
   isStaleSchema,
   readCellDiff,
   readCellsJsonl,
+  type RunMeta,
   writeAggregate,
   writeArtifactSnapshot,
   writeCellDiff,
   writeCellsJsonl,
   writeMarkdown,
-  type CellResult,
-  type RunMeta,
 } from '../../src/report.ts'
 
 const roots: string[] = []

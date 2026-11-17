@@ -28,15 +28,15 @@ import { isInteractive } from '../core/interactive.ts'
 import {
   computeContentHash,
   CURRENT_GENERATED_BY,
-  type Manifest,
   MANAGED_AUTHOR,
+  type Manifest,
   manifestPath,
   readManifest,
-  resolveContainedPath,
   renderManaged,
+  resolveContainedPath,
   splitFrontmatter,
-  type WriteResult,
   writeManifest,
+  type WriteResult,
 } from '../core/managed-files.ts'
 import { composeAllTypes, TYPE_TABLE } from '../core/schema-compose.ts'
 import {
@@ -57,11 +57,11 @@ import {
   classifyCloudFile,
   classifyCopilotAgentReconciliation,
   COPILOT_CLOUD_FILES,
-  type CopilotCloudDirective,
   copilotAgentFrontmatter,
-  copilotSelected,
+  type CopilotCloudDirective,
   type CopilotCloudReport,
   copilotCloudUpdateLines,
+  copilotSelected,
   copilotSetupStepsContent,
   emptyCopilotCloudReport,
   expectedCloudFailure,

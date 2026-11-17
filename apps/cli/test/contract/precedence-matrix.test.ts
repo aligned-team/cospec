@@ -616,15 +616,13 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
     },
     { variant: 'USERPROFILE empty', userprofile: '' },
   ].flatMap(({ variant, userprofile }) =>
-    ['--tools', '--profile'].map(
-      (flag): Row => ({
-        argv: ['init', flag, '--help'],
-        command: 'init',
-        check: nothingWritten,
-        env: { USERPROFILE: userprofile },
-        variant,
-      }),
-    ),
+    ['--tools', '--profile'].map((flag): Row => ({
+      argv: ['init', flag, '--help'],
+      command: 'init',
+      check: nothingWritten,
+      env: { USERPROFILE: userprofile },
+      variant,
+    })),
   ),
   // `--help` is `--concurrency`'s value (ignored as no positive integer), so no
   // item and no scope is named: the binary prints its non-interactive hint and
@@ -1079,20 +1077,18 @@ const NEW_REFUSAL_ROWS: readonly Row[] = [
   // Without an openspec/ tree a missing slug is still the parse refusal
   // (commander parses before its action runs), in both modes — never the
   // root refusal, text or document.
-  ...[['new'], ['new', '--json'], ['new', 'feat'], ['new', 'feat', '--json']].map(
-    (argv): Row => ({
-      argv,
-      variant: 'no root',
-      command: 'new',
-      setup: withoutTree,
-      cospecOnly: { outcome: 'missing-argument', exit: 1 },
-      cospecStderr: `cospec new: missing required argument '${argv[1] === 'feat' ? 'slug' : 'type'}'\n${NEW_USAGE}`,
-      check: (tool, root, run) => {
-        textRefusal(tool, root, run)
-        expect(run.stderr, tool).not.toContain('no openspec/ directory')
-      },
-    }),
-  ),
+  ...[['new'], ['new', '--json'], ['new', 'feat'], ['new', 'feat', '--json']].map((argv): Row => ({
+    argv,
+    variant: 'no root',
+    command: 'new',
+    setup: withoutTree,
+    cospecOnly: { outcome: 'missing-argument', exit: 1 },
+    cospecStderr: `cospec new: missing required argument '${argv[1] === 'feat' ? 'slug' : 'type'}'\n${NEW_USAGE}`,
+    check: (tool, root, run) => {
+      textRefusal(tool, root, run)
+      expect(run.stderr, tool).not.toContain('no openspec/ directory')
+    },
+  })),
   // A schema the wrapped `new change` cannot parse: the binary's own reason
   // (its `--json` document's message) is cospec's, in both modes — never a
   // bare wrapped-call exit code.
@@ -1171,15 +1167,13 @@ const MISSING_ARGUMENT_ROWS: readonly Row[] = [
     ['new', 'feat', '--store-path', '/x'],
     ['new', 'feat', '--store-path', '/x', '--json'],
     ['new', '--json', '--store-path', '/x'],
-  ].map(
-    (argv): Row => ({
-      argv,
-      command: 'new',
-      cospecOnly: { outcome: 'missing-argument', exit: 1 },
-      cospecStderr: `cospec new: missing required argument '${argv[1] === 'feat' ? 'slug' : 'type'}'\n${NEW_USAGE}`,
-      check: textRefusal,
-    }),
-  ),
+  ].map((argv): Row => ({
+    argv,
+    command: 'new',
+    cospecOnly: { outcome: 'missing-argument', exit: 1 },
+    cospecStderr: `cospec new: missing required argument '${argv[1] === 'feat' ? 'slug' : 'type'}'\n${NEW_USAGE}`,
+    check: textRefusal,
+  })),
   // The compound `"<type>: <description>"` fills the slug, so the redirect answers.
   {
     argv: ['new', 'feat: add a thing', '--store-path', '/x'],
@@ -1199,44 +1193,38 @@ const MISSING_ARGUMENT_ROWS: readonly Row[] = [
     command: 'new',
     cospecOnly: { outcome: 'unknown-option', exit: 1 },
   },
-  ...[['apply', '--json'], ['apply'], ['apply', '--allow-soft']].map(
-    (argv): Row => ({
-      argv,
-      command: 'apply',
-      cospecOnly: { outcome: 'missing-argument', exit: 1 },
-      cospecStderr: missingArgument('apply', 'change', 'cospec apply <change>'),
-      check: textRefusal,
-    }),
-  ),
+  ...[['apply', '--json'], ['apply'], ['apply', '--allow-soft']].map((argv): Row => ({
+    argv,
+    command: 'apply',
+    cospecOnly: { outcome: 'missing-argument', exit: 1 },
+    cospecStderr: missingArgument('apply', 'change', 'cospec apply <change>'),
+    check: textRefusal,
+  })),
   // `apply` never declares `--store-path`: an unknown option, reported first.
   {
     argv: ['apply', '--store-path', '/x'],
     command: 'apply',
     cospecOnly: { outcome: 'store-path', exit: 1 },
   },
-  ...[['migrate'], ['migrate', '--json']].map(
-    (argv): Row => ({
-      argv,
-      command: 'migrate',
-      cospecOnly: { outcome: 'missing-argument', exit: 1 },
-      cospecStderr: missingArgument('migrate', 'slug', 'cospec migrate <slug>'),
-      check: textRefusal,
-    }),
-  ),
+  ...[['migrate'], ['migrate', '--json']].map((argv): Row => ({
+    argv,
+    command: 'migrate',
+    cospecOnly: { outcome: 'missing-argument', exit: 1 },
+    cospecStderr: missingArgument('migrate', 'slug', 'cospec migrate <slug>'),
+    check: textRefusal,
+  })),
   ...[
     ['archive', '--store-path', '/x'],
     ['archive', '--store-path', '/x', '--json'],
     ['archive', '--json'],
     ['archive', '-y'],
-  ].map(
-    (argv): Row => ({
-      argv,
-      command: 'archive',
-      cospecOnly: { outcome: 'missing-argument', exit: 1 },
-      cospecStderr: missingArgument('archive', 'change', 'cospec archive <change>'),
-      check: textRefusal,
-    }),
-  ),
+  ].map((argv): Row => ({
+    argv,
+    command: 'archive',
+    cospecOnly: { outcome: 'missing-argument', exit: 1 },
+    cospecStderr: missingArgument('archive', 'change', 'cospec archive <change>'),
+    check: textRefusal,
+  })),
   // Upstream's `instructions [artifact]` is optional: its action answers a
   // missing artifact or change itself, one document under `--json`.
   ...[

@@ -38,9 +38,9 @@ export const COLOR_ENV_KEYS = ['FORCE_COLOR', 'COLORTERM', 'CLICOLOR', 'CLICOLOR
 
 /**
  * The zone the suite process itself runs in. `bun test` leaves `$TZ` unset and
- * runs in UTC, while a child spawned from `{ ...process.env }` — which does not
- * carry a `process.env.TZ` assignment either — falls back to the machine's own
- * zone. A row that expects a date computed in-process (`formatLocalDate()`)
+ * runs in UTC, while a child spawned from a sandbox env — which never carries
+ * `TZ` (`envWithoutColorForcing`) — falls back to the machine's own zone. A row
+ * that expects a date computed in-process (`formatLocalDate()`)
  * then disagrees with the date the child stamped for every hour the two zones
  * sit on different calendar days.
  */
@@ -52,9 +52,9 @@ export function suiteZone(): string {
  * `env` for a spawned child, with `TZ` pinned to `suiteZone()` unless `env`
  * names its own. Applied where a child is spawned, never inside `oracleEnv`:
  * several suites assign an `oracleEnv` onto `process.env` and later `delete` the
- * keys, and in Bun a `delete` of a `TZ` that was assigned leaves later `TZ`
- * assignments without effect, which would break every row that skews the
- * suite's zone afterwards.
+ * keys, and a `delete` of `TZ` moves the suite off its zone — onto the
+ * machine's own zone in Bun 1.4 (in 1.3 it left later `TZ` assignments without
+ * effect) — which would break every row that skews the suite's zone afterwards.
  */
 export function withSuiteZone<T extends Record<string, string | undefined>>(
   env: T,
@@ -62,10 +62,17 @@ export function withSuiteZone<T extends Record<string, string | undefined>>(
   return { TZ: suiteZone(), ...env }
 }
 
-/** `process.env` with every color-forcing key (`COLOR_ENV_KEYS`) removed. */
+/**
+ * `process.env` with every color-forcing key (`COLOR_ENV_KEYS`) removed, and
+ * `TZ`: since Bun 1.4 (`process.env` behaves like Node's) a `process.env.TZ`
+ * a suite assigned survives the spread, and this is the base of every sandbox
+ * env, which must not carry it (see `withSuiteZone`). A child gets its zone
+ * from `withSuiteZone` or an explicit `TZ` only.
+ */
 export function envWithoutColorForcing(): Record<string, string> {
   const out: Record<string, string> = { ...process.env } as Record<string, string>
   for (const key of COLOR_ENV_KEYS) delete out[key]
+  delete out.TZ
   return out
 }
 
@@ -228,8 +235,8 @@ export function cospecBin(
  * Run the real bundled openspec binary in `cwd`, as `runBinary` describes.
  *
  * `env` exists for the same reason `cospec`'s does, and is load-bearing for
- * `TZ`: assigning `process.env.TZ` in Bun changes the SUITE's zone but the key
- * does not survive `{ ...process.env }`, so a child never inherits it. A test
+ * `TZ`: assigning `process.env.TZ` changes the SUITE's zone, but the sandbox env
+ * drops the key (`envWithoutColorForcing`), so a child never inherits it. A test
  * comparing a date computed in-process against one a child stamped must pass
  * the zone explicitly here.
  */

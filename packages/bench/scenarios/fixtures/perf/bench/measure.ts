@@ -6,8 +6,8 @@
 
 import { dedupe } from '../src/dedupe.ts'
 
-const SIZE = 15000
-const VALUE_RANGE = 7500
+const SIZE = 80000
+const VALUE_RANGE = 40000
 const THRESHOLD_MS = 150
 
 const input: number[] = []

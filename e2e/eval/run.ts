@@ -17,12 +17,12 @@ import { fileURLToPath } from 'node:url'
 import { HARNESS_NAMES, HARNESS_TABLE, skillsRoot } from '../../apps/cli/src/harness/adapters.ts'
 import {
   createSandbox,
+  type EvalContext,
   formatTranscript,
   readFileOr,
   runCospec,
-  teardown,
-  type EvalContext,
   type Scenario,
+  teardown,
 } from './context.ts'
 import { assertRedacted, type Sentinels } from './redact.ts'
 import { ciScenario } from './scenarios/ci.ts'
@@ -31,10 +31,10 @@ import { gateScenario } from './scenarios/gate.ts'
 import {
   MAX_SCORE,
   PASS_THRESHOLD,
+  type ScenarioResult,
   scoreRubric,
   summarize,
   totalScore,
-  type ScenarioResult,
 } from './score.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))

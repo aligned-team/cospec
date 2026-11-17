@@ -13,10 +13,10 @@ import {
   TYPE_ARTIFACTS,
 } from '../../apps/cli/src/core/rules/type-facts.ts'
 import {
+  type AgentRun,
   makeRunCommandTool,
   makeWriteFileTool,
   runAgentLoop,
-  type AgentRun,
   type TranscriptStep,
 } from './agent.ts'
 import { redactText, type Sentinels } from './redact.ts'

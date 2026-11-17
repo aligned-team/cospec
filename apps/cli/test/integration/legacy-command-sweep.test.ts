@@ -4,7 +4,7 @@
 // `.qwen/commands/*.toml` included. Driven through doctor, `init --json` and `--remove-opsx`.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { openspecPackageDir } from '../../src/core/openspec.ts'

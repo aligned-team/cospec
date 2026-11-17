@@ -8,8 +8,8 @@ import { describe, expect, test } from 'bun:test'
 import {
   commandRow,
   parseCommandArgs,
-  pending,
   parseSubcommandArgs,
+  pending,
   type TableCommandRow,
 } from '../../../src/core/command-table.ts'
 import { isRelayedParseRefusal } from '../../../src/core/parse-rejection.ts'

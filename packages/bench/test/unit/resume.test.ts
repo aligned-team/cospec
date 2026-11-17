@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import type { AgentTelemetry } from '../../src/agent.ts'
-import { expandMatrix, type Cell, type MatrixFilters } from '../../src/matrix.ts'
+import { type Cell, expandMatrix, type MatrixFilters } from '../../src/matrix.ts'
 import type { MechanicalMetrics } from '../../src/mechanical.ts'
 import type { CellResult } from '../../src/report.ts'
 import {

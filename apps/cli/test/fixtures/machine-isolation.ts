@@ -23,7 +23,7 @@ export const SANDBOXED_KEYS = [
 
 /**
  * The current environment with the sandboxed variables put back as the run started with them
- * (unset stays unset). For a child that runs a HOST tool (`jq`, `oxfmt`, `git`) whose resolution
+ * (unset stays unset). For a child that runs a HOST tool (`jq`, `bun fmt`, `git`) whose resolution
  * depends on the real home: a mise shim finds its version and its trust list there. Pass it to
  * nothing that is cospec's own code under test, which must stay over the sandbox.
  */

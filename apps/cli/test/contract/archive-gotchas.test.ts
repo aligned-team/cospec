@@ -162,9 +162,9 @@ describe('archive gotcha regressions (re-probed at 1.13.1: aborts exit 1)', () =
   const SKEWED_ZONE = new Date().getUTCHours() >= 12 ? 'Pacific/Kiritimati' : 'Etc/GMT+12'
   const ORIGINAL_ZONE = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone
 
-  // `process.env.TZ = …` changes the SUITE process's zone (Bun re-reads it on a
-  // set, which is also why it is restored by assignment and never `delete`d),
-  // but it does NOT survive `{ ...process.env }` — a spawned child inherits the
+  // `process.env.TZ = …` changes the SUITE process's zone (it is restored by
+  // assignment and never `delete`d, which would not restore the suite's zone),
+  // but the test helpers' sandbox env drops `TZ` — a spawned child inherits the
   // machine's zone instead. So every child below is handed `TZ` explicitly; the
   // assignment here only makes `formatLocalDate()` agree with them.
   beforeAll(() => {

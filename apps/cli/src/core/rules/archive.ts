@@ -6,27 +6,27 @@
 // blocker (parity is contract-tested). Rule IDs are frozen public API.
 
 import {
+  type Delta,
+  type DeltaOp,
   findScenarioDrops,
   foldRequirementName,
+  type LivingView,
   normalizeBlockRaw,
   normalizeRequirementName,
   parseDeltaSpec,
+  type RequirementSplit,
   SCENARIO_DROP_HINT,
   SCENARIO_DROP_NOTE_RETIRED,
   scenarioDropMessage,
-  type DeltaOp,
-  type Delta,
-  type LivingView,
-  type RequirementSplit,
 } from '../deltas.ts'
 import {
   describeUnaccountedContent,
   findRequirementSplits,
-  rebuildSpec,
-  validateRebuiltSpec,
   type LineOrigin,
+  rebuildSpec,
   type RebuiltSpec,
   type RebuiltSpecIssue,
+  validateRebuiltSpec,
 } from '../rebuilt-spec.ts'
 import { requirementShapeIssues, scenarioDepthIssues } from './deltas.ts'
 import type { Issue } from './issue.ts'

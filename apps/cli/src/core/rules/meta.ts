@@ -7,9 +7,9 @@ import type { LoadedChange, SchemaInfo } from './schema-info.ts'
 import {
   ARTIFACT_FILES,
   COSPEC_TYPES,
+  type CospecType,
   isCospecType,
   TYPE_ARTIFACTS,
-  type CospecType,
 } from './type-facts.ts'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/

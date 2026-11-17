@@ -12,9 +12,10 @@ import {
 } from '../../../src/commands/archive.ts'
 
 /**
- * Bun re-reads `process.env.TZ` on the next Date operation — but only on a SET,
- * not on a `delete`, so the zone is always restored by assignment (falling back
- * to the runtime's own resolved zone when TZ was unset).
+ * Bun re-reads `process.env.TZ` on the next Date operation, but a `delete`
+ * restores the machine's zone (Bun 1.4) or nothing at all (Bun 1.3) — never the
+ * suite's — so the zone is always restored by assignment (falling back to the
+ * runtime's own resolved zone when TZ was unset).
  */
 function inZone<T>(tz: string, fn: () => T): T {
   const previous = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone

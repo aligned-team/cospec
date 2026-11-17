@@ -363,9 +363,11 @@ function walk(model: Model): Entry[] {
   return [
     ...walkRegistry(model.registry),
     ...model.aiTools.map((id): Entry => ({ kind: 'tool', id })),
-    ...Object.entries(model.toolAliases).map(
-      ([id, target]): Entry => ({ kind: 'tool-alias', id, target }),
-    ),
+    ...Object.entries(model.toolAliases).map(([id, target]): Entry => ({
+      kind: 'tool-alias',
+      id,
+      target,
+    })),
     ...model.workflows.map((id): Entry => ({ kind: 'workflow', id })),
     ...model.hidden,
   ]

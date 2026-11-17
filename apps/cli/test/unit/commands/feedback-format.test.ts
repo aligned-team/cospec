@@ -7,11 +7,11 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   COSPEC_REPO,
+  feedbackArgs,
   formatBody,
   formatTitle,
   issueArgv,
   manualUrl,
-  feedbackArgs,
   provenanceFooter,
   UPSTREAM_REPO,
   upstreamFeedbackArgv,

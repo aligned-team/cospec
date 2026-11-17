@@ -1,7 +1,7 @@
 // deltas/* rules (DESIGN §4.3) — run before openspec delegation so cospec's
 // sharper diagnostics win. Rule IDs are frozen public API.
 
-import { parseAdvisoryDelta, parseDeltaSpec, SHALL_MUST_RE, type Delta } from '../deltas.ts'
+import { type Delta, parseAdvisoryDelta, parseDeltaSpec, SHALL_MUST_RE } from '../deltas.ts'
 import { findRequirementSplits, rebuildSpec } from '../rebuilt-spec.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'

@@ -17,7 +17,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { readRetireCapabilitiesMarker, type MarkerRead } from '../../src/core/change-metadata.ts'
+import { type MarkerRead, readRetireCapabilitiesMarker } from '../../src/core/change-metadata.ts'
 import { parseDeltaSpec } from '../../src/core/deltas.ts'
 import { rebuildSpec } from '../../src/core/rebuilt-spec.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'

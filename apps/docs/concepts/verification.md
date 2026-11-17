@@ -36,7 +36,7 @@ as you implement, in step with `tasks.md`.
 - **Row state** — `[ ]` planned, `[x]` verified with evidence, `[~]`
   deferred (must carry `defer: <reason>`).
 - **`@<layer>`** — a closed vocabulary: `@unit @integration @e2e @manual
-@runtime @regression @equivalence @benchmark @eval`. Projects can extend it
+  @runtime @regression @equivalence @benchmark @eval`. Projects can extend it
   via `openspec/config.yaml` (`verification.layers`, below); an unrecognized
   token fails closed.
 - **`(<owner>)`** — optional, `(agent)` or `(human)`. Defaults: `@manual`

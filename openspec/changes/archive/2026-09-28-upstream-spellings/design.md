@@ -445,11 +445,12 @@ entry in the same commit" holds.
 ## Risks / Trade-offs
 
 - [The structural respell helper lands with a different per-field rule shape
-  than decision 11 needs (a leading-token rule would leave `Run: openspec store
-  doctor <id>` and the `git clone … && openspec store register …` fix
-  unspelled)] → the field map is data; if the helper's rule is leading-token
-  only, this change adds the whole-value allowlist rule to it after the rebase,
-  in `passthrough-command.ts`, and says so in the PR body.
+  than decision 11 needs (a leading-token rule would leave
+  `Run: openspec store doctor <id>` and the
+  `git clone … && openspec store register …` fix unspelled)] → the field map is
+  data; if the helper's rule is leading-token only, this change adds the
+  whole-value allowlist rule to it after the rebase, in
+  `passthrough-command.ts`, and says so in the PR body.
 - [A text-mode failure costs a second spawn] → read-only, failure path only;
   keeps the failure text and its tests byte-identical.
 - [The ported printer drifts from the binary's on a pin bump] → the equivalence

@@ -26,7 +26,8 @@ for the detailed mechanics.
 ### Prerequisites
 
 - [mise](https://mise.jdx.dev) — manages every tool pin (Bun, OpenSpec, oxlint,
-  oxfmt, hk, …). Nothing else needs to be installed globally.
+  hk, …). Nothing else needs to be installed globally. Bun also provides the
+  type checker (`bun check`) and the formatter (`bun fmt`).
 
 ### Clone and install
 
@@ -107,11 +108,11 @@ exits 0. It never blocks.
 Hooks are managed by [hk](https://hk.jdx.dev) via mise. **Never bypass them**
 with `--no-verify` — if a hook fails, fix the root cause.
 
-| hook         | steps                                                                                                                                            |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pre-commit` | oxfmt · oxlint · taplo · shellcheck · actionlint · `agents:check` · `generate:check` · `cospec validate --all --strict` · `cospec sync-blockers` |
-| `commit-msg` | commitlint · `cospec check-commit`                                                                                                               |
-| `pre-push`   | the linters (oxfmt · oxlint · taplo · shellcheck · actionlint)                                                                                   |
+| hook         | steps                                                                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-commit` | bun fmt · oxlint · taplo · shellcheck · actionlint · `agents:check` · `generate:check` · `cospec validate --all --strict` · `cospec sync-blockers` |
+| `commit-msg` | commitlint · `cospec check-commit`                                                                                                                 |
+| `pre-push`   | the linters (bun fmt · oxlint · taplo · shellcheck · actionlint)                                                                                   |
 
 ### The slow pre-push gate (opt-in)
 
@@ -162,7 +163,8 @@ hand-edit generated output. `generate:check` blocks the commit otherwise.
 
 ## Code style
 
-oxlint and oxfmt are the enforcers; the pre-commit hook runs both.
+oxlint (`.oxlintrc.json`) and `bun fmt` (bunfig.toml's `[fmt]`) are the
+enforcers; the pre-commit hook runs both.
 
 - No semicolons; single quotes; `printWidth` 100 (80 for JSON and Markdown).
 - Trailing commas everywhere; arrow parens always; LF line endings.

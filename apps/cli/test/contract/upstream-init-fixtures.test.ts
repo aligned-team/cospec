@@ -12,9 +12,9 @@ import { openspecPackageDir } from '../../src/core/openspec.ts'
 import {
   captureCaseFor,
   captureInit,
-  comparable,
   COMBINATIONS,
   committedFixtureNames,
+  comparable,
   FIXTURE_DIR,
   readFixture,
 } from './support/upstream-init-capture.ts'

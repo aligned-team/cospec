@@ -9,30 +9,31 @@
 
 import { createHash } from 'node:crypto'
 import {
+  type Dirent,
   existsSync,
   lstatSync,
   readdirSync,
   readFileSync,
   realpathSync,
   statSync,
-  type Dirent,
 } from 'node:fs'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import {
+  type ArchiveDiagnostic,
+  type ArchiveRefusalReason,
   changeNameProblem,
   diagnostics,
   failureDocument,
   readArchiveSummary,
   relayedReason,
-  type ArchiveDiagnostic,
-  type ArchiveRefusalReason,
 } from '../core/archive-output.ts'
 import { parseBlockers, syncBlockers } from '../core/blockers.ts'
 import {
   archiveDir,
+  type Change,
   changesDir,
   describeNestedChange,
   findNestedChangesIn,
@@ -43,10 +44,9 @@ import {
   projectConfigPath,
   resolveChange,
   resolveSchema,
-  type Change,
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
-import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
+import { type DeltaOp, parseLivingSpec } from '../core/deltas.ts'
 import { assertPathWithin } from '../core/glob.ts'
 import { printOwnStderrLineOnce, spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 import { renderOperationInputs } from '../core/operation-inputs.ts'
@@ -54,12 +54,12 @@ import { readConfigOperationInputs } from '../core/project-config-read.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { renderHuman, renderJson } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
-import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
+import { type CospecType, enforcedApplyRequires, TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
 import {
+  type CapabilityDeltas,
   changeDeltaOps,
   scenarioGate,
   scenarioRefusal,
-  type CapabilityDeltas,
 } from '../core/scenario-gate.ts'
 import { parseTasks } from '../core/tasks.ts'
 import { rootOutput } from '../core/upstream-keys.ts'

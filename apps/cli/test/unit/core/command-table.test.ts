@@ -6,6 +6,7 @@ import { COMMAND_MODULES, GLOBAL_OPTIONS } from '../../../src/cli.ts'
 import {
   closest,
   COMMAND_TABLE,
+  type CommandRow,
   commandRow,
   flagSpelling,
   flagValue,
@@ -17,19 +18,18 @@ import {
   lastFlagOf,
   offeredFlags,
   parseCommandArgs,
+  type ParseRefusal,
+  type ParseResult,
   parseSubcommandArgs,
   pending,
+  type PendingOwner,
   rowGlobalFlags,
   splitShortCluster,
   storePathInOptionPosition,
   storePathRefusal,
   storePathTakesValue,
-  takesNextToken,
-  type CommandRow,
-  type ParseRefusal,
-  type ParseResult,
-  type PendingOwner,
   type TableCommandRow,
+  takesNextToken,
 } from '../../../src/core/command-table.ts'
 import { HARNESS_NAMES } from '../../../src/harness/adapters.ts'
 

@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { CTRL_D, ptyRun, terminalText } from '../contract/support/pty.ts'
-import { CLI_ENTRY, cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
+import { cleanupAll, CLI_ENTRY, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
 afterAll(cleanupAll)
 

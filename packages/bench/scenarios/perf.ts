@@ -1,7 +1,8 @@
 // `perf` scenario — optimize a correct-but-slow function. `bench/measure.ts`
 // checks both correctness and a speed threshold: the seeded O(n^2) `dedupe`
 // misses it; an O(n) rewrite (e.g. backed by a Set) clears it comfortably
-// (verified during authoring: ~445ms naive vs ~1ms optimized on this input).
+// (re-verified on Bun 1.4.4, whose JIT runs the nested loop ~13x faster than
+// 1.3's did, so the input was enlarged: ~1000ms naive vs ~2ms optimized).
 
 import { spawnIn } from '../src/sandbox.ts'
 import type { Scenario } from './types.ts'

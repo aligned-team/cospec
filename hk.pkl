@@ -9,58 +9,58 @@ amends "package://github.com/jdx/hk/releases/download/v1.48.0/hk@1.48.0#/Config.
 // scripts/hooks/ for pklr compatibility.
 
 local tsGlobs = List("**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts")
-// oxfmt (0.56.0, per `.oxfmtrc.json`'s per-type overrides) also formats JSON,
-// JSONC, and Markdown — oxlint has no support for either, so oxlint stays on
-// tsGlobs alone.
-local oxfmtGlobs = tsGlobs + List("**/*.json", "**/*.jsonc", "**/*.md", "**/*.mdx")
+// `bun fmt` (Bun's built-in formatter, configured with per-type overrides in
+// bunfig.toml's `[fmt]`) also formats JSON, JSONC, and Markdown — oxlint has no
+// support for either, so oxlint stays on tsGlobs alone.
+local fmtGlobs = tsGlobs + List("**/*.json", "**/*.jsonc", "**/*.md", "**/*.mdx")
 local tomlGlobs = List("**/*.toml")
 local shellGlobs = List("**/*.sh", "**/*.bash")
 local ciGlobs = List(".github/workflows/**/*.yml", ".github/workflows/**/*.yaml")
 
 // Hand-authored canon: gated by generate:check below (editing it without
-// regenerating is drift), but it's ordinary source, so it stays in oxfmt's
-// glob — only the generated output below is excluded from oxfmt.
+// regenerating is drift), but it's ordinary source, so it stays in bun fmt's
+// glob — only the generated output below is excluded from bun fmt.
 local canonGlobs = List("apps/cli/src/canon/**")
 // Generated output: produced by cospec's own generator, which is itself the
-// formatter's fixed point (checked by generate:check below) — oxfmt must not
+// formatter's fixed point (checked by generate:check below) — bun fmt must not
 // fight that.
 local generatedOutputGlobs = List(
   "openspec/schemas/**",
   ".claude/**",
   // Only .agents/skills/** is cospec-generated — .agents/shared.md is the
   // hand-authored source for the shared CLAUDE.md/AGENTS.md block (see
-  // agentGlobs below) and must stay in oxfmt's check.
+  // agentGlobs below) and must stay in bun fmt's check.
   ".agents/skills/**",
   ".codex/**",
   ".opencode/**"
 )
 local generatedGlobs = canonGlobs + generatedOutputGlobs
 
-// Files `.oxfmtignore` excludes that are NOT under generatedOutputGlobs: the
+// Files `[fmt] ignorePatterns` excludes that are NOT under generatedOutputGlobs: the
 // vendored openspec bundle and its license notices (both built by
 // `mise run vendor:openspec` and drift-gated by `vendor:openspec:check`), and
-// the bench `style` fixture that is deliberately seeded mis-formatted. oxfmt
+// the bench `style` fixture that is deliberately seeded mis-formatted. bun fmt
 // exits non-zero ("Expected at least one target file") when a batch contains
 // only ignored files, so — as with oxlint and `**/*.d.ts` below — they must be
-// kept out of the hook's file list entirely, not merely ignored by oxfmt.
+// kept out of the hook's file list entirely, not merely ignored by bun fmt.
 local formatterIgnoredGlobs = List(
   "apps/cli/src/vendor/**",
   "apps/cli/THIRD-PARTY-LICENSES.md",
   "packages/bench/scenarios/fixtures/style/src/format.ts",
-  // harness-adapter-table (R8): committed raw golden files (see
-  // .prettierignore's matching entry) — renderHarnessFiles's own output is
-  // their formatting authority, not oxfmt.
+  // harness-adapter-table (R8): committed raw golden files (see bunfig.toml's
+  // matching `[fmt] ignorePatterns` entry) — renderHarnessFiles's own output is
+  // their formatting authority, not bun fmt.
   "**/__golden__/**"
 )
 
 local agentGlobs = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
 
 local linters = new Mapping<String, Step> {
-  ["oxfmt"] {
-    glob = oxfmtGlobs
+  ["bun-fmt"] {
+    glob = fmtGlobs
     exclude = generatedOutputGlobs + formatterIgnoredGlobs
-    check = "oxfmt --check {{files}}"
-    fix = "oxfmt {{files}}"
+    check = "bun fmt --check {{files}}"
+    fix = "bun fmt {{files}}"
     batch = true
     prefix = "mise exec --"
   }

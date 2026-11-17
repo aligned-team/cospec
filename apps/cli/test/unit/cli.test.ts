@@ -7,8 +7,8 @@ import pkg from '../../package.json'
 import { run } from '../../src/cli.ts'
 import {
   COMMAND_TABLE,
-  pending,
   type FlagSpec,
+  pending,
   type TableCommandRow,
 } from '../../src/core/command-table.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'

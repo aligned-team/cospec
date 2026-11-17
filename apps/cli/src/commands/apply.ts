@@ -15,34 +15,34 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { parseBlockers, syncBlockers, type ParsedBlockers } from '../core/blockers.ts'
+import { parseBlockers, type ParsedBlockers, syncBlockers } from '../core/blockers.ts'
 import {
+  type Change,
   listChanges,
   openspecDir,
   readArchiveIndex,
   resolveChange,
   resolveSchema,
-  type Change,
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { answeringErrno } from '../core/errno.ts'
 import { respellInstructionsDocument } from '../core/instructions-render.ts'
 import {
+  type ApplyInstructionsJson,
   openspecApplyInstructions,
   OpenspecCallError,
-  type ApplyInstructionsJson,
   type Root,
   type StatusDiagnostic,
 } from '../core/openspec.ts'
 import { renderOperationInputs, renderReferencesSection } from '../core/operation-inputs.ts'
 import { respellRemedies } from '../core/remedies.ts'
-import { renderHuman, toJson, type ItemReport } from '../core/report.ts'
+import { type ItemReport, renderHuman, toJson } from '../core/report.ts'
 import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
 import {
   ARTIFACT_FILES,
-  enforcedApplyRequires,
   type ArtifactId,
   type CospecType,
+  enforcedApplyRequires,
 } from '../core/rules/type-facts.ts'
 import { resolveRootOrDocument } from '../core/upstream-keys.ts'
 import type { VerificationVerdict } from '../core/verification.ts'

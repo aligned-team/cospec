@@ -27,10 +27,10 @@ import {
 } from '../core/forward-relay.ts'
 import {
   OpenspecCallError,
-  openspecStoreList,
-  passthroughOpenspec,
   type OpenspecResult,
   type OpenspecStatusEntry,
+  openspecStoreList,
+  passthroughOpenspec,
   type PostCondition,
   type WrappedCall,
 } from '../core/openspec.ts'
