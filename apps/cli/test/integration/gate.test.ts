@@ -11,6 +11,9 @@ import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+
 afterAll(cleanupAll)
 
 describe('gate scaffolding', () => {

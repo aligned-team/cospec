@@ -32,6 +32,11 @@ import { specsRules } from '../../../src/core/rules/specs.ts'
 import { ADVISORY_RULES } from '../../../src/core/rules/views.ts'
 import { makeChange } from './helpers.ts'
 
+// Reads every rule module's source through fs: cli.ts reaches all but the type-only issue.ts,
+// so `bun test --changed` selects this file when one changes.
+import '../../../src/cli.ts'
+import '../../../src/core/rules/issue.ts'
+
 const SRC = join(import.meta.dir, '../../../src')
 const RULES_DIR = join(SRC, 'core/rules')
 

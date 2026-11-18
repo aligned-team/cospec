@@ -53,6 +53,12 @@
       "rules": { "no-await-in-loop": "off" }
     },
     {
+      "files": ["apps/cli/test/**"],
+      "rules": {
+        "import/no-unassigned-import": ["warn", { "allow": ["**/src/**/*.ts"] }]
+      }
+    },
+    {
       "files": ["apps/cli/bin/**"],
       "rules": { "import/no-unassigned-import": "off" }
     },

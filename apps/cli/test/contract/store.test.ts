@@ -28,6 +28,9 @@ import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/store.ts'
+
 afterAll(cleanupAll)
 
 function sandbox(): { workspace: string; env: Record<string, string> } {

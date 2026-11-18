@@ -15,6 +15,14 @@ import { join } from 'node:path'
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 import { oracle, oracleJson } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/apply.ts'
+import '../../src/commands/archive.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/instructions.ts'
+import '../../src/commands/new.ts'
+import '../../src/commands/schema.ts'
+
 afterAll(cleanupAll)
 // Each row drives several real processes: cospec, its wrapped binary, and the binary again as the oracle.
 setDefaultTimeout(120_000)

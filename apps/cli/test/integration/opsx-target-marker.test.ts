@@ -10,6 +10,9 @@ import { dirname, join } from 'node:path'
 import { findOpsxFiles } from '../../src/commands/init.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/doctor.ts'
+
 afterAll(cleanupAll)
 
 const MARKER = '.agents/skills/.openspec-target'

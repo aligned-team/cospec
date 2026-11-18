@@ -9,6 +9,10 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { parseTasks } from '../../src/core/tasks.ts'
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/apply.ts'
+import '../../src/commands/init.ts'
+
 afterAll(cleanupAll)
 
 const BLOCKERS_EMPTY = `# Dependencies

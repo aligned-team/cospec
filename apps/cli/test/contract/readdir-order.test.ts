@@ -14,6 +14,9 @@ import { join } from 'node:path'
 import { cleanupAll, cospec, mkTempRepo, REPO_ROOT, type SpawnResult } from '../fixtures/support.ts'
 import { oracle, oracleEnv, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/instructions.ts'
+
 afterAll(cleanupAll)
 
 let upstreamTemplate: string

@@ -26,6 +26,11 @@ import { dirname, join } from 'node:path'
 import { computeContentHash } from '../../src/core/managed-files.ts'
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/doctor.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/update.ts'
+
 // `init --harness all` also writes minimax-code's skills under the home directory, so every
 // case gets its own HOME (a sibling of its repo, never the real one) and no USERPROFILE. A
 // shared home would leak one case's skills into the next case's detection.

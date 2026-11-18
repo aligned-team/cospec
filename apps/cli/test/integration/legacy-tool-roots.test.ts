@@ -23,6 +23,10 @@ import {
 import { oracleSpawn } from '../contract/support/upstream-oracle.ts'
 import { cleanupAll, CLI_ENTRY, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+import '../../src/commands/update.ts'
+
 afterAll(cleanupAll)
 
 interface MoveEntry {

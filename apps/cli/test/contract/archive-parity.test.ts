@@ -23,6 +23,9 @@ import { join } from 'node:path'
 import { cleanupAll, cospec, mkTempRepo, openspec } from '../fixtures/support.ts'
 import { PARITY_FIXTURES } from './fixtures.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/validate.ts'
+
 afterAll(cleanupAll)
 
 interface CospecVerdict {

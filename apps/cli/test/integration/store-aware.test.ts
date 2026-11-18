@@ -12,6 +12,14 @@ import { join } from 'node:path'
 import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
 import { authorFeat, blockersHard } from './support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/apply.ts'
+import '../../src/commands/archive.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/new.ts'
+import '../../src/commands/status.ts'
+import '../../src/commands/validate.ts'
+
 afterAll(cleanupAll)
 
 const STORE_ID = 'pilot-store'

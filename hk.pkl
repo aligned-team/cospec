@@ -128,33 +128,31 @@ local cospecSteps = new Mapping<String, Step> {
   }
 }
 
-// Slow profile (HK_PROFILE=slow) — layered on at push time by the pre-push-gate
-// wrapper when pushing to main; feature-branch pushes run only the linters.
-local slowSteps = new Mapping<String, Step> {
+// Type errors cross files, so any staged or pushed TS file (or tsconfig) type-checks every
+// workspace with `bun check` — about a second.
+local typecheckSteps = new Mapping<String, Step> {
   ["typecheck"] {
-    glob = tsGlobs
+    glob = tsGlobs + List("**/tsconfig*.json")
     check = "mise run typecheck"
-    profiles = List("slow")
     exclusive = true
   }
+}
+
+// Tests: only what the change reaches (`mise run test:changed`, apps/cli/test/fixtures/
+// test-scope.ts) — Bun's import-graph selection (`bun test --changed`), or a whole suite when a
+// change sits outside the graph. A commit runs the unit tests its staged changes reach; a push
+// adds the integration tests, from where the branch left origin/main. The contract suite (the
+// real pinned binary, about half an hour whole) is CI's: PR CI runs the same selection of it,
+// and main, the merge queue and releases run every suite whole.
+local commitTestSteps = new Mapping<String, Step> {
   ["test"] {
-    check = "mise run test"
-    profiles = List("slow")
+    check = "mise run test:changed -- unit"
     exclusive = true
   }
-  ["test:contract"] {
-    check = "mise run test:contract"
-    profiles = List("slow")
-    exclusive = true
-  }
-  ["test:integration"] {
-    check = "mise run test:integration"
-    profiles = List("slow")
-    exclusive = true
-  }
-  ["build"] {
-    check = "mise run build"
-    profiles = List("slow")
+}
+local pushTestSteps = new Mapping<String, Step> {
+  ["test"] {
+    check = "mise run test:changed -- --base origin/main unit integration"
     exclusive = true
   }
 }
@@ -168,12 +166,15 @@ hooks {
       ...agentSteps
       ...generateSteps
       ...cospecSteps
+      ...typecheckSteps
+      ...commitTestSteps
     }
   }
   ["pre-push"] {
     steps = new {
       ...linters
-      ...slowSteps
+      ...typecheckSteps
+      ...pushTestSteps
     }
   }
   ["commit-msg"] {

@@ -33,6 +33,10 @@ import {
 } from '../fixtures/support.ts'
 import { writeLivingSpec } from './fixtures.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/archive.ts'
+import '../../src/commands/validate.ts'
+
 afterAll(cleanupAll)
 
 const PROPOSAL = `# change

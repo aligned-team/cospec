@@ -5,9 +5,14 @@ on:
   push:
     branches: [main]
   merge_group:
+  # release.yml runs this whole workflow on the dispatched main commit it then releases (the
+  # triggering commit: a called run checks out the caller's).
+  workflow_call:
 
+# A called run's `github.workflow` is the caller's, so a release's checks never queue behind (or
+# displace) CI's own runs on main.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
@@ -18,7 +23,6 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      bun: ${{ steps.filter.outputs.bun || steps.all.outputs.all }}
       canon: ${{ steps.filter.outputs.canon || steps.all.outputs.all }}
       openspec_changes: ${{ steps.filter.outputs.openspec_changes || steps.all.outputs.all }}
       openspec_specs: ${{ steps.filter.outputs.openspec_specs || steps.all.outputs.all }}
@@ -28,28 +32,18 @@ jobs:
       docs: ${{ steps.filter.outputs.docs || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Pushes to main, the merge queue and a release run every job, and every test suite whole;
+      # only a pull request is scoped to what it changes.
       - id: all
-        if: github.event_name == 'merge_group'
+        if: github.event_name != 'pull_request'
         run: echo "all=true" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        if: github.event_name != 'merge_group'
+        if: github.event_name == 'pull_request'
         id: filter
         with:
           # `mise.lock` sits beside every `mise.toml`: each job installs its
-          # tools from the lockfile (`mise install --locked`), and ci-bun's
-          # lockfile drift gate must run on a lockfile-only change.
+          # tools from the lockfile (`mise install --locked`).
           filters: |
-            bun:
-              - 'apps/**/*.{ts,tsx,js,jsx,mjs,cjs}'
-              - 'package.json'
-              - 'bun.lock'
-              - 'mise.toml'
-              - 'mise.lock'
-              - 'tsconfig*.json'
-              - '.oxlintrc.json'
-              - 'bunfig.toml'
-              - '.github/workflows/ci.yml'
-              - '.github/actions/**'
             canon:
               - 'apps/cli/src/canon/**'
               - 'mise.toml'
@@ -70,12 +64,15 @@ jobs:
               - 'bun.lock'
               - '.github/actions/setup-mise/**'
 
+  # Runs on every pull request: `bun fmt` checks every change's openspec Markdown, the unit tests
+  # read the docs trees, and the contract and integration tests are scoped below.
   ci-bun:
     needs: detect-changes
-    if: needs.detect-changes.outputs.bun == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # a pull request's test selection diffs against its base commit
       - uses: ./.github/actions/setup-mise
       # mise.lock must be exactly what the min_version mise release writes, for
       # every platform — the release setup-mise pins.
@@ -107,10 +104,32 @@ jobs:
       - run: mise run lint
       - run: mise run format:check
       - run: mise run typecheck
+      # The coverage gate measures the whole unit suite, so every event runs all of it.
       - name: Unit tests (coverage gate)
         run: bun test apps/cli/test/unit --coverage --timeout 30000
-      - run: mise run test:contract
-      - run: mise run test:integration
+      # A pull request runs the contract and integration tests its changes reach — Bun's
+      # import-graph selection, or the whole suite when a change sits outside the graph (`mise run
+      # test:changed`, apps/cli/test/fixtures/test-scope.ts).
+      - name: Contract tests (what the pull request reaches)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: mise run test:changed -- --base "$BASE" contract
+      - name: Integration tests (what the pull request reaches)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: mise run test:changed -- --base "$BASE" integration
+      - name: Contract tests
+        if: github.event_name != 'pull_request'
+        run: mise run test:contract
+      - name: Integration tests
+        if: github.event_name != 'pull_request'
+        run: mise run test:integration
+      - name: Bench unit tests
+        run: mise run test:bench
+      - name: Release script test
+        run: mise run test:release
       - name: Vendored openspec bundle drift gate
         run: mise run vendor:openspec:check
       - name: Pack smoke
@@ -145,7 +164,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - name: ShellCheck hook + task scripts
-        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/hooks/pre-push-gate scripts/mise-tasks/agents/sync scripts/mise-tasks/vendor/openspec scripts/mise-tasks/lock
+        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/mise-tasks/agents/sync scripts/mise-tasks/vendor/openspec scripts/mise-tasks/lock
 
   ci-actions-lint:
     needs: detect-changes

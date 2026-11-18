@@ -22,6 +22,12 @@ import {
   writeFiles,
 } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/archive.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/status.ts'
+import '../../src/commands/validate.ts'
+
 afterAll(cleanupAll)
 setDefaultTimeout(120_000)
 

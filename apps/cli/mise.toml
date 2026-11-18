@@ -36,3 +36,7 @@ run = "bun test test/integration/pack.test.ts --timeout 30000"
 [tasks."test:pack:standalone"]
 description = "Bun-less standalone smoke: build host platform package, npm-install launcher + binary with bun stripped from PATH, run cospec"
 run = "bun test test/integration/pack-standalone.test.ts --timeout 180000"
+
+[tasks."test:changed"]
+description = "Run the unit/contract/integration tests the changes since a ref reach (mise run test:changed -- [--base <ref>] <suite>...; the hooks' and PR CI's scope)"
+run = "bun test/fixtures/run-changed.ts"

@@ -9,6 +9,9 @@ import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, openspec, writeFiles } from '../fixtures/support.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/init.ts'
+
 afterAll(cleanupAll)
 
 describe("the real pinned binary's OpenCode opsx leftover vs. a user file at the same path shape", () => {

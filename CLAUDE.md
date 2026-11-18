@@ -62,35 +62,40 @@ cospec/
 
 All operations run through mise tasks — never raw tool invocations:
 
-| Task                 | Command                             |
-| -------------------- | ----------------------------------- |
-| Run the CLI          | `mise run cospec -- <args>`         |
-| Build the binary     | `mise run build`                    |
-| Lint                 | `mise run lint`                     |
-| Lint (fix)           | `mise run lint:fix`                 |
-| Format (check)       | `mise run format:check`             |
-| Format (fix)         | `mise run format:fix`               |
-| Typecheck            | `mise run typecheck`                |
-| Unit tests           | `mise run test`                     |
-| Contract tests       | `mise run test:contract`            |
-| Integration tests    | `mise run test:integration`         |
-| Bench unit tests     | `mise run test:bench`               |
-| Pack smoke           | `mise run test:pack`                |
-| Regenerate managed   | `mise run generate`                 |
-| Drift check          | `mise run generate:check`           |
-| Regenerate mise.lock | `mise run lock`                     |
-| mise.lock drift      | `mise run lock:check`               |
-| Schema validate      | `mise run openspec:schema:validate` |
-| Sync agent docs      | `mise run agents:sync`              |
-| Agent-doc drift      | `mise run agents:check`             |
-| Docs site (build)    | `mise run docs:build`               |
-| Docs site (dev)      | `mise run docs:dev`                 |
-| E2E eval (advisory)  | `mise run eval:e2e`                 |
-| Bench (advisory)     | `mise run bench`                    |
-| Bench smoke          | `mise run bench:smoke`              |
-| Full CI gate         | `mise run check`                    |
+| Task                   | Command                                              |
+| ---------------------- | ---------------------------------------------------- |
+| Run the CLI            | `mise run cospec -- <args>`                          |
+| Build the binary       | `mise run build`                                     |
+| Lint                   | `mise run lint`                                      |
+| Lint (fix)             | `mise run lint:fix`                                  |
+| Format (check)         | `mise run format:check`                              |
+| Format (fix)           | `mise run format:fix`                                |
+| Typecheck              | `mise run typecheck`                                 |
+| Unit tests             | `mise run test`                                      |
+| Contract tests         | `mise run test:contract`                             |
+| Integration tests      | `mise run test:integration`                          |
+| Tests a change reaches | `mise run test:changed -- [--base <ref>] <suite>...` |
+| Bench unit tests       | `mise run test:bench`                                |
+| Pack smoke             | `mise run test:pack`                                 |
+| Regenerate managed     | `mise run generate`                                  |
+| Drift check            | `mise run generate:check`                            |
+| Regenerate mise.lock   | `mise run lock`                                      |
+| mise.lock drift        | `mise run lock:check`                                |
+| Schema validate        | `mise run openspec:schema:validate`                  |
+| Sync agent docs        | `mise run agents:sync`                               |
+| Agent-doc drift        | `mise run agents:check`                              |
+| Docs site (build)      | `mise run docs:build`                                |
+| Docs site (dev)        | `mise run docs:dev`                                  |
+| E2E eval (advisory)    | `mise run eval:e2e`                                  |
+| Bench (advisory)       | `mise run bench`                                     |
+| Bench smoke            | `mise run bench:smoke`                               |
+| Full CI gate           | `mise run check`                                     |
 
-Run `mise run check` before every commit. Never bypass hk with `--no-verify`.
+The hk hooks check what a change touches — a commit runs the staged-file
+linters, typecheck and the unit tests its changes reach; a push adds the
+integration tests the branch reaches — and CI is the full gate, so there is no
+need to run `mise run check` before committing. Never bypass hk with
+`--no-verify`.
 
 ## Docs site
 
@@ -396,15 +401,35 @@ through the `bunfig.toml` of the directory it runs from (the repo root,
 which points HOME, USERPROFILE, `os.homedir()` (Bun does not follow a later
 `HOME` assignment) and the XDG/Codex dirs at a private sandbox, hands that
 environment to any `Bun.spawn` or `Bun.spawnSync` that passes no `env` (Bun
-would otherwise start the child with the real HOME), removes the sandbox after
-the last test, and fails any test whose global-config path lies under the real
-home; `test/unit/support-machine-isolation.test.ts` guards it, bunfig by bunfig.
-A test that wants a profile sets `XDG_CONFIG_HOME` itself. Pass
-`{ runtime: 'node' }` (the tests-only `mise.toml` node pin) only for an argv
-that starts with `--`, or for a row that pins a runtime gap cospec closes (a
-handover key, the readdir order) against the binary under Node itself. Assert
-errno failures through `test/fixtures/errno.ts` (code, syscall, path), never the
-OS-specific sentence.
+would otherwise start the child with the real HOME), removes git's repository
+variables (`git rev-parse --local-env-vars`, which a git hook exports for this
+repository, so a test's git would act on it instead of its temporary one),
+removes the sandbox after the last test, and fails any test whose global-config
+path lies under the real home; `test/unit/support-machine-isolation.test.ts`
+guards it, bunfig by bunfig. A test that wants a profile sets `XDG_CONFIG_HOME`
+itself. Pass `{ runtime: 'node' }` (the tests-only `mise.toml` node pin) only
+for an argv that starts with `--`, or for a row that pins a runtime gap cospec
+closes (a handover key, the readdir order) against the binary under Node itself.
+Assert errno failures through `test/fixtures/errno.ts` (code, syscall, path),
+never the OS-specific sentence.
+
+**Tests run what a change reaches** — the hooks and PR CI run
+`mise run test:changed` (`apps/cli/test/fixtures/test-scope.ts`): Bun's
+`bun test --changed` import-graph selection from where the branch left its base,
+or a whole suite when a change is on the CLI's boot path (`src/index.ts` without
+the command registry), in the test preload, or a file that is not a JS/TS module
+(canon, fixtures, golden files, manifests, lockfiles, config) outside that
+suite's `UNREAD` list. PR CI runs the whole unit suite (its coverage gate) and
+that selection of the contract and integration suites; pushes to `main`, the
+merge queue and a release (`release.yml`'s `check` job calls `ci.yml` on the
+commit it bumps) run every suite whole. A test that spawns the CLI imports the
+module of each command it runs (`import '../../src/commands/<name>.ts'`) — the
+test preload refuses the spawn otherwise. A test that reads source through fs
+imports what it reads (`../../../src/cli.ts` reaches every command), and is
+listed in `support-test-scope.test.ts`'s `SOURCE_READERS`, which checks both
+ways. A module a suite runs without importing it (the launcher the pack tests
+install) is in `RUN_NOT_IMPORTED`, and a test that starts reading a repo path
+through fs takes that path out of `UNREAD`.
 
 **Docs never drift** — zero drift between the published docs site and released
 behavior is non-negotiable. Any change that alters user-facing behavior —
