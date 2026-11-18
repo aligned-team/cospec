@@ -6,8 +6,8 @@
 // spawns the binary's `experimental`.
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { commandRow, flagValue, parseCommandArgs } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import { run as initRun } from './init.ts'
 
 export const DEPRECATION_NOTE =

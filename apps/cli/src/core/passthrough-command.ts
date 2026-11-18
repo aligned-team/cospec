@@ -14,8 +14,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { isUpstreamStorePathRefusal } from './command-table.ts'
+import { EXIT } from './exit.ts'
 import { forwardCall, isParseRejection, relayStorePathRefusal } from './forward-relay.ts'
 import {
   type OpenspecResult,

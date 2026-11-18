@@ -11,8 +11,8 @@
 // on stderr) — no extra deny-list is needed for that case.
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { commandRow, isStorePathToken, splitShortCluster } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import { relayRespelled } from '../core/forward-relay.ts'
 import { callPassthrough } from '../core/passthrough-command.ts'
 

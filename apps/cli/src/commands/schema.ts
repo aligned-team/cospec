@@ -16,8 +16,8 @@
 // successful `init`'s last next step too (`withCospecNextStep`).
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { isCospecType } from '../core/change.ts'
+import { EXIT } from '../core/exit.ts'
 import {
   isOptionToken,
   relayCommandLevel,

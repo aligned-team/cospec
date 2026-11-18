@@ -41,8 +41,8 @@
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { commandHelpText, EXIT } from '../cli.ts'
 import { commandRow } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import {
   forwardCall,
   isOptionToken,
@@ -54,6 +54,7 @@ import {
   subcommandOf,
 } from '../core/forward-relay.ts'
 import { handoverPreload, preloadedArgv } from '../core/handover-preload.ts'
+import { commandHelpText } from '../core/help-text.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
   OpenspecCallError,

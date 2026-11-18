@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { COMMAND_MODULES, GLOBAL_OPTIONS } from '../../../src/cli.ts'
+import { COMMAND_MODULES } from '../../../src/cli.ts'
 import {
   closest,
   COMMAND_TABLE,
@@ -31,6 +31,7 @@ import {
   type TableCommandRow,
   takesNextToken,
 } from '../../../src/core/command-table.ts'
+import { GLOBAL_OPTIONS } from '../../../src/core/help-text.ts'
 import { HARNESS_NAMES } from '../../../src/harness/adapters.ts'
 
 describe('init --harness values', () => {

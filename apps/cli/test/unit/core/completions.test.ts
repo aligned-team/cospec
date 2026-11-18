@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import { commandHelpText, run } from '../../../src/cli.ts'
+import { run } from '../../../src/cli.ts'
 import {
   COMMAND_TABLE,
   GLOBAL_FLAGS,
@@ -21,6 +21,7 @@ import { renderFishCompletion } from '../../../src/core/completions/fish.ts'
 import { renderPowerShellCompletion } from '../../../src/core/completions/powershell.ts'
 import { buildCompletionSpec, offeredFlagTokens } from '../../../src/core/completions/spec.ts'
 import { renderZshCompletion } from '../../../src/core/completions/zsh.ts'
+import { commandHelpText } from '../../../src/core/help-text.ts'
 import { commandBlock, commandFlags } from './powershell-script.ts'
 
 /** Capture `run()`'s stdout for a `--help` invocation. */

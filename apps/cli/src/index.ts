@@ -1,4 +1,5 @@
-import { EXIT, run } from './cli.ts'
+import { run } from './cli.ts'
+import { EXIT } from './core/exit.ts'
 
 try {
   process.exitCode = await run(process.argv.slice(2))

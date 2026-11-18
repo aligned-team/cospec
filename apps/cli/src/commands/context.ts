@@ -21,8 +21,8 @@ import { basename, isAbsolute, join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import { relayRespelled } from '../core/forward-relay.ts'
 import {
   type OpenspecResult,

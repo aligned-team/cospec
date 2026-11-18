@@ -21,8 +21,8 @@
 import { existsSync } from 'node:fs'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
+import { EXIT } from '../core/exit.ts'
 import { passthroughOpenspec } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { resolveRoot } from '../core/root.ts'

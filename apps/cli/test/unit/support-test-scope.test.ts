@@ -52,6 +52,17 @@ describe('the import graph', () => {
   })
 })
 
+describe("the command registry stays out of the commands' graph", () => {
+  // cli.ts's registry imports every command, so a command that imported anything from cli.ts
+  // would reach all the others, and a test of one command would be selected by a change to any.
+  test('no command module reaches src/cli.ts', () => {
+    const reaching = [...commandModules()]
+      .filter(([, module]) => importClosure(module).has(cli('src/cli.ts')))
+      .map(([name]) => name)
+    expect(reaching).toEqual([])
+  })
+})
+
 describe('fullSuiteReason', () => {
   test.each([
     ['apps/cli/src/core/validate.ts', 'contract', undefined],

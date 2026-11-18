@@ -51,6 +51,10 @@ import {
 import { makeSandbox } from './support/root-sandbox.ts'
 import { oracle, oracleEnv, type OracleRun } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/complete.ts'
+import '../../src/commands/list.ts'
+
 afterAll(cleanupAll)
 
 /** Mode-000 rows cannot fail for root, which reads any file. */

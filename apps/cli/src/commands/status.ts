@@ -8,7 +8,6 @@ import { closeSync, existsSync, openSync, readdirSync, readFileSync } from 'node
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import {
   changeMetadataRefused,
@@ -31,6 +30,7 @@ import {
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { answeringErrno } from '../core/errno.ts'
+import { EXIT } from '../core/exit.ts'
 import { passthroughOpenspec, wrappedCallLabel } from '../core/openspec.ts'
 import { respellRemedies, respellWholeRemedy } from '../core/remedies.ts'
 import type { ResolvedRoot } from '../core/root.ts'
