@@ -207,11 +207,16 @@ async function activeChange(sandbox: string): Promise<string | undefined> {
   return dirs.length === 1 ? dirs[0] : undefined
 }
 
+/** Archived change dirs by name, so a date prefix sorts them oldest first. */
 async function archiveDirs(sandbox: string): Promise<string[]> {
   const dir = join(sandbox, 'openspec/changes/archive')
   if (!(await exists(dir))) return []
   const entries = await readdir(dir, { withFileTypes: true })
-  return entries.filter((e) => e.isDirectory()).map((e) => e.name)
+  // Bun lists a directory in the filesystem's own order, not by name.
+  return entries
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .toSorted()
 }
 
 /**
