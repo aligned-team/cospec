@@ -3,7 +3,9 @@
 ## 1. Hooks and CI [critical]
 
 - [ ] 1.1 @runtime (agent) this PR's CI on GitHub's `ubuntu-latest` runner (`pull_request`) -> `ci.yml` without `workflow_call` runs every job and `ci-gate` is green
-- [ ] 1.2 @integration (agent) a real push of this branch through the pre-push hook -> it runs `test:changed` for unit, integration and contract, and passes
+- [ ] 1.2 @integration (agent) a real push of this branch through the pre-push hook -> the step reads the remote and the pushed ref from hk, selects from the push's own diff, and runs unit, integration and contract
+- [x] 1.3 @unit (agent) `pushedFiles` and `stagedFiles` over scratch clones of a scratch bare remote -> a fast-forward counts its deletion (`a.txt`, `b.txt`); a branch stacked on a pushed one changes only its own file (`stacked.txt`, not `feature.txt`); a new name for a pushed commit and a deleted ref change nothing; a force push diffs from the sha the remote had; a remote with none of the history makes the change unknown (whole suites); a commit changes its staged paths, deletions included, not its unstaged ones; `testsReaching` selects importers and a changed test file; `--push` reads the remote and refs from stdin (support-test-scope 52 pass)
+- [x] 1.4 @integration (agent) hk 1.48.0 in a scratch repo -> a step's `{{ hook_stdin }}` is every ref line git handed the hook and `{{ hook_args }}` is `<remote> <url>`; its `files_list` (the docs' text says `file_list`, which fails to render) holds dotfiles and, with `allow_binary`, binaries, but not a deleted file
 
 ## 2. Release gate
 

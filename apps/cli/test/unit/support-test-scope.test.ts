@@ -5,6 +5,8 @@
 
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
@@ -18,8 +20,11 @@ import {
   importClosure,
   mergeBase,
   preloadModules,
+  pushedFiles,
   ROOT_DIR,
+  stagedFiles,
   SUITES,
+  testsReaching,
   UNREAD,
 } from '../fixtures/test-scope.ts'
 
@@ -175,6 +180,173 @@ describe('changed files', () => {
     const files = changedFiles(mergeBase('HEAD'))
     expect(files).toEqual([...new Set(files)].toSorted())
     for (const file of files) expect(file.startsWith('/')).toBe(false)
+  })
+})
+
+/** A scratch clone of a scratch bare remote, its `main` pushed. */
+function scratchClone(): { work: string; git: (...args: string[]) => string; done: () => void } {
+  const root = mkdtempSync(join(tmpdir(), 'cospec-push-'))
+  const run = (cwd: string, ...args: string[]): string =>
+    execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+  run(root, 'init', '-q', '--bare', '-b', 'main', 'remote.git')
+  run(root, 'init', '-q', '-b', 'main', 'work')
+  const work = join(root, 'work')
+  const git = (...args: string[]): string =>
+    run(
+      work,
+      '-c',
+      'user.name=t',
+      '-c',
+      'user.email=t@example.invalid',
+      '-c',
+      'commit.gpgsign=false',
+      ...args,
+    )
+  git('remote', 'add', 'origin', join(root, 'remote.git'))
+  return { work, git, done: () => rmSync(root, { recursive: true, force: true }) }
+}
+
+const ZERO = '0'.repeat(40)
+
+describe('what a push changes', () => {
+  test('a ref the remote has: from its sha there, deletions included', () => {
+    const { work, git, done } = scratchClone()
+    try {
+      writeFileSync(join(work, 'a.txt'), 'a')
+      git('add', '-A')
+      git('commit', '-qm', 'base')
+      git('push', '-q', 'origin', 'main')
+      const remoteSha = git('rev-parse', 'HEAD')
+      unlinkSync(join(work, 'a.txt'))
+      writeFileSync(join(work, 'b.txt'), 'b')
+      git('add', '-A')
+      git('commit', '-qm', 'next')
+      const line = `refs/heads/main ${git('rev-parse', 'HEAD')} refs/heads/main ${remoteSha}`
+      expect(pushedFiles([line], 'origin', work)).toEqual({ files: ['a.txt', 'b.txt'] })
+    } finally {
+      done()
+    }
+  })
+
+  test('a new branch stacked on a pushed one: from the commits the remote already has', () => {
+    const { work, git, done } = scratchClone()
+    try {
+      writeFileSync(join(work, 'a.txt'), 'a')
+      git('add', '-A')
+      git('commit', '-qm', 'base')
+      git('push', '-q', 'origin', 'main')
+      git('checkout', '-qb', 'feature')
+      writeFileSync(join(work, 'feature.txt'), 'f')
+      git('add', '-A')
+      git('commit', '-qm', 'feature')
+      git('push', '-q', 'origin', 'feature')
+      git('checkout', '-qb', 'stacked')
+      writeFileSync(join(work, 'stacked.txt'), 's')
+      git('add', '-A')
+      git('commit', '-qm', 'stacked')
+      const head = git('rev-parse', 'HEAD')
+      expect(
+        pushedFiles([`refs/heads/stacked ${head} refs/heads/stacked ${ZERO}`], 'origin', work),
+      ).toEqual({ files: ['stacked.txt'] })
+      // A new name for a commit the remote has, and a deleted ref, change nothing.
+      const feature = git('rev-parse', 'feature')
+      expect(
+        pushedFiles([`refs/heads/alias ${feature} refs/heads/alias ${ZERO}`], 'origin', work),
+      ).toEqual({ files: [] })
+      expect(
+        pushedFiles([`(delete) ${ZERO} refs/heads/feature ${feature}`], 'origin', work),
+      ).toEqual({ files: [] })
+    } finally {
+      done()
+    }
+  })
+
+  test('a force push: from the sha the remote had', () => {
+    const { work, git, done } = scratchClone()
+    try {
+      writeFileSync(join(work, 'a.txt'), 'a')
+      git('add', '-A')
+      git('commit', '-qm', 'base')
+      const base = git('rev-parse', 'HEAD')
+      writeFileSync(join(work, 'b.txt'), 'b')
+      git('add', '-A')
+      git('commit', '-qm', 'first')
+      git('push', '-q', 'origin', 'main')
+      const pushed = git('rev-parse', 'HEAD')
+      git('reset', '-q', '--hard', base)
+      writeFileSync(join(work, 'c.txt'), 'c')
+      git('add', '-A')
+      git('commit', '-qm', 'rewritten')
+      const line = `refs/heads/main ${git('rev-parse', 'HEAD')} refs/heads/main ${pushed}`
+      expect(pushedFiles([line], 'origin', work)).toEqual({ files: ['b.txt', 'c.txt'] })
+    } finally {
+      done()
+    }
+  })
+
+  test('a remote with none of the pushed history cannot be told from it', () => {
+    const { work, git, done } = scratchClone()
+    try {
+      writeFileSync(join(work, 'a.txt'), 'a')
+      git('add', '-A')
+      git('commit', '-qm', 'base')
+      const line = `refs/heads/main ${git('rev-parse', 'HEAD')} refs/heads/main ${ZERO}`
+      expect(pushedFiles([line], 'origin', work)).toEqual({
+        unknown: 'origin has none of the history refs/heads/main pushes',
+      })
+    } finally {
+      done()
+    }
+  })
+})
+
+describe('what a commit changes', () => {
+  test('the staged paths, deletions included, not the unstaged ones', () => {
+    const { work, git, done } = scratchClone()
+    try {
+      for (const name of ['a.txt', 'b.txt', 'c.txt']) writeFileSync(join(work, name), name)
+      git('add', '-A')
+      git('commit', '-qm', 'base')
+      unlinkSync(join(work, 'a.txt'))
+      writeFileSync(join(work, 'b.txt'), 'b2')
+      git('add', '-A')
+      writeFileSync(join(work, 'c.txt'), 'c2')
+      expect(stagedFiles(work)).toEqual(['a.txt', 'b.txt'])
+    } finally {
+      done()
+    }
+  })
+})
+
+describe('the tests a change reaches', () => {
+  test('the test files whose imports reach a changed module, and a changed test itself', () => {
+    const unit = testsReaching('unit', ['apps/cli/src/commands/feedback.ts'])
+    expect(unit).toContain('test/unit/commands/feedback-format.test.ts')
+    expect(unit).not.toContain('test/unit/docs/table-shape.test.ts')
+    expect(testsReaching('unit', ['apps/cli/test/unit/docs/table-shape.test.ts'])).toEqual([
+      'test/unit/docs/table-shape.test.ts',
+    ])
+    expect(testsReaching('contract', ['apps/docs/guide/index.md'])).toEqual([])
+  })
+
+  test('a pre-push run reads the remote and the refs from stdin', () => {
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: ROOT_DIR,
+      encoding: 'utf8',
+    }).trim()
+    const run = Bun.spawnSync(
+      [process.execPath, cli('test/fixtures/run-changed.ts'), '--push', 'unit'],
+      {
+        cwd: CLI_DIR,
+        stdin: new TextEncoder().encode(
+          `origin https://example.invalid/x.git\nrefs/heads/x ${head} refs/heads/x ${head}\n`,
+        ),
+      },
+    )
+    expect(new TextDecoder().decode(run.stdout)).toContain(
+      'test:changed unit: 0 test file(s) the push to origin reach (0 changed file(s))',
+    )
+    expect(run.exitCode).toBe(0)
   })
 })
 

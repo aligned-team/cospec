@@ -102,9 +102,9 @@ jobs:
       # The coverage gate measures the whole unit suite, so every event runs all of it.
       - name: Unit tests (coverage gate)
         run: bun test apps/cli/test/unit --coverage --timeout 30000
-      # A pull request runs the contract and integration tests its changes reach — Bun's
-      # import-graph selection, or the whole suite when a change sits outside the graph (`mise run
-      # test:changed`, apps/cli/test/fixtures/test-scope.ts).
+      # A pull request runs the contract and integration tests its changes (its diff from its base)
+      # reach — the test files whose import graph reaches a changed file, or the whole suite when a
+      # change sits outside the graph (`mise run test:changed`, apps/cli/test/fixtures/test-scope.ts).
       - name: Contract tests (what the pull request reaches)
         if: github.event_name == 'pull_request'
         env:

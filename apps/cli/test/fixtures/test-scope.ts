@@ -1,10 +1,12 @@
 // Which apps/cli tests a change can affect: the selection the git hooks and PR CI run instead of
 // the whole suites (`mise run test:changed`), and the guard that keeps it sound.
 //
-// Selection is Bun's own: `bun test --changed=<base>` runs the test files whose import graph
-// reaches a changed file, following static imports and literal dynamic `import()`s (never
-// type-only imports). Three kinds of input sit outside any test's graph, and each runs the whole
-// suite instead (`fullSuiteReason`):
+// A change is a list of files: what a commit stages, what a push changes on each ref, or what a
+// branch changes from a base (`stagedFiles`, `pushedFiles`, `changedFiles`). The tests it reaches
+// are the test files whose import graph reaches one of them (`testsReaching`), by the rules
+// `bun test --changed` follows: static imports and literal dynamic `import()`s, never type-only
+// imports. Three kinds of input sit outside any test's graph, and each runs the whole suite
+// instead (`fullSuiteReason`):
 //
 // - the CLI's boot path: a test runs the CLI as a child (`bun src/index.ts <command>`), so what it
 //   imports is not what the child loads. Every run loads `src/index.ts` and what it reaches
@@ -121,23 +123,49 @@ function importsOf(file: string, source: string): string[] {
     .filter((path): path is string => path !== undefined)
 }
 
-function closure(entries: readonly string[], read: (file: string) => string): Set<string> {
+function closure(entries: readonly string[], importsFor: (file: string) => string[]): Set<string> {
   const seen = new Set<string>()
   const stack = [...entries]
   while (stack.length > 0) {
     const file = stack.pop()!
     if (seen.has(file)) continue
     seen.add(file)
-    if (MODULE.test(file)) stack.push(...importsOf(file, read(file)))
+    if (MODULE.test(file)) stack.push(...importsFor(file))
   }
   return seen
 }
 
 const readText = (file: string): string => readFileSync(file, 'utf8')
 
+// One scan per file per process: a selection walks every test file's graph, and they overlap.
+const scanned = new Map<string, string[]>()
+function importsOnDisk(file: string): string[] {
+  let found = scanned.get(file)
+  if (found === undefined) {
+    found = existsSync(file) ? importsOf(file, readText(file)) : []
+    scanned.set(file, found)
+  }
+  return found
+}
+
 /** Every file `entry` loads (absolute paths, `entry` included). */
 export function importClosure(entry: string): Set<string> {
-  return closure([resolve(entry)], readText)
+  return closure([resolve(entry)], importsOnDisk)
+}
+
+// The file names Bun's test runner picks up.
+const TEST_FILE = new Bun.Glob('**/*{.test,_test,.spec,_spec}.{ts,tsx,js,jsx,mjs,cjs}')
+
+/**
+ * The test files of `suite` (paths relative to apps/cli) whose import graph reaches one of
+ * `changed` (root-relative paths), a changed test file included.
+ */
+export function testsReaching(suite: Suite, changed: readonly string[]): string[] {
+  const targets = new Set(changed.map((file) => join(ROOT_DIR, file)))
+  return [...TEST_FILE.scanSync(join(CLI_DIR, 'test', suite))]
+    .map((file) => `test/${suite}/${file.split(sep).join('/')}`)
+    .filter((file) => [...importClosure(join(CLI_DIR, file))].some((m) => targets.has(m)))
+    .toSorted()
 }
 
 // `export const COMMAND_MODULES = { … }` in src/cli.ts: one literal `import()` per command.
@@ -164,7 +192,9 @@ export function commandModules(): Map<string, string> {
 export function bootModules(): Set<string> {
   const { block, text } = registryBlock()
   const withoutRegistry = text.slice(0, block.index) + text.slice(block.index + block[0].length)
-  return closure([CLI_ENTRY_PATH], (file) => (file === CLI_TS ? withoutRegistry : readText(file)))
+  return closure([CLI_ENTRY_PATH], (file) =>
+    file === CLI_TS ? importsOf(file, withoutRegistry) : importsOnDisk(file),
+  )
 }
 
 /** What every `bun test` run in apps/cli loads before any test file: the preload's closure. */
@@ -216,23 +246,77 @@ export function fullSuiteReason(
   return undefined
 }
 
-const git = (...args: string[]): string =>
-  execFileSync('git', args, { cwd: ROOT_DIR, encoding: 'utf8' }).trim()
+const gitIn = (cwd: string, ...args: string[]): string =>
+  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
 const lines = (out: string): string[] => out.split('\n').filter((line) => line.length > 0)
 
-/** The commit `ref` and HEAD share: the base `--changed` compares against. */
-export function mergeBase(ref: string): string {
-  return git('merge-base', 'HEAD', ref)
+/** The commit `ref` and HEAD share. */
+export function mergeBase(ref: string, cwd = ROOT_DIR): string {
+  return gitIn(cwd, 'merge-base', 'HEAD', ref)
 }
 
 /**
  * Root-relative paths that differ from `base` in the working tree — committed, staged, unstaged
- * or untracked — the files `bun test --changed=<base>` starts from.
+ * or untracked, deletions included.
  */
-export function changedFiles(base: string): string[] {
-  const tracked = lines(git('diff', '--name-only', '--no-renames', base))
-  const untracked = lines(git('ls-files', '--others', '--exclude-standard'))
+export function changedFiles(base: string, cwd = ROOT_DIR): string[] {
+  const tracked = lines(gitIn(cwd, 'diff', '--name-only', '--no-renames', base))
+  const untracked = lines(gitIn(cwd, 'ls-files', '--others', '--exclude-standard'))
   return [...new Set([...tracked, ...untracked])].toSorted()
+}
+
+/** What the commit about to be made changes: the staged paths, deletions included. */
+export function stagedFiles(cwd = ROOT_DIR): string[] {
+  return lines(gitIn(cwd, 'diff', '--cached', '--name-only', '--no-renames')).toSorted()
+}
+
+const ZERO_SHA = /^0+$/
+
+/** What a push changes, or why its changes cannot be told apart from the whole history. */
+export type PushChange = { readonly files: readonly string[] } | { readonly unknown: string }
+
+/**
+ * What a push changes, from what git hands a pre-push hook: the `remote`, and one
+ * `<local ref> <local sha> <remote ref> <remote sha>` line per ref. A ref the remote has moves
+ * from its sha there; a new one from the newest commits the remote already has (on a stacked
+ * branch, the branch it was cut from); a deleted one changes nothing. Deletions count.
+ */
+export function pushedFiles(
+  refLines: readonly string[],
+  remote: string,
+  cwd = ROOT_DIR,
+): PushChange {
+  const files = new Set<string>()
+  for (const line of refLines) {
+    const [, localSha, , remoteSha] = line.trim().split(/\s+/)
+    if (localSha === undefined || remoteSha === undefined || ZERO_SHA.test(localSha)) continue
+    let bases: string[]
+    if (!ZERO_SHA.test(remoteSha) && hasCommit(remoteSha, cwd)) bases = [remoteSha]
+    else {
+      const walk = lines(
+        gitIn(cwd, 'rev-list', '--boundary', localSha, '--not', `--remotes=${remote}`),
+      )
+      bases = walk.filter((entry) => entry.startsWith('-')).map((entry) => entry.slice(1))
+      if (bases.length === 0 && walk.length > 0)
+        return {
+          unknown: `${remote} has none of the history ${line.trim().split(/\s+/)[0]} pushes`,
+        }
+    }
+    for (const base of bases)
+      for (const file of lines(gitIn(cwd, 'diff', '--name-only', '--no-renames', base, localSha)))
+        files.add(file)
+  }
+  return { files: [...files].toSorted() }
+}
+
+/** Whether `sha` names a commit this clone has: one the remote holds but nobody fetched does not. */
+function hasCommit(sha: string, cwd: string): boolean {
+  const probe = Bun.spawnSync(['git', 'cat-file', '-e', `${sha}^{commit}`], {
+    cwd,
+    stderr: 'ignore',
+  })
+  if (probe.exitCode === null) throw new Error(`git cat-file did not run in ${cwd}`)
+  return probe.exitCode === 0
 }
 
 const closures = new Map<string, Set<string>>()
