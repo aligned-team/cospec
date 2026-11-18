@@ -97,8 +97,8 @@ All operations run through mise tasks — never raw tool invocations:
 
 The hk hooks check what a change touches — a commit runs the staged-file
 linters, typecheck and the unit tests its changes reach; a push adds the
-integration tests the branch reaches — and CI is the full gate, so there is no
-need to run `mise run check` before committing. Never bypass hk with
+integration and contract tests the branch reaches — and CI is the full gate, so
+there is no need to run `mise run check` before committing. Never bypass hk with
 `--no-verify`.
 
 ## Docs site
@@ -424,16 +424,17 @@ or a whole suite when a change is on the CLI's boot path (`src/index.ts` without
 the command registry), in the test preload, or a file that is not a JS/TS module
 (canon, fixtures, golden files, manifests, lockfiles, config) outside that
 suite's `UNREAD` list. PR CI runs the whole unit suite (its coverage gate) and
-that selection of the contract and integration suites; pushes to `main`, the
-merge queue and a release (`release.yml`'s `check` job calls `ci.yml` on the
-commit it bumps) run every suite whole. A test that spawns the CLI imports the
-module of each command it runs (`import '../../src/commands/<name>.ts'`) — the
-test preload refuses the spawn otherwise. A test that reads source through fs
-imports what it reads (`../../../src/cli.ts` reaches every command), and is
-listed in `support-test-scope.test.ts`'s `SOURCE_READERS`, which checks both
-ways. A module a suite runs without importing it (the launcher the pack tests
-install) is in `RUN_NOT_IMPORTED`, and a test that starts reading a repo path
-through fs takes that path out of `UNREAD`.
+that selection of the contract and integration suites; pushes to `main` and the
+merge queue run every suite whole, and a release bumps only a `main` commit
+whose own CI passed (`release.yml`'s gate on its `ci-gate` check). A test that
+spawns the CLI imports the module of each command it runs
+(`import '../../src/commands/<name>.ts'`) — the test preload refuses the spawn
+otherwise. A test that reads source through fs imports what it reads
+(`../../../src/cli.ts` reaches every command), and is listed in
+`support-test-scope.test.ts`'s `SOURCE_READERS`, which checks both ways. A
+module a suite runs without importing it (the launcher the pack tests install)
+is in `RUN_NOT_IMPORTED`, and a test that starts reading a repo path through fs
+takes that path out of `UNREAD`.
 
 **Docs never drift** — zero drift between the published docs site and released
 behavior is non-negotiable. Any change that alters user-facing behavior —

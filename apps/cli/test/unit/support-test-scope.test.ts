@@ -104,20 +104,18 @@ describe('fullSuiteReason', () => {
 })
 
 /** What a test reads of apps/cli's source through fs rather than by importing it. */
-type Reads =
-  | { readonly globs: readonly string[] }
-  | { readonly cli: true }
-  | { readonly none: string }
+type Reads = { readonly globs: readonly string[] } | { readonly none: string }
 
 /**
  * Every test whose code builds a relative path into apps/cli/src (outside canon and the vendored
  * bundle, which are not modules and run whole suites anyway): what it reads — globs under
- * apps/cli, `cli` for every module the CLI loads (it copies src and runs the copy), or why the
- * path reads no source.
+ * apps/cli (for a test that copies src and runs the copy, the command modules it runs) — or why
+ * the path reads no source.
  */
 const SOURCE_READERS: Readonly<Record<string, Reads>> = {
   'test/contract/glob.test.ts': { globs: ['src/core/glob.ts'] },
-  'test/contract/profiles.test.ts': { cli: true },
+  // Copies src and runs only `update` from the copy.
+  'test/contract/profiles.test.ts': { globs: ['src/commands/update.ts'] },
   'test/integration/completion-install.test.ts': {
     none: 'the CLI entry it spawns, which the spawn guard checks',
   },
@@ -162,9 +160,7 @@ describe('a test that reads source through fs imports it', () => {
     const wanted =
       'none' in reads
         ? []
-        : 'cli' in reads
-          ? [...importClosure(cli('src/cli.ts'))]
-          : reads.globs.flatMap((glob) => [...new Bun.Glob(glob).scanSync(CLI_DIR)].map(cli))
+        : reads.globs.flatMap((glob) => [...new Bun.Glob(glob).scanSync(CLI_DIR)].map(cli))
     expect(wanted.filter((module) => !reach.has(module) && !boot.has(module))).toEqual([])
   })
 })

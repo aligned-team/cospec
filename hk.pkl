@@ -141,9 +141,9 @@ local typecheckSteps = new Mapping<String, Step> {
 // Tests: only what the change reaches (`mise run test:changed`, apps/cli/test/fixtures/
 // test-scope.ts) — Bun's import-graph selection (`bun test --changed`), or a whole suite when a
 // change sits outside the graph. A commit runs the unit tests its staged changes reach; a push
-// adds the integration tests, from where the branch left origin/main. The contract suite (the
-// real pinned binary, about half an hour whole) is CI's: PR CI runs the same selection of it,
-// and main, the merge queue and releases run every suite whole.
+// adds the integration and contract tests the branch reaches since it left origin/main (a change
+// outside the graph — canon, the CLI's boot path — still runs the whole contract suite, about 20
+// minutes locally). PR CI runs the same selection; main and the merge queue run every suite whole.
 local commitTestSteps = new Mapping<String, Step> {
   ["test"] {
     check = "mise run test:changed -- unit"
@@ -152,7 +152,7 @@ local commitTestSteps = new Mapping<String, Step> {
 }
 local pushTestSteps = new Mapping<String, Step> {
   ["test"] {
-    check = "mise run test:changed -- --base origin/main unit integration"
+    check = "mise run test:changed -- --base origin/main unit integration contract"
     exclusive = true
   }
 }

@@ -124,7 +124,7 @@ with `--no-verify` — if a hook fails, fix the root cause.
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pre-commit` | bun fmt · oxlint · taplo · shellcheck · actionlint · `agents:check` · `generate:check` · `cospec validate --all --strict` · `cospec sync-blockers` · typecheck · the unit tests the staged changes reach |
 | `commit-msg` | commitlint · `cospec check-commit`                                                                                                                                                                       |
-| `pre-push`   | the linters (bun fmt · oxlint · taplo · shellcheck · actionlint) · typecheck · the unit and integration tests the branch reaches since it left `origin/main`                                             |
+| `pre-push`   | the linters (bun fmt · oxlint · taplo · shellcheck · actionlint) · typecheck · the unit, integration and contract tests the branch reaches since it left `origin/main`                                   |
 
 The linters run on the files the commit or push touches. Typecheck runs when a
 TypeScript file or a `tsconfig` changes, over every workspace — type errors
@@ -156,13 +156,12 @@ listed in `SOURCE_READERS` in `support-test-scope.test.ts`, which fails on an
 unlisted reader or one whose imports miss what it reads. A test that starts
 reading a repository path through `fs` takes that path out of `UNREAD`.
 
-The contract suite runs the real pinned OpenSpec binary and takes about half an
-hour whole, so no hook runs it: pull-request CI runs the contract and
-integration tests the pull request reaches (and the whole unit suite, for its
-coverage gate); pushes to `main`, the merge queue and every release
-(`release.yml` calls `ci.yml` on the commit it releases) run every suite whole.
-`mise run test:changed -- --base origin/main contract` runs the pull request's
-selection locally.
+A push runs the contract tests the branch reaches too. The contract suite runs
+the real pinned OpenSpec binary and takes about 20 minutes whole locally, so a
+push that changes canon or the CLI's boot path takes that long. Pull-request CI
+runs the same contract and integration selection (and the whole unit suite, for
+its coverage gate); pushes to `main` and the merge queue run every suite whole,
+and a release bumps only a `main` commit whose own CI passed.
 
 ## The cospec change workflow (we self-host)
 
