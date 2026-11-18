@@ -2,7 +2,7 @@
 
 ## 1. Hooks, release and selection
 
-- [ ] 1.1 Add `contract` to the pre-push `test:changed` step, and verify
+- [x] 1.1 Add `contract` to the pre-push `test:changed` step, and verify
       `hk validate` passes and a push runs it
 - [x] 1.2 Restore `release.yml` to its form before `scope-checks-to-changes`,
       add the `ci-gate` step to `bump`, drop `ci.yml`'s `workflow_call`, and
