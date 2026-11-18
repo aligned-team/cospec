@@ -28,18 +28,25 @@ for the detailed mechanics.
 - [mise](https://mise.jdx.dev) — manages every tool pin (Bun, OpenSpec, oxlint,
   hk, …). Nothing else needs to be installed globally. Bun also provides the
   type checker (`bun check`) and the formatter (`bun fmt`).
+- Git 2.54 or newer, for config-based hooks (older Git still works: hk falls
+  back to script shims in `.git/hooks/`).
 
 ### Clone and install
 
 ```bash
 git clone https://github.com/aligned-team/cospec
 cd cospec
-mise install     # installs the pinned toolchain
-bun install      # installs workspace dependencies; the postinstall hook wires hk
+mise install     # installs the pinned toolchain and wires the git hooks
+bun install      # installs workspace dependencies
 ```
 
-`bun install`'s postinstall runs `hk install --mise`, so the git hooks are live
-after the first install. No manual hook step.
+`mise install` runs the `postinstall` hook in `mise.toml`, `hk install --mise`,
+every time, even when every tool is already installed, so the git hooks are live
+after the first install. No manual hook step. hk writes them into this clone's
+own `.git/config` as config-based hooks (`hook.hk-*`), shared by every worktree
+of the clone. Nothing in your global git config is needed, and a global git
+template's hooks are not used. Each hook runs hk through `mise x`, so `mise`
+must be on the `PATH` git sees when it runs one.
 
 Always run tooling through mise (`mise exec -- <tool>` or `mise run <task>`) so
 the pinned versions apply — a `bun` already on your `PATH` may be a different
