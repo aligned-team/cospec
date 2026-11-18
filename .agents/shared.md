@@ -417,22 +417,21 @@ never the OS-specific sentence.
 `mise run test:changed` (`apps/cli/test/fixtures/test-scope.ts`) over a change —
 a commit's staged files, a push's diff per ref from what the remote has (a new
 branch: from the newest commits the remote already has), or a PR's diff from its
-base: the test files whose import graph reaches a changed file (the rules
-`bun test --changed` follows), or a whole suite when a change is on the CLI's
-boot path (`src/index.ts` without the command registry), in the test preload, or
-a file that is not a JS/TS module (canon, fixtures, golden files, manifests,
-lockfiles, config) outside that suite's `UNREAD` list. PR CI runs the whole unit
-suite (its coverage gate) and that selection of the contract and integration
-suites; pushes to `main` and the merge queue run every suite whole, and a
-release bumps only a `main` commit whose own CI passed (`release.yml`'s gate on
-its `ci-gate` check). A test that spawns the CLI imports the module of each
-command it runs (`import '../../src/commands/<name>.ts'`) — the test preload
-refuses the spawn otherwise. A test that reads source through fs imports what it
-reads (`../../../src/cli.ts` reaches every command), and is listed in
-`support-test-scope.test.ts`'s `SOURCE_READERS`, which checks both ways. A
-module a suite runs without importing it (the launcher the pack tests install)
-is in `RUN_NOT_IMPORTED`, and a test that starts reading a repo path through fs
-takes that path out of `UNREAD`.
+base: per suite, each changed file selects the tests whose import graph reaches
+it (the rules `bun test --changed` follows; canon is in the graph through
+`canon/embedded.ts`), the tests that read it through fs (`FS_READERS`, and the
+fixture trees each test copies), nothing for a path no test reads (`UNREAD`), or
+the whole suite for an input every test depends on (the CLI's boot path, the
+test preload, `GLOBAL_INPUTS`) or a non-code file nothing is known to read. PR
+CI runs the whole unit suite (its coverage gate) and that selection of the
+contract and integration suites; pushes to `main` and the merge queue run every
+suite whole, and a release bumps only a `main` commit whose own CI passed
+(`release.yml`'s gate on its `ci-gate` check). A test that spawns the CLI
+imports the module of each command it runs
+(`import '../../src/commands/<name>.ts'`) — the test preload refuses the spawn
+otherwise. A file under `test/` that builds a path into the repository says what
+it reads in `FS_READERS`, and `support-test-scope.test.ts` fails on one that
+does not; a fixture is named by a literal in `mkTempRepo`/`copyFixture`.
 
 **Docs never drift** — zero drift between the published docs site and released
 behavior is non-negotiable. Any change that alters user-facing behavior —

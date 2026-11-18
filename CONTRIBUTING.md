@@ -143,28 +143,33 @@ The hooks and pull-request CI run `mise run test:changed`
   file list leaves deletions out;
 - a pull request: its diff from its base.
 
-Per suite, it runs:
+Per suite, each changed file selects:
 
-- **the tests the change reaches**: the test files whose import graph (static
-  imports and literal `import()`s, never type-only ones — the rules
-  `bun test --changed` follows) reaches a changed file; or
-- **the whole suite**, when a change sits outside that graph: the CLI's boot
-  path (`src/index.ts` and what it loads before choosing a command module), the
-  test preload, or any file that is not a JS/TS module (canon YAML and Markdown,
-  fixture trees, golden files, `package.json`, `bun.lock`, `mise.toml`, tool
-  config) unless that suite's `UNREAD` list says none of its tests read it, and
-  a module a suite runs without importing it (`RUN_NOT_IMPORTED`: the launcher
-  the pack tests install from the tarball).
+- **the tests whose import graph reaches it** (static imports and literal
+  `import()`s, never type-only ones — the rules `bun test --changed` follows).
+  Canon files are in the graph: `canon/embedded.ts` imports each one;
+- **the tests that read it through `fs`**: those `FS_READERS` lists (directly,
+  or through a support module they import), and those that copy the fixture tree
+  it is in;
+- **nothing**, for a path no test reads (`UNREAD`: change records, workflows,
+  hook scripts, root docs, the bench and e2e packages); or
+- **the whole suite**, for an input every test depends on — the CLI's boot path
+  (`src/index.ts` and what it loads before choosing a command module), the test
+  preload, `package.json`, the lockfiles, `mise.toml`, `bunfig.toml`, the
+  `tsconfig`s (`GLOBAL_INPUTS`) — or a non-code file nothing is known to read.
+
+So a change to a docs page runs the docs table test and nothing else, and a
+change to a golden file runs the tests that compare against it.
 
 A test that spawns the CLI runs it in a child process, so its own imports would
 not reach the command it runs. It imports that command's module instead
 (`import '../../src/commands/validate.ts'`); the test preload refuses a CLI
-spawn from a test file whose imports never reach the dispatched command. A test
-that reads source through `fs` (a scan of every command, say) imports what it
-reads the same way (`import '../../../src/cli.ts'` reaches every command) and is
-listed in `SOURCE_READERS` in `support-test-scope.test.ts`, which fails on an
-unlisted reader or one whose imports miss what it reads. A test that starts
-reading a repository path through `fs` takes that path out of `UNREAD`.
+spawn from a test file whose imports never reach the dispatched command. A file
+under `test/` that builds a path into the repository (from `import.meta.dir`,
+`REPO_ROOT` and the like) says what it reads in `FS_READERS`
+(`test/fixtures/test-scope.ts`), and `support-test-scope.test.ts` fails on one
+that does not. A fixture is named by a literal in `mkTempRepo({ fixture })` or
+`copyFixture()`, so the tests that copy each tree are known.
 
 A push runs the contract tests its changes reach too. The contract suite runs
 the real pinned OpenSpec binary and takes about 20 minutes whole locally, so a
