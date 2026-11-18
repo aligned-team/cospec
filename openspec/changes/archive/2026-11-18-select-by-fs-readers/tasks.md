@@ -9,9 +9,8 @@
 - [x] 1.2 Declare every file under `test/` that builds a repository path, and
       verify the discovery check lists exactly them and each glob matches a file
 
-## 2. Docs and verification
+## 2. Docs
 
-- [ ] 2.1 Update `CONTRIBUTING.md` and `.agents/shared.md` (then
-      `mise run agents:sync`), and verify the unit, contract and integration
-      suites pass whole and this PR's CI is green. The archive commit follows
-      this one.
+- [x] 2.1 Update `CONTRIBUTING.md` and `.agents/shared.md` (then
+      `mise run agents:sync`), and verify `agents:check` and `format:check`
+      pass. The archive commit follows this one.
