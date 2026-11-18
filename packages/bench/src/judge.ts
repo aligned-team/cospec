@@ -141,16 +141,20 @@ export async function collectArtifactText(
   }
   const specsDir = join(base, 'specs')
   if (await exists(specsDir)) {
+    // Every spec path first, then read in sorted order: Bun lists a directory in the filesystem's
+    // own order, and `judgeInputFromArtifactFiles` sorts the same full `specs/<rel>` paths.
+    const rels: string[] = []
     const walk = async (dir: string, prefix: string): Promise<void> => {
       for (const e of await readdir(dir, { withFileTypes: true })) {
         const rel = prefix === '' ? e.name : `${prefix}/${e.name}`
         if (e.isDirectory()) await walk(join(dir, e.name), rel)
-        else if (e.name.endsWith('.md')) {
-          parts.push(`### specs/${rel}\n${await Bun.file(join(dir, e.name)).text()}`)
-        }
+        else if (e.name.endsWith('.md')) rels.push(`specs/${rel}`)
       }
     }
     await walk(specsDir, '')
+    for (const rel of rels.toSorted()) {
+      parts.push(`### ${rel}\n${await Bun.file(join(base, rel)).text()}`)
+    }
   }
   // Truncate after redaction, never before: slicing raw text first could cut a
   // sentinel in half, leaving an unmatched fragment that redactText can no

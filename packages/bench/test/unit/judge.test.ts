@@ -229,6 +229,24 @@ describe('collectArtifactText', () => {
     expect(text).toContain('#### Scenario: works')
   })
 
+  // The snapshot path sorts full `specs/<rel>` paths; the live one must match it whatever order
+  // the filesystem lists a directory in. `a-b/` sorts before `a/` by full path (`-` < `/`), so
+  // even a walk that sorted each directory would disagree.
+  test('orders specs exactly as judgeInputFromArtifactFiles does', async () => {
+    const sandbox = makeSandbox()
+    const base = join(sandbox, 'openspec/changes/add-widget')
+    const files: Record<string, string> = { 'proposal.md': '## Why\n' }
+    mkdirSync(base, { recursive: true })
+    writeFileSync(join(base, 'proposal.md'), files['proposal.md']!)
+    for (const dir of ['zeta', 'a', 'mid', 'a-b', 'Beta']) {
+      mkdirSync(join(base, 'specs', dir), { recursive: true })
+      writeFileSync(join(base, 'specs', dir, 'spec.md'), `#### Scenario: ${dir}\n`)
+      files[`specs/${dir}/spec.md`] = `#### Scenario: ${dir}\n`
+    }
+    const live = await collectArtifactText(sandbox, 'openspec/changes/add-widget', {})
+    expect(live).toBe(judgeInputFromArtifactFiles(files, {}))
+  })
+
   test('redacts sentinel values before returning', async () => {
     const sandbox = makeSandbox()
     const base = join(sandbox, 'openspec/changes/add-widget')

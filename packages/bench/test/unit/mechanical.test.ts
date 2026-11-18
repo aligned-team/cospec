@@ -516,6 +516,25 @@ describe('resolveChange', () => {
     })
   })
 
+  // Created out of date order: Bun lists a directory in the filesystem's own order, so the
+  // latest date must win by name, not by where the listing happens to put it.
+  test('picks the latest date prefix whatever order the archive lists them in', async () => {
+    const sandbox = makeSandbox()
+    for (const name of [
+      '2026-03-03-c',
+      '2026-01-01-a',
+      '2026-05-05-e',
+      '2026-02-02-b',
+      '2026-04-04-d',
+    ])
+      mkdirSync(join(sandbox, 'openspec/changes/archive', name), { recursive: true })
+    expect(await resolveChange(sandbox)).toEqual({
+      slug: 'e',
+      dir: 'openspec/changes/archive/2026-05-05-e',
+      archived: true,
+    })
+  })
+
   test('ignores archive dirs that do not match the YYYY-MM-DD-<slug> pattern', async () => {
     const sandbox = makeSandbox()
     mkdirSync(join(sandbox, 'openspec/changes/archive/not-a-date'), { recursive: true })
