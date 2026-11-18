@@ -19,6 +19,9 @@ import {
   resolveSchema,
 } from '../../../src/core/change.ts'
 
+// Source this file reads through fs, imported so `bun test --changed` selects it when that changes.
+import '../../../src/commands/new.ts'
+
 const roots: string[] = []
 
 function makeRepo(): string {

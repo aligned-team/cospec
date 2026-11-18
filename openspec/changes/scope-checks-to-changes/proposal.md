@@ -29,6 +29,13 @@ release ran none of the suites.
   repository re-initialized this one as bare until they were removed.
 - `apps/cli/test/contract/*.test.ts`, `apps/cli/test/integration/*.test.ts`:
   each file that spawns the CLI imports the module of every command it runs.
+- Unit and contract tests that read source through fs (`no-tool-branches`,
+  `no-legacy-parser`, `scenario-gate`, `views`, `change`, `profiles`) import
+  what they read, and `support-test-scope.test.ts`'s `SOURCE_READERS` lists
+  every test that builds a path into `src`, failing on an unlisted one or one
+  whose imports miss what it reads. `RUN_NOT_IMPORTED` runs the integration
+  suite whole for a launcher (`apps/cli/bin`) change, which the pack tests run
+  from the tarball rather than import.
 - `apps/cli/test/unit/support-test-scope.test.ts`,
   `support-test-scope-dispatch.test.ts`: the selection rules, the guard, and the
   guard's argv reading held to the real dispatcher.

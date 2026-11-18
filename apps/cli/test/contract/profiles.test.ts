@@ -42,6 +42,8 @@ import { oracle } from './support/upstream-oracle.ts'
 import '../../src/commands/doctor.ts'
 import '../../src/commands/init.ts'
 import '../../src/commands/update.ts'
+// sourceCopy() copies src and runs the copy, so it reaches every module the CLI loads.
+import '../../src/cli.ts'
 
 afterAll(cleanupAll)
 

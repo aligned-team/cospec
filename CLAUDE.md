@@ -424,8 +424,12 @@ that selection of the contract and integration suites; pushes to `main`, the
 merge queue and a release (`release.yml`'s `check` job calls `ci.yml` on the
 commit it bumps) run every suite whole. A test that spawns the CLI imports the
 module of each command it runs (`import '../../src/commands/<name>.ts'`) — the
-test preload refuses the spawn otherwise — and a test that starts reading a repo
-path through fs takes that path out of `UNREAD`.
+test preload refuses the spawn otherwise. A test that reads source through fs
+imports what it reads (`../../../src/cli.ts` reaches every command), and is
+listed in `support-test-scope.test.ts`'s `SOURCE_READERS`, which checks both
+ways. A module a suite runs without importing it (the launcher the pack tests
+install) is in `RUN_NOT_IMPORTED`, and a test that starts reading a repo path
+through fs takes that path out of `UNREAD`.
 
 **Docs never drift** — zero drift between the published docs site and released
 behavior is non-negotiable. Any change that alters user-facing behavior —

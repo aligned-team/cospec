@@ -13,11 +13,14 @@
 // - the test preload (bunfig's `[test] preload`), which no test imports.
 // - every file that is not a JS/TS module — canon YAML and Markdown, fixture trees, golden files,
 //   manifests, lockfiles, tool config — since tests and the CLI read those through fs. Only the
-//   paths in `UNREAD` are skipped: no test of that suite reads them.
+//   paths in `UNREAD` are skipped: no test of that suite reads them. And the modules a suite runs
+//   without importing them (`RUN_NOT_IMPORTED`: the launcher the pack tests install and run).
 //
 // The guard (`assertSpawnSelectable`, run by the test preload on every `Bun.spawn`): a test file
 // under apps/cli/test that spawns the CLI must reach the dispatched command's module through its
-// own imports, or a change to that command would never select it.
+// own imports, or a change to that command would never select it. A test that reads source
+// through fs imports what it reads the same way (`support-test-scope.test.ts` holds each one to
+// it).
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -72,6 +75,14 @@ export const UNREAD: Readonly<Record<Suite, readonly string[]>> = {
   unit: UNREAD_BY_ANY_SUITE,
   contract: [...UNREAD_BY_ANY_SUITE, 'docs/**', 'apps/docs/**'],
   integration: [...UNREAD_BY_ANY_SUITE, 'docs/**', 'apps/docs/**'],
+}
+
+/** Modules (root-relative globs) a suite runs or installs rather than imports. */
+export const RUN_NOT_IMPORTED: Readonly<Record<Suite, readonly string[]>> = {
+  unit: [],
+  contract: [],
+  // pack.test.ts and pack-standalone.test.ts pack the CLI and run its launcher from the tarball.
+  integration: ['apps/cli/bin/**'],
 }
 
 function resolveImport(from: string, specifier: string): string | undefined {
@@ -192,10 +203,13 @@ export function fullSuiteReason(
   },
 ): string | undefined {
   const unread = UNREAD[suite].map((glob) => new Bun.Glob(glob))
+  const run = RUN_NOT_IMPORTED[suite].map((glob) => new Bun.Glob(glob))
   for (const file of changed) {
     const abs = join(ROOT_DIR, file)
     if (graph.boot.has(abs)) return `${file} is on the CLI's boot path`
     if (graph.preload.has(abs)) return `${file} is loaded by the test preload`
+    if (run.some((glob) => glob.match(file)))
+      return `${file} is run, not imported, by the ${suite} suite`
     if (unread.some((glob) => glob.match(file))) continue
     if (!MODULE.test(file)) return `${file} is read outside the import graph`
   }

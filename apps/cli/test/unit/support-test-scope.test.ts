@@ -68,6 +68,8 @@ describe('fullSuiteReason', () => {
     ['docs/architecture.md', 'contract', undefined],
     ['docs/architecture.md', 'unit', 'outside the import graph'],
     ['apps/docs/guide/index.md', 'unit', 'outside the import graph'],
+    ['apps/cli/bin/cospec.js', 'integration', 'run, not imported, by the integration suite'],
+    ['apps/cli/bin/cospec.js', 'unit', undefined],
   ] as const)('%s for %s', (file, suite, reason) => {
     const got = fullSuiteReason([file], suite)
     if (reason === undefined) expect(got).toBeUndefined()
@@ -87,6 +89,72 @@ describe('fullSuiteReason', () => {
     for (const suite of SUITES) {
       for (const glob of UNREAD[suite]) expect(glob.startsWith('apps/cli')).toBe(false)
     }
+  })
+})
+
+/** What a test reads of apps/cli's source through fs rather than by importing it. */
+type Reads =
+  | { readonly globs: readonly string[] }
+  | { readonly cli: true }
+  | { readonly none: string }
+
+/**
+ * Every test whose code builds a relative path into apps/cli/src (outside canon and the vendored
+ * bundle, which are not modules and run whole suites anyway): what it reads — globs under
+ * apps/cli, `cli` for every module the CLI loads (it copies src and runs the copy), or why the
+ * path reads no source.
+ */
+const SOURCE_READERS: Readonly<Record<string, Reads>> = {
+  'test/contract/glob.test.ts': { globs: ['src/core/glob.ts'] },
+  'test/contract/profiles.test.ts': { cli: true },
+  'test/integration/completion-install.test.ts': {
+    none: 'the CLI entry it spawns, which the spawn guard checks',
+  },
+  'test/unit/commands/archive-refusals.test.ts': { globs: ['src/commands/archive.ts'] },
+  'test/unit/commands/no-legacy-parser.test.ts': { globs: ['src/commands/*.ts'] },
+  'test/unit/core/change.test.ts': {
+    globs: ['src/core/change.ts', 'src/commands/new.ts', 'src/core/change-metadata.ts'],
+  },
+  'test/unit/core/command-table.test.ts': { globs: ['src/commands/*.ts'] },
+  'test/unit/core/scenario-gate.test.ts': { globs: ['src/commands/*.ts'] },
+  'test/unit/harness/adapters.test.ts': { none: 'a resolution base for the pinned package' },
+  'test/unit/harness/no-tool-branches.test.ts': {
+    globs: ['src/commands/*.ts', 'src/harness/*.ts'],
+  },
+  'test/unit/harness/render.test.ts': { none: 'a resolution base for the pinned package' },
+  'test/unit/rules/tasks.test.ts': { globs: ['src/core/rules/tasks.ts'] },
+  'test/unit/rules/views.test.ts': { globs: ['src/core/rules/*.ts'] },
+  'test/unit/support-test-scope-dispatch.test.ts': {
+    none: 'registry paths it resolves to compare',
+  },
+  'test/unit/support-test-scope.test.ts': { none: 'an import path in an expected message' },
+}
+
+const IMPORT_LINE = /^\s*(import\b|export\b.*\bfrom\b|\} from\b)|\bimport\(/
+const SRC_PATH =
+  /['"`](?:\.\.\/)+src(?:\/(?!canon\b|vendor\b)[^'"`]*)?['"`]|'\.\.',\s*'\.\.',\s*(?:'\.\.',\s*)?'src'/
+
+describe('a test that reads source through fs imports it', () => {
+  test('every test that builds a path into src is listed with what it reads', async () => {
+    const found: string[] = []
+    for (const file of new Bun.Glob('test/**/*.test.ts').scanSync(CLI_DIR)) {
+      const lines = (await Bun.file(cli(file)).text()).split('\n')
+      if (lines.some((line) => !IMPORT_LINE.test(line) && SRC_PATH.test(line))) found.push(file)
+    }
+    expect(found.toSorted()).toEqual(Object.keys(SOURCE_READERS).toSorted())
+  })
+
+  test.each(Object.entries(SOURCE_READERS))('%s reaches what it reads', (file, reads) => {
+    const reach = importClosure(cli(file))
+    // The boot path runs every suite whole, so a test need not reach it.
+    const boot = bootModules()
+    const wanted =
+      'none' in reads
+        ? []
+        : 'cli' in reads
+          ? [...importClosure(cli('src/cli.ts'))]
+          : reads.globs.flatMap((glob) => [...new Bun.Glob(glob).scanSync(CLI_DIR)].map(cli))
+    expect(wanted.filter((module) => !reach.has(module) && !boot.has(module))).toEqual([])
   })
 })
 

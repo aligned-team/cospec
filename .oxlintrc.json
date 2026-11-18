@@ -55,10 +55,7 @@
     {
       "files": ["apps/cli/test/**"],
       "rules": {
-        "import/no-unassigned-import": [
-          "warn",
-          { "allow": ["**/src/commands/*.ts", "**/src/cli.ts"] }
-        ]
+        "import/no-unassigned-import": ["warn", { "allow": ["**/src/**/*.ts"] }]
       }
     },
     {

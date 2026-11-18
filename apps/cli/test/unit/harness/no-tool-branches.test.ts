@@ -13,6 +13,10 @@ import { join } from 'node:path'
 
 import { HARNESS_NAMES } from '../../../src/harness/adapters.ts'
 
+// Reads every command's and harness module's source through fs; cli.ts reaches them all, so
+// `bun test --changed` selects this file when one changes.
+import '../../../src/cli.ts'
+
 const COMMANDS_DIR = join(import.meta.dir, '../../../src/commands')
 const HARNESS_DIR = join(import.meta.dir, '../../../src/harness')
 

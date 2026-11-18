@@ -20,13 +20,18 @@
       `GIT_DIR` / `GIT_WORK_TREE` / `GIT_INDEX_FILE` sees none of them and
       `git init`s its own repository
 
+- [x] 1.5 Make the tests that read source through fs import what they read, list
+      them in `SOURCE_READERS` (checked both ways), and run the integration
+      suite whole for a launcher change (`RUN_NOT_IMPORTED`), and verify each
+      new row fails without its fix
+
 ## 2. Hooks and CI
 
 - [x] 2.1 Rework `hk.pkl` (typecheck and selected tests on pre-commit and
       pre-push; drop the `slow` profile) and remove
       `scripts/hooks/pre-push-gate`, and verify `hk validate` passes and a
       commit runs the new steps
-- [ ] 2.2 Rework `ci.yml` (unconditional `ci-bun`, PR-scoped contract and
+- [x] 2.2 Rework `ci.yml` (unconditional `ci-bun`, PR-scoped contract and
       integration, full runs off pull requests, bench and release tests,
       `workflow_call` on the triggering commit) and add `release.yml`'s
       main-only dispatch and `check` job, and verify actionlint passes and this

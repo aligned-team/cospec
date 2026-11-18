@@ -135,14 +135,19 @@ The hooks and pull-request CI run `mise run test:changed`
   path (`src/index.ts` and what it loads before choosing a command module), the
   test preload, or any file that is not a JS/TS module (canon YAML and Markdown,
   fixture trees, golden files, `package.json`, `bun.lock`, `mise.toml`, tool
-  config) unless that suite's `UNREAD` list says none of its tests read it.
+  config) unless that suite's `UNREAD` list says none of its tests read it, and
+  a module a suite runs without importing it (`RUN_NOT_IMPORTED`: the launcher
+  the pack tests install from the tarball).
 
 A test that spawns the CLI runs it in a child process, so its own imports would
 not reach the command it runs. It imports that command's module instead
 (`import '../../src/commands/validate.ts'`); the test preload refuses a CLI
 spawn from a test file whose imports never reach the dispatched command. A test
-that starts reading a repository path through `fs` takes that path out of
-`UNREAD`.
+that reads source through `fs` (a scan of every command, say) imports what it
+reads the same way (`import '../../../src/cli.ts'` reaches every command) and is
+listed in `SOURCE_READERS` in `support-test-scope.test.ts`, which fails on an
+unlisted reader or one whose imports miss what it reads. A test that starts
+reading a repository path through `fs` takes that path out of `UNREAD`.
 
 The contract suite runs the real pinned OpenSpec binary and takes about half an
 hour whole, so no hook runs it: pull-request CI runs the contract and

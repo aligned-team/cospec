@@ -13,6 +13,10 @@ import {
 import { type CapabilityDeltas, scenarioGate } from '../../../src/core/scenario-gate.ts'
 import { mkTempRepo } from '../../fixtures/support.ts'
 
+// Reads every command's source through fs; cli.ts's command registry reaches them all, so
+// `bun test --changed` selects this file when one changes.
+import '../../../src/cli.ts'
+
 const DELTA = `## MODIFIED Requirements
 
 ### Requirement: Widget rendering

@@ -10,6 +10,10 @@ import { join } from 'node:path'
 
 import { COMMAND_TABLE, type TableCommandRow } from '../../../src/core/command-table.ts'
 
+// Reads every command's source through fs; cli.ts's command registry reaches them all, so
+// `bun test --changed` selects this file when one changes.
+import '../../../src/cli.ts'
+
 const COMMANDS_DIR = join(import.meta.dir, '..', '..', '..', 'src', 'commands')
 
 const TABLE_ROWS = COMMAND_TABLE.filter((row): row is TableCommandRow => row.parse === 'table')
