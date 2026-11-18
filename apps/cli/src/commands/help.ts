@@ -6,8 +6,9 @@
 // operands are ignored, as commander's help command ignores them.
 
 import type { CommandContext } from '../cli.ts'
-import { commandHelpText, EXIT, programHelpText } from '../cli.ts'
 import { commandRow } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
+import { commandHelpText, programHelpText } from '../core/help-text.ts'
 
 export function run(ctx: CommandContext): number {
   const name = ctx.parsed!.positionals[0]

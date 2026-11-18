@@ -15,9 +15,9 @@
 // lists, a path) is ever rewritten.
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { isCospecType } from '../core/change.ts'
 import { commandRow, flagValue, hasFlag, parseCommandArgs } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import { isParseRejection, relayStorePathRefusal } from '../core/forward-relay.ts'
 import {
   type InstructionsDocument,

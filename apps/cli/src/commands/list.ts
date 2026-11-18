@@ -18,7 +18,6 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { loadSchema, schemaDir } from '../core/change-metadata.ts'
 import {
@@ -32,6 +31,7 @@ import {
   readOpenspecYaml,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import { artifactOutputExists } from '../core/glob.ts'
 import {
   OpenspecCallError,

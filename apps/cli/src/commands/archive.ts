@@ -20,7 +20,6 @@ import {
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import {
   type ArchiveDiagnostic,
   type ArchiveRefusalReason,
@@ -47,6 +46,7 @@ import {
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { type DeltaOp, parseLivingSpec } from '../core/deltas.ts'
+import { EXIT } from '../core/exit.ts'
 import { assertPathWithin } from '../core/glob.ts'
 import { printOwnStderrLineOnce, spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 import { renderOperationInputs } from '../core/operation-inputs.ts'

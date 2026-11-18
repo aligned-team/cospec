@@ -13,7 +13,6 @@ import { isAbsolute, join, relative } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { userSchemasDir } from '../core/change-metadata.ts'
 import {
   CHANGE_ID_RE,
@@ -26,6 +25,7 @@ import {
   resolveSchema,
 } from '../core/change.ts'
 import { flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import type { OpenspecResult } from '../core/openspec.ts'
 import { OpenspecCallError, runOpenspec, threadedArgv } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'

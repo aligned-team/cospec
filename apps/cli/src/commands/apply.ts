@@ -14,7 +14,6 @@ import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { parseBlockers, type ParsedBlockers, syncBlockers } from '../core/blockers.ts'
 import {
   type Change,
@@ -26,6 +25,7 @@ import {
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { answeringErrno } from '../core/errno.ts'
+import { EXIT } from '../core/exit.ts'
 import { respellInstructionsDocument } from '../core/instructions-render.ts'
 import {
   type ApplyInstructionsJson,

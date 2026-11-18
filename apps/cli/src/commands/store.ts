@@ -17,8 +17,8 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { commandRow, parseCommandArgs, takesNextToken } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import {
   isParseRejection,
   relayGroupRefusal,

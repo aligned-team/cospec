@@ -7,7 +7,6 @@
 // respelled redirect instead.
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import {
   type CommandRow,
   isUpstreamStorePathRefusal,
@@ -17,6 +16,7 @@ import {
   storePathRefusal,
   takesNextToken,
 } from './command-table.ts'
+import { EXIT } from './exit.ts'
 import {
   OpenspecCallError,
   type OpenspecResult,

@@ -33,6 +33,18 @@ import {
 import { documentCount, outcome } from './support/parse-class.ts'
 import { oracle, oracleEnv, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/apply.ts'
+import '../../src/commands/completion.ts'
+import '../../src/commands/config.ts'
+import '../../src/commands/experimental.ts'
+import '../../src/commands/help.ts'
+import '../../src/commands/init.ts'
+import '../../src/commands/instructions.ts'
+import '../../src/commands/list.ts'
+import '../../src/commands/new.ts'
+import '../../src/commands/update.ts'
+
 afterAll(cleanupAll)
 
 /** A root `openspec init` scaffolded (`config.yaml` says `schema: spec-driven`). */

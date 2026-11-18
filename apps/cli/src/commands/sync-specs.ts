@@ -9,7 +9,6 @@
 // `archive/verification-incomplete` do not run, because nothing is archived.
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import {
   type ArchiveDiagnostic,
   type ArchiveRefusalReason,
@@ -28,6 +27,7 @@ import {
   resolveChange,
   resolveSchema,
 } from '../core/change.ts'
+import { EXIT } from '../core/exit.ts'
 import {
   enforceExpectation,
   type OpenspecResult,

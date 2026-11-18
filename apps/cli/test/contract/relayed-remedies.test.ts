@@ -25,6 +25,15 @@ import {
 import { documentCount } from './support/parse-class.ts'
 import { oracle, oracleEnv, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/context.ts'
+import '../../src/commands/instructions.ts'
+import '../../src/commands/schema.ts'
+import '../../src/commands/schemas.ts'
+import '../../src/commands/show.ts'
+import '../../src/commands/status.ts'
+import '../../src/commands/view.ts'
+
 afterAll(cleanupAll)
 
 let template: string

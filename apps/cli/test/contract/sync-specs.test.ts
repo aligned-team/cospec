@@ -46,6 +46,9 @@ import {
 import { makeSandbox, setupStore } from './support/root-sandbox.ts'
 import { oracle, oracleEnv } from './support/upstream-oracle.ts'
 
+// Commands run as child processes, imported so `bun test --changed` selects this file.
+import '../../src/commands/sync-specs.ts'
+
 afterAll(cleanupAll)
 
 // --- harness -------------------------------------------------------------------

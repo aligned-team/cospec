@@ -25,8 +25,8 @@ import { join } from 'node:path'
 
 import pkg from '../../package.json'
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
+import { EXIT } from '../core/exit.ts'
 import { resolveOpenspec, spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 
 /** cospec's own tracker (`apps/cli/package.json` `bugs`). */

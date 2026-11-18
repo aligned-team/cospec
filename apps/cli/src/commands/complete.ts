@@ -16,8 +16,8 @@
 import { existsSync, readdirSync } from 'node:fs'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { archiveDir, COSPEC_TYPES, openspecDir } from '../core/change.ts'
+import { EXIT } from '../core/exit.ts'
 import { openspecList, passthroughOpenspec } from '../core/openspec.ts'
 import { type ResolvedRoot, resolveRoot } from '../core/root.ts'
 import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'

@@ -15,7 +15,6 @@ import { basename, dirname } from 'node:path'
 import { createInterface } from 'node:readline'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { hasFlag, jsonRefusal } from '../core/command-table.ts'
 import { renderBashCompletion } from '../core/completions/bash.ts'
 import { renderFishCompletion } from '../core/completions/fish.ts'
@@ -32,6 +31,7 @@ import {
 import { renderPowerShellCompletion } from '../core/completions/powershell.ts'
 import { buildCompletionSpec } from '../core/completions/spec.ts'
 import { renderZshCompletion } from '../core/completions/zsh.ts'
+import { EXIT } from '../core/exit.ts'
 
 export const SUPPORTED_SHELLS = ['bash', 'zsh', 'fish', 'powershell'] as const
 export type SupportedShell = (typeof SUPPORTED_SHELLS)[number]
