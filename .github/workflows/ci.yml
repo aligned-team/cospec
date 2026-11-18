@@ -5,14 +5,9 @@ on:
   push:
     branches: [main]
   merge_group:
-  # release.yml runs this whole workflow on the dispatched main commit it then releases (the
-  # triggering commit: a called run checks out the caller's).
-  workflow_call:
 
-# A called run's `github.workflow` is the caller's, so a release's checks never queue behind (or
-# displace) CI's own runs on main.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
@@ -32,8 +27,8 @@ jobs:
       docs: ${{ steps.filter.outputs.docs || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      # Pushes to main, the merge queue and a release run every job, and every test suite whole;
-      # only a pull request is scoped to what it changes.
+      # Pushes to main and the merge queue run every job, and every test suite whole (release.yml
+      # bumps only a main commit whose run passed); only a pull request is scoped to what it changes.
       - id: all
         if: github.event_name != 'pull_request'
         run: echo "all=true" >> "$GITHUB_OUTPUT"
@@ -107,9 +102,9 @@ jobs:
       # The coverage gate measures the whole unit suite, so every event runs all of it.
       - name: Unit tests (coverage gate)
         run: bun test apps/cli/test/unit --coverage --timeout 30000
-      # A pull request runs the contract and integration tests its changes reach — Bun's
-      # import-graph selection, or the whole suite when a change sits outside the graph (`mise run
-      # test:changed`, apps/cli/test/fixtures/test-scope.ts).
+      # A pull request runs the contract and integration tests its changes (its diff from its base)
+      # reach — the test files whose import graph reaches a changed file, or the whole suite when a
+      # change sits outside the graph (`mise run test:changed`, apps/cli/test/fixtures/test-scope.ts).
       - name: Contract tests (what the pull request reaches)
         if: github.event_name == 'pull_request'
         env:

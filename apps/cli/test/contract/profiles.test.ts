@@ -41,9 +41,8 @@ import { oracle } from './support/upstream-oracle.ts'
 // Commands run as child processes, imported so `bun test --changed` selects this file.
 import '../../src/commands/doctor.ts'
 import '../../src/commands/init.ts'
+// sourceCopy() also copies src and runs `update` from the copy.
 import '../../src/commands/update.ts'
-// sourceCopy() copies src and runs the copy, so it reaches every module the CLI loads.
-import '../../src/cli.ts'
 
 afterAll(cleanupAll)
 

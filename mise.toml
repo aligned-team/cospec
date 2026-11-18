@@ -104,7 +104,7 @@ description = "Integration tests over the 3 repo states + lifecycles"
 run = "mise run //apps/cli:test:integration"
 
 [tasks."test:changed"]
-description = "Run the unit/contract/integration tests the changes since a ref reach (mise run test:changed -- [--base <ref>] <suite>...; the hooks' and PR CI's scope)"
+description = "Run the unit/contract/integration tests a change reaches (mise run test:changed -- [--base <ref> | --staged | --push] <suite>...; the hooks' and PR CI's scope)"
 run = "mise run //apps/cli:test:changed"
 
 [tasks."test:pack"]
