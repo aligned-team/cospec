@@ -1,11 +1,11 @@
-// The test selection the hooks and PR CI run (test/fixtures/test-scope.ts): which changes need a
-// whole suite, and the preload guard that keeps `bun test --changed` from missing a test that
-// spawns the CLI. This file must never import a command module: the guard rows below rely on its
+// The test selection the hooks and PR CI run (test/fixtures/test-scope.ts): what each change
+// selects, the declared fs readers that keep it whole, and the preload guard that keeps the
+// selection from missing a test that spawns the CLI. This file must never import a command module: the guard rows below rely on its
 // own imports reaching none.
 
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -16,16 +16,17 @@ import {
   CLI_DIR,
   CLI_ENTRY_PATH,
   commandModules,
-  fullSuiteReason,
+  fixtureUses,
+  FS_READERS,
   importClosure,
   mergeBase,
   preloadModules,
   pushedFiles,
   ROOT_DIR,
+  type Selection,
+  selectTests,
   stagedFiles,
-  SUITES,
-  testsReaching,
-  UNREAD,
+  type Suite,
 } from '../fixtures/test-scope.ts'
 
 const cli = (path: string): string => join(CLI_DIR, path)
@@ -68,105 +69,161 @@ describe("the command registry stays out of the commands' graph", () => {
   })
 })
 
-describe('fullSuiteReason', () => {
-  test.each([
-    ['apps/cli/src/core/validate.ts', 'contract', undefined],
-    ['apps/cli/test/contract/store.test.ts', 'contract', undefined],
-    ['apps/cli/src/cli.ts', 'unit', "apps/cli/src/cli.ts is on the CLI's boot path"],
-    ['apps/cli/src/vendor/openspec.bundle.js.tpl', 'integration', 'is on the CLI'],
-    ['apps/cli/test/fixtures/machine-isolation.ts', 'unit', 'loaded by the test preload'],
-    ['apps/cli/src/canon/schemas/feat/meta.yaml', 'contract', 'read outside the import graph'],
-    ['apps/cli/test/fixtures/greenfield/openspec/config.yaml', 'unit', 'outside the import graph'],
-    ['bun.lock', 'integration', 'bun.lock is read outside the import graph'],
-    ['mise.toml', 'unit', 'outside the import graph'],
-    ['openspec/changes/some-change/proposal.md', 'contract', undefined],
-    ['.github/workflows/ci.yml', 'integration', undefined],
-    ['docs/architecture.md', 'contract', undefined],
-    ['docs/architecture.md', 'unit', 'outside the import graph'],
-    ['apps/docs/guide/index.md', 'unit', 'outside the import graph'],
-    ['apps/cli/bin/cospec.js', 'integration', 'run, not imported, by the integration suite'],
-    ['apps/cli/bin/cospec.js', 'unit', undefined],
-  ] as const)('%s for %s', (file, suite, reason) => {
-    const got = fullSuiteReason([file], suite)
-    if (reason === undefined) expect(got).toBeUndefined()
-    else expect(got).toContain(reason)
+const GOLDEN =
+  'apps/cli/test/unit/__golden__/harness-render/claude/.claude/commands/cospec/apply.md'
+
+describe('what a change selects', () => {
+  const rows: [string, Suite, Selection | ((got: Selection) => void)][] = [
+    // A docs page selects the one test that reads the docs trees, in no other suite.
+    ['docs/release.md', 'unit', { tests: ['test/unit/docs/table-shape.test.ts'] }],
+    ['docs/release.md', 'contract', { tests: [] }],
+    ['apps/docs/guide/index.md', 'integration', { tests: [] }],
+    // A golden file selects the tests that compare against it, whichever suite they are in.
+    [
+      GOLDEN,
+      'unit',
+      {
+        tests: ['test/unit/harness-render.test.ts', 'test/unit/harness/full-set-golden.test.ts'],
+      },
+    ],
+    [GOLDEN, 'contract', { tests: ['test/contract/harness-matrix.test.ts'] }],
+    // A fixture tree selects the tests that name it.
+    [
+      'apps/cli/test/fixtures/plain/openspec/config.yaml',
+      'unit',
+      (got) => expect(got).toEqual({ tests: fixtureTests('plain', 'unit') }),
+    ],
+    // A capture file selects the tests whose imports reach the module that reads the captures.
+    [
+      'apps/cli/test/fixtures/upstream-init/claude.json',
+      'contract',
+      (got) => {
+        expect('tests' in got && got.tests).toContain('test/contract/harness-matrix.test.ts')
+        expect('tests' in got && got.tests).toContain(
+          'test/contract/upstream-init-fixtures.test.ts',
+        )
+      },
+    ],
+    // A root config file `cospec update` reads selects the test that runs it over the repository.
+    ['CLAUDE.md', 'integration', { tests: ['test/integration/generate-self-home.test.ts'] }],
+    ['CLAUDE.md', 'unit', { tests: [] }],
+    // The launcher is run from the tarball, never imported.
+    [
+      'apps/cli/bin/cospec.js',
+      'integration',
+      {
+        tests: ['test/integration/pack-standalone.test.ts', 'test/integration/pack.test.ts'],
+      },
+    ],
+    // Canon is in the graph (canon/embedded.ts imports every file), and read by some tests too.
+    [
+      'apps/cli/src/canon/workflows/apply.md',
+      'unit',
+      (got) => {
+        expect('tests' in got && got.tests).toContain('test/unit/canon-render.test.ts')
+        expect('tests' in got && got.tests).toContain('test/unit/harness/render.test.ts')
+      },
+    ],
+    [
+      'apps/cli/src/commands/feedback.ts',
+      'unit',
+      (got) => {
+        expect('tests' in got && got.tests).toContain('test/unit/commands/feedback-format.test.ts')
+        expect('tests' in got && got.tests).toContain('test/unit/commands/no-legacy-parser.test.ts')
+        expect('tests' in got && got.tests).not.toContain('test/unit/docs/table-shape.test.ts')
+      },
+    ],
+    ['openspec/changes/some-change/proposal.md', 'contract', { tests: [] }],
+    ['apps/cli/src/cli.ts', 'unit', { whole: "apps/cli/src/cli.ts is on the CLI's boot path" }],
+    [
+      'apps/cli/test/fixtures/machine-isolation.ts',
+      'integration',
+      { whole: 'apps/cli/test/fixtures/machine-isolation.ts is loaded by the test preload' },
+    ],
+    ['mise.toml', 'contract', { whole: 'mise.toml is an input every test depends on' }],
+    ['bun.lock', 'unit', { whole: 'bun.lock is an input every test depends on' }],
+    [
+      'apps/cli/src/canon/not-a-real-file.yaml',
+      'unit',
+      { whole: 'nothing is known to read apps/cli/src/canon/not-a-real-file.yaml' },
+    ],
+  ]
+  test.each(rows)('%s for %s', (file, suite, want) => {
+    const got = selectTests(suite, [file])
+    if (typeof want === 'function') want(got)
+    else expect(got).toEqual(want)
   })
 
-  test('the first file that needs the whole suite names the reason', () => {
-    expect(
-      fullSuiteReason(
-        ['openspec/specs/x/spec.md', 'apps/cli/src/core/root.ts', 'bun.lock'],
-        'unit',
-      ),
-    ).toBe("apps/cli/src/core/root.ts is on the CLI's boot path")
+  test('a changed test file selects itself', () => {
+    expect(selectTests('unit', ['apps/cli/test/unit/docs/table-shape.test.ts'])).toEqual({
+      tests: ['test/unit/docs/table-shape.test.ts'],
+    })
+  })
+})
+
+/** The `suite` test files that name fixture `name`, or import a module that does. */
+function fixtureTests(name: string, suite: Suite): string[] {
+  const users = [...fixtureUses()].filter(([, names]) => names.includes(name)).map(([f]) => f)
+  return [...new Bun.Glob(`test/${suite}/**/*.test.ts`).scanSync(CLI_DIR)]
+    .filter((file) => {
+      const reach = importClosure(cli(file))
+      return users.some((user) => user === file || reach.has(cli(user)))
+    })
+    .toSorted()
+}
+
+const IMPORT_LINE = /^\s*(import\b|export\b.*\bfrom\b|\} from\b)|\bimport\(/
+const COMMENT_LINE = /^\s*(\/\/|\*|\/\*)/
+// A path built from this file's own location, or from the repository root.
+const REPO_PATH =
+  /\b(?:join|resolve)\(\s*import\.meta\.dir\b|new URL\([^)]*import\.meta\.url|fileURLToPath\(import\.meta\.url\)|\bREPO_ROOT\b|\bREPO\b|\bFIXTURES_DIR\b|\bFIXTURE_DIR\b|\b(?:join|resolve)\(\s*here\b/
+
+describe('every file that builds a repository path says what it reads', () => {
+  test('FS_READERS lists exactly the files under test that build one', () => {
+    const found = [...new Bun.Glob('test/**/*.ts').scanSync(CLI_DIR)]
+      .filter((file) =>
+        readFileSync(cli(file), 'utf8')
+          .split('\n')
+          .some(
+            (line) => !IMPORT_LINE.test(line) && !COMMENT_LINE.test(line) && REPO_PATH.test(line),
+          ),
+      )
+      .filter((file) => file !== 'test/unit/support-test-scope.test.ts')
+    expect(found.toSorted()).toEqual(Object.keys(FS_READERS).toSorted())
   })
 
-  test('no suite skips a path under apps/cli, which the tests and the CLI read', () => {
-    for (const suite of SUITES) {
-      for (const glob of UNREAD[suite]) expect(glob.startsWith('apps/cli')).toBe(false)
+  test('every glob a reader declares matches a file in the repository', () => {
+    for (const [file, entry] of Object.entries(FS_READERS)) {
+      if (!('reads' in entry)) continue
+      for (const glob of entry.reads) {
+        // Copilot files are managed only when a repository opts in, and this one has not.
+        if (
+          glob.startsWith('.github/') ||
+          /\b(?:CLINE|CODEBUDDY|COSTRICT|QODER|IFLOW|QWEN)\.md$|LICENSE$|\.codex\/\*\*$/.test(glob)
+        )
+          continue
+        const hits = [...new Bun.Glob(glob).scanSync({ cwd: ROOT_DIR, dot: true })]
+        expect(hits, `${file}: ${glob}`).not.toEqual([])
+      }
     }
   })
 })
 
-/** What a test reads of apps/cli's source through fs rather than by importing it. */
-type Reads = { readonly globs: readonly string[] } | { readonly none: string }
-
-/**
- * Every test whose code builds a relative path into apps/cli/src (outside canon and the vendored
- * bundle, which are not modules and run whole suites anyway): what it reads — globs under
- * apps/cli (for a test that copies src and runs the copy, the command modules it runs) — or why
- * the path reads no source.
- */
-const SOURCE_READERS: Readonly<Record<string, Reads>> = {
-  'test/contract/glob.test.ts': { globs: ['src/core/glob.ts'] },
-  // Copies src and runs only `update` from the copy.
-  'test/contract/profiles.test.ts': { globs: ['src/commands/update.ts'] },
-  'test/integration/completion-install.test.ts': {
-    none: 'the CLI entry it spawns, which the spawn guard checks',
-  },
-  'test/unit/commands/archive-refusals.test.ts': { globs: ['src/commands/archive.ts'] },
-  'test/unit/commands/no-legacy-parser.test.ts': { globs: ['src/commands/*.ts'] },
-  'test/unit/core/change.test.ts': {
-    globs: ['src/core/change.ts', 'src/commands/new.ts', 'src/core/change-metadata.ts'],
-  },
-  'test/unit/core/command-table.test.ts': { globs: ['src/commands/*.ts'] },
-  'test/unit/core/scenario-gate.test.ts': { globs: ['src/commands/*.ts'] },
-  'test/unit/harness/adapters.test.ts': { none: 'a resolution base for the pinned package' },
-  'test/unit/harness/no-tool-branches.test.ts': {
-    globs: ['src/commands/*.ts', 'src/harness/*.ts'],
-  },
-  'test/unit/harness/render.test.ts': { none: 'a resolution base for the pinned package' },
-  'test/unit/rules/tasks.test.ts': { globs: ['src/core/rules/tasks.ts'] },
-  'test/unit/rules/views.test.ts': { globs: ['src/core/rules/*.ts'] },
-  'test/unit/support-test-scope-dispatch.test.ts': {
-    none: 'registry paths it resolves to compare',
-  },
-  'test/unit/support-test-scope.test.ts': { none: 'an import path in an expected message' },
-}
-
-const IMPORT_LINE = /^\s*(import\b|export\b.*\bfrom\b|\} from\b)|\bimport\(/
-const SRC_PATH =
-  /['"`](?:\.\.\/)+src(?:\/(?!canon\b|vendor\b)[^'"`]*)?['"`]|'\.\.',\s*'\.\.',\s*(?:'\.\.',\s*)?'src'/
-
-describe('a test that reads source through fs imports it', () => {
-  test('every test that builds a path into src is listed with what it reads', async () => {
-    const found: string[] = []
-    for (const file of new Bun.Glob('test/**/*.test.ts').scanSync(CLI_DIR)) {
-      const lines = (await Bun.file(cli(file)).text()).split('\n')
-      if (lines.some((line) => !IMPORT_LINE.test(line) && SRC_PATH.test(line))) found.push(file)
+describe('fixture trees', () => {
+  test('every fixture a test copies is named by a literal, so its readers are known', () => {
+    for (const file of new Bun.Glob('test/**/*.ts').scanSync(CLI_DIR)) {
+      if (file === 'test/fixtures/support.ts') continue
+      const text = readFileSync(cli(file), 'utf8')
+      for (const call of text.matchAll(/\bmkTempRepo\(\{[^}]*\}/g))
+        if (/\bfixture:/.test(call[0])) expect(call[0], file).toMatch(/\bfixture:\s*'[\w-]+'/)
+      for (const call of text.matchAll(/\bcopyFixture\(\s*([^,)]+)/g))
+        expect(call[1]!.trim(), file).toMatch(/^'[\w-]+'$/)
     }
-    expect(found.toSorted()).toEqual(Object.keys(SOURCE_READERS).toSorted())
   })
 
-  test.each(Object.entries(SOURCE_READERS))('%s reaches what it reads', (file, reads) => {
-    const reach = importClosure(cli(file))
-    // The boot path runs every suite whole, so a test need not reach it.
-    const boot = bootModules()
-    const wanted =
-      'none' in reads
-        ? []
-        : reads.globs.flatMap((glob) => [...new Bun.Glob(glob).scanSync(CLI_DIR)].map(cli))
-    expect(wanted.filter((module) => !reach.has(module) && !boot.has(module))).toEqual([])
+  test('each fixture tree has the tests that name it as readers', () => {
+    const named = [...fixtureUses().values()].flat()
+    for (const name of ['fresh', 'plain', 'vanilla-openspec']) expect(named).toContain(name)
   })
 })
 
@@ -183,16 +240,17 @@ describe('changed files', () => {
   })
 })
 
+const gitAt = (cwd: string, ...args: string[]): string =>
+  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+
 /** A scratch clone of a scratch bare remote, its `main` pushed. */
 function scratchClone(): { work: string; git: (...args: string[]) => string; done: () => void } {
   const root = mkdtempSync(join(tmpdir(), 'cospec-push-'))
-  const run = (cwd: string, ...args: string[]): string =>
-    execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
-  run(root, 'init', '-q', '--bare', '-b', 'main', 'remote.git')
-  run(root, 'init', '-q', '-b', 'main', 'work')
+  gitAt(root, 'init', '-q', '--bare', '-b', 'main', 'remote.git')
+  gitAt(root, 'init', '-q', '-b', 'main', 'work')
   const work = join(root, 'work')
   const git = (...args: string[]): string =>
-    run(
+    gitAt(
       work,
       '-c',
       'user.name=t',
@@ -318,17 +376,7 @@ describe('what a commit changes', () => {
   })
 })
 
-describe('the tests a change reaches', () => {
-  test('the test files whose imports reach a changed module, and a changed test itself', () => {
-    const unit = testsReaching('unit', ['apps/cli/src/commands/feedback.ts'])
-    expect(unit).toContain('test/unit/commands/feedback-format.test.ts')
-    expect(unit).not.toContain('test/unit/docs/table-shape.test.ts')
-    expect(testsReaching('unit', ['apps/cli/test/unit/docs/table-shape.test.ts'])).toEqual([
-      'test/unit/docs/table-shape.test.ts',
-    ])
-    expect(testsReaching('contract', ['apps/docs/guide/index.md'])).toEqual([])
-  })
-
+describe('the runner', () => {
   test('a pre-push run reads the remote and the refs from stdin', () => {
     const head = execFileSync('git', ['rev-parse', 'HEAD'], {
       cwd: ROOT_DIR,

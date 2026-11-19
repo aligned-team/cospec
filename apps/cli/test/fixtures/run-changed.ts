@@ -1,7 +1,7 @@
 // `mise run test:changed -- [--base <ref> | --staged | --push] <suite>...` — run the part of each
 // apps/cli test suite (unit, contract, integration) that a change can affect: the test files whose
-// import graph reaches a changed file, or the whole suite when a change sits outside the graph
-// (test/fixtures/test-scope.ts). The change is one of:
+// import graph reaches a changed file or that read it through fs, or the whole suite for an input
+// every test depends on (test/fixtures/test-scope.ts). The change is one of:
 //
 //   --base <ref>  what differs from the commit HEAD and <ref> share, committed or not (the
 //                 default, HEAD, is what is uncommitted); PR CI passes the PR's base
@@ -13,14 +13,13 @@
 import {
   changedFiles,
   CLI_DIR,
-  fullSuiteReason,
   mergeBase,
   type PushChange,
   pushedFiles,
+  selectTests,
   stagedFiles,
   type Suite,
   SUITES,
-  testsReaching,
 } from './test-scope.ts'
 
 const USAGE =
@@ -69,16 +68,17 @@ if (typeof parsed === 'string') {
 const { what, ...changed } = await change(parsed.source)
 let failed = 0
 for (const suite of parsed.suites) {
-  const reason = 'unknown' in changed ? changed.unknown : fullSuiteReason(changed.files, suite)
+  const selection: ReturnType<typeof selectTests> =
+    'unknown' in changed ? { whole: changed.unknown } : selectTests(suite, changed.files)
   let targets: string[]
-  if (reason !== undefined) {
-    console.log(`test:changed ${suite}: the whole suite — ${reason}`)
+  if ('whole' in selection) {
+    console.log(`test:changed ${suite}: the whole suite — ${selection.whole}`)
     targets = [`./test/${suite}`]
   } else {
-    const files = 'files' in changed ? changed.files : []
-    targets = testsReaching(suite, files).map((file) => `./${file}`)
+    targets = selection.tests.map((file) => `./${file}`)
+    const files = 'files' in changed ? changed.files.length : 0
     console.log(
-      `test:changed ${suite}: ${targets.length} test file(s) ${what} reach (${files.length} changed file(s))`,
+      `test:changed ${suite}: ${targets.length} test file(s) ${what} reach (${files} changed file(s))`,
     )
     if (targets.length === 0) continue
   }
