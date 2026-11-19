@@ -24,10 +24,11 @@ specsLead: |
   Create delta specs ONLY if a performance SLO becomes a spec requirement.
   Behavior is otherwise identical — most perf changes have no specs.
 verificationInstruction: |
-  perf's covenant is IDENTICAL behavior at a better cost. Prove both: at least
-  one `@benchmark` row (tied to the proposal's ## Benchmarks, recording the
-  after number) AND at least one `@equivalence` row (the existing suite /
-  characterization passes unchanged, so behavior did not silently drift). Rows:
+  perf's covenant is IDENTICAL behavior. Prove it with at least one
+  `@equivalence` row (the existing suite / characterization passes unchanged, so
+  behavior did not silently drift). The measured improvement belongs in the
+  proposal's ## Benchmarks, not in this ledger; a `@benchmark` row is allowed but
+  never required. Rows:
   `- [ ] N.M @<layer> (<owner>) <probe> -> <result>`; layers @unit @integration
   @e2e @manual @runtime @regression @equivalence @benchmark @eval. A `[x]` row
   needs observed evidence after ` -> `; defer as `[~] … -> defer: <reason>`.

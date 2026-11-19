@@ -214,7 +214,11 @@ Bump the pinned base image to pick up a security fix in the runtime.
 // consequence is missing from a present, otherwise-valid artifact folds into
 // gate.soft (exit 3) rather than passing clean at exit 0 (the review finding).
 describe('apply gate: surface soft-blockers on feat (present-file gaps)', () => {
-  function featProposal(flags: { deploy?: boolean; interactive?: boolean }): string {
+  function featProposal(flags: {
+    deploy?: boolean
+    interactive?: boolean
+    agentBehavior?: boolean
+  }): string {
     const box = (on: boolean | undefined): string => (on === true ? 'x' : ' ')
     return `# change
 
@@ -242,7 +246,7 @@ the described behavior cannot ship at all, blocking downstream work.
 - [${box(flags.deploy)}] deploy — deploy/runtime topology
 - [${box(flags.interactive)}] interactive — a user-visible surface
 - [ ] integration
-- [ ] agent-behavior
+- [${box(flags.agentBehavior)}] agent-behavior
 `
   }
 
@@ -305,6 +309,19 @@ the described behavior cannot ship at all, blocking downstream work.
     expect(
       payload.gate.softBlockers.some((b) => b.slug === 'surface:verification/interactive-required'),
     ).toBe(true)
+  })
+
+  test('agent-behavior flag + verification lacking an @eval row does not soft-block (exit 0)', async () => {
+    const root = await initRepo()
+    authorFeat(root, {
+      'proposal.md': featProposal({ agentBehavior: true }),
+      'verification.md': CRITICAL_E2E,
+    })
+
+    const res = await cospec(['apply', 'widget', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    const payload = JSON.parse(res.stdout) as { gate: { softBlockers?: { slug: string }[] } }
+    expect(payload.gate.softBlockers ?? []).toEqual([])
   })
 })
 

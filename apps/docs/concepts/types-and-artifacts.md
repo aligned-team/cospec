@@ -96,9 +96,11 @@ template:
 ```
 
 These four tokens are the only ones the block accepts. Checking a flag never
-hard-requires anything by itself — it soft-promotes an otherwise-optional
-`verification` row or `design` section into the soft-blocker set at `apply`.
-Leaving every box unchecked changes nothing.
+hard-requires anything by itself — `interactive`, `deploy` and `integration`
+soft-promote an otherwise-optional `verification` row or `design` section into
+the soft-blocker set at `apply`. `agent-behavior` only records that the change
+touches agent-facing behavior and promotes nothing: an `@eval` row is allowed
+but never required. Leaving every box unchecked changes nothing.
 
 ::: tip For `revert` / `build` / `ci`, checking any `## Surfaces` flag (or, for
 build/ci, specifically `deploy`) is what nudges `verification` from O(trig) into
@@ -119,8 +121,9 @@ differs from a hard blocker (exit 2) — live on
   regression row — a fix whose defect the suite never actually exercised is
   worthless. Add a spec delta only when the bug meant the _living spec_ itself
   was wrong.
-- **`perf`** requires `verification` rows that prove behavior twice: one row
-  tied to a benchmark, one proving the speedup didn't change behavior.
+- **`perf`** requires a `verification` row proving the speedup didn't change
+  behavior (`@equivalence`). The measured improvement lives in the proposal's
+  `## Benchmarks` table; a `@benchmark` row is allowed but never required.
 - **`refactor`** is the only type that requires `design` — it must also prove an
   invariant: the existing suite passes unchanged.
 - **`revert` / `build` / `ci`** stay light by covenant: `verification` is

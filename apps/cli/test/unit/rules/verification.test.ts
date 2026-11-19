@@ -209,7 +209,7 @@ describe('per-type required-row facts', () => {
     expect(rules(issues)).not.toContain('verification/reproduces-bug')
   })
 
-  test('perf: missing @benchmark or @equivalence fires equivalence', () => {
+  test('perf: a ledger without an @equivalence row fires equivalence', () => {
     const issues = verificationRules(
       makeChange({ verificationText: '## 1. G\n- [ ] 1.1 @benchmark measure -> 2x faster' }),
       cospecSchema('perf'),
@@ -218,14 +218,25 @@ describe('per-type required-row facts', () => {
     expect(rules(issues)).toContain('verification/equivalence')
   })
 
-  test('perf: both @benchmark and @equivalence satisfy the rule', () => {
+  test('perf: an @equivalence row alone satisfies the rule, no @benchmark row needed', () => {
+    const issues = verificationRules(
+      makeChange({
+        verificationText: '## 1. G\n- [ ] 1.1 @equivalence suite -> unchanged',
+      }),
+      cospecSchema('perf'),
+      strict,
+    )
+    expect(rules(issues)).not.toContain('verification/equivalence')
+  })
+
+  test('perf: an @equivalence row alongside a @benchmark row still passes', () => {
     const issues = verificationRules(
       makeChange({
         verificationText:
           '## 1. G\n- [ ] 1.1 @benchmark measure -> 2x\n- [ ] 1.2 @equivalence suite -> unchanged',
       }),
       cospecSchema('perf'),
-      lax,
+      strict,
     )
     expect(rules(issues)).not.toContain('verification/equivalence')
   })
@@ -265,16 +276,29 @@ describe('surface-driven rules', () => {
     expect(rules(issues)).not.toContain('verification/interactive-required')
   })
 
-  test('agent-behavior flag without an @eval row fires eval-check', () => {
+  test('agent-behavior flag without an @eval row raises no verification issue', () => {
     const issues = verificationRules(
       makeChange({
         proposalText: proposalWithSurfaces('agent-behavior'),
         verificationText: '## 1. G [critical]\n- [ ] 1.1 @e2e run -> ok',
       }),
       cospecSchema('feat'),
-      lax,
+      strict,
     )
-    expect(rules(issues)).toContain('verification/eval-check')
+    expect(rules(issues).filter((id) => id.startsWith('verification/'))).toEqual([])
+  })
+
+  test('an @eval row is still a recognised layer', () => {
+    const issues = verificationRules(
+      makeChange({
+        proposalText: proposalWithSurfaces('agent-behavior'),
+        verificationText:
+          '## 1. G [critical]\n- [ ] 1.1 @e2e run -> ok\n- [x] 1.2 @eval (agent) score the prompt -> pass',
+      }),
+      cospecSchema('feat'),
+      strict,
+    )
+    expect(rules(issues)).toEqual([])
   })
 
   test('integration flag without an @integration row fires integration-check', () => {
@@ -300,7 +324,6 @@ describe('surface-driven rules', () => {
     )
     const fired = rules(issues)
     expect(fired).not.toContain('verification/interactive-required')
-    expect(fired).not.toContain('verification/eval-check')
     expect(fired).not.toContain('verification/integration-check')
   })
 

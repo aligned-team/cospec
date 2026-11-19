@@ -214,7 +214,6 @@ const SURFACE_SOFT_RULES = new Set<string>([
   'design/integration-contract',
   'design/seam-ownership',
   'verification/interactive-required',
-  'verification/eval-check',
   'verification/integration-check',
   'verification/deploy-real-layer',
 ])

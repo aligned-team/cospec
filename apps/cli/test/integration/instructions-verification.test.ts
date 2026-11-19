@@ -33,7 +33,7 @@ describe('cospec instructions verification', () => {
   const cases: { type: string; slug: string; layerHint: string }[] = [
     { type: 'feat', slug: 'add-widget', layerHint: '@e2e' },
     { type: 'fix', slug: 'fix-widget', layerHint: '@regression' },
-    { type: 'perf', slug: 'speed-widget', layerHint: '@benchmark' },
+    { type: 'perf', slug: 'speed-widget', layerHint: '@equivalence' },
     { type: 'refactor', slug: 'reshape-widget', layerHint: '@equivalence' },
   ]
 

@@ -125,13 +125,20 @@ reasons name the flag.
 
 - **WHEN** a present `verification.md` lacks the row a checked flag requires
 - **THEN** the nudge comes from the owning rule among
-  `verification/interactive-required`, `verification/eval-check`,
-  `verification/integration-check`, and `verification/deploy-real-layer`
+  `verification/interactive-required`, `verification/integration-check`, and
+  `verification/deploy-real-layer`
 
 #### Scenario: A wholly absent ledger is reported once
 
 - **WHEN** a soft-promotable type with a checked flag has no `verification.md`
 - **THEN** `meta/surface-unmet` reports it, since there is no row to inspect
+
+#### Scenario: The agent-behavior flag demands no row
+
+- **WHEN** a change checks the `agent-behavior` flag and its `verification.md`
+  has no `@eval` row
+- **THEN** cospec emits no verification issue for the flag and `cospec apply`
+  does not soft-block on it
 
 ### Requirement: Static apply.requires invariant
 
