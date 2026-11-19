@@ -98,16 +98,12 @@ exists at the expected path with the expected byte length.
 
 ### Requirement: Wrapped calls list directories in Node's order
 
-Every wrapped openspec call — piped or a terminal handover, against a project
-copy or the embedded bundle — SHALL run behind a preload, ahead of any other,
-that makes the binary's non-recursive `fs.readdirSync`, callback `fs.readdir`
-and `fs.promises.readdir` return a directory's entries in the order Node returns
-them: sorted by the bytes of each name on every platform but Windows, where Node
-does not sort and the preload SHALL change nothing. It SHALL reach every import
-form the pinned dist uses (`node:fs` and `fs` namespaces, `promises`, and
-`node:fs/promises`), for names, `Dirent`s and buffers alike. A contract row
-SHALL fail a pinned dist that lists a directory through an API the preload does
-not cover (`opendir`, a recursive `readdir`, `fs.glob`).
+Every wrapped openspec call, piped or a terminal handover, SHALL run behind a
+readdir preload, first on the argv, that returns a non-recursive directory
+listing in the order Node returns it: sorted by the bytes of each name, except
+on Windows, where Node does not sort and the preload SHALL change nothing. A
+contract row SHALL fail a pinned dist that lists a directory through an API the
+preload does not cover.
 
 #### Scenario: Available changes are listed as upstream lists them
 
@@ -121,6 +117,25 @@ not cover (`opendir`, a recursive `readdir`, `fs.glob`).
 - **WHEN** cospec spawns the wrapped binary, piped or as a terminal handover
 - **THEN** the readdir preload is the first `--preload` on the argv, ahead of
   the handover preload where there is one
+
+#### Scenario: The preload covers a project copy and the embedded bundle
+
+- **WHEN** a wrapped call runs against a project copy or against the embedded
+  bundle
+- **THEN** it runs behind the readdir preload either way
+
+#### Scenario: The preload reaches every import form the pinned dist uses
+
+- **WHEN** the binary lists a directory through `fs.readdirSync`, callback
+  `fs.readdir` or `fs.promises.readdir`, imported through the `node:fs` or `fs`
+  namespace, `promises`, or `node:fs/promises`
+- **THEN** the entries, as names, `Dirent`s or buffers, come back sorted by the
+  bytes of each name
+
+#### Scenario: Windows listings are left unchanged
+
+- **WHEN** a wrapped call runs on Windows
+- **THEN** the preload changes no listing
 
 #### Scenario: A dist that lists directories another way fails the contract suite
 

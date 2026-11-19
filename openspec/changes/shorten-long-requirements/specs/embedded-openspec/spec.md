@@ -68,3 +68,49 @@ exists at the expected path with the expected byte length.
 - **WHEN** cospec extracts the embedded bundle
 - **THEN** the extracted file exists at the expected path and its byte length
   equals the embedded bundle's byte length, or the wrapped call fails
+
+### Requirement: Wrapped calls list directories in Node's order
+
+Every wrapped openspec call, piped or a terminal handover, SHALL run behind a
+readdir preload, first on the argv, that returns a non-recursive directory
+listing in the order Node returns it: sorted by the bytes of each name, except
+on Windows, where Node does not sort and the preload SHALL change nothing. A
+contract row SHALL fail a pinned dist that lists a directory through an API the
+preload does not cover.
+
+#### Scenario: Available changes are listed as upstream lists them
+
+- **WHEN** the filesystem returns a project's change directories out of byte
+  order and `cospec instructions` runs without a change
+- **THEN** its `Available changes` lines, and the exit code, are byte-identical
+  to the pinned binary's under Node
+
+#### Scenario: Every wrapped spawn carries the preload first
+
+- **WHEN** cospec spawns the wrapped binary, piped or as a terminal handover
+- **THEN** the readdir preload is the first `--preload` on the argv, ahead of
+  the handover preload where there is one
+
+#### Scenario: The preload covers a project copy and the embedded bundle
+
+- **WHEN** a wrapped call runs against a project copy or against the embedded
+  bundle
+- **THEN** it runs behind the readdir preload either way
+
+#### Scenario: The preload reaches every import form the pinned dist uses
+
+- **WHEN** the binary lists a directory through `fs.readdirSync`, callback
+  `fs.readdir` or `fs.promises.readdir`, imported through the `node:fs` or `fs`
+  namespace, `promises`, or `node:fs/promises`
+- **THEN** the entries, as names, `Dirent`s or buffers, come back sorted by the
+  bytes of each name
+
+#### Scenario: Windows listings are left unchanged
+
+- **WHEN** a wrapped call runs on Windows
+- **THEN** the preload changes no listing
+
+#### Scenario: A dist that lists directories another way fails the contract suite
+
+- **WHEN** the pinned dist calls `opendir`, a recursive `readdir`, or `fs.glob`
+- **THEN** the contract row that enumerates the dist's directory listings fails

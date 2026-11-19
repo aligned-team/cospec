@@ -2,7 +2,7 @@
 
 ## Why
 
-151 living requirements in 27 capabilities have descriptions longer than
+152 living requirements in 27 capabilities have descriptions longer than
 OpenSpec's 500-character requirement limit. OpenSpec 1.14.1 and later report
 that limit as a WARNING, which `--strict` turns into a failure, and the 1.15.0
 parity change adopts it as cospec's `specs/requirement-too-long` rule. That rule
@@ -13,18 +13,19 @@ and they have to come down before the rule can land.
 The rewording is split out of the parity change so that change's real spec
 changes (new obligations, new rules, new commands) stay reviewable instead of
 sitting among about 150 editorial rewrites. This change carries only the
-rewrites that #100 made to fit the limit and that alter no behaviour.
+rewrites that #100 made to fit the limit and that alter no behaviour, plus one
+rewrite of its own (below).
 
 ## What Changes
 
-Each requirement below is replaced by pr-100's living text, verbatim, as a
-`MODIFIED` delta carrying the whole block (description and every scenario). The
-shortened description is at most 500 characters. Long rationale and provenance
-prose is condensed, and clause-by-clause obligations that were packed into one
-paragraph are restated as scenarios. Every scenario in the living text survives
-in the new block.
+Each requirement below, except the one named after the table, is replaced by
+pr-100's living text, verbatim, as a `MODIFIED` delta carrying the whole block
+(description and every scenario). The shortened description is at most 500
+characters. Long rationale and provenance prose is condensed, and
+clause-by-clause obligations that were packed into one paragraph are restated as
+scenarios. Every scenario in the living text survives in the new block.
 
-151 requirements across 27 capabilities:
+152 requirements across 27 capabilities:
 
 | capability                        | requirements |
 | --------------------------------- | ------------ |
@@ -36,7 +37,7 @@ in the new block.
 | copilot-cloud-agent               | 6            |
 | cospec-feedback                   | 1            |
 | cospec-shell-completion           | 7            |
-| embedded-openspec                 | 2            |
+| embedded-openspec                 | 3            |
 | harness-workflows                 | 20           |
 | json-document-parity              | 5            |
 | nested-change-detection           | 3            |
@@ -56,12 +57,29 @@ in the new block.
 | verification-artifact             | 4            |
 | workflow-profiles                 | 8            |
 
+The exception is embedded-openspec "Wrapped calls list directories in Node's
+order". Main's readdir-order change added it after #100, so pr-100 has no text
+for it: the block here is this change's own rewording, not pr-100's. The
+description goes from 762 to 412 characters. Its clauses that named the three
+`readdir` forms and the import forms, the buffer and `Dirent` results, the
+project-copy-or-embedded reach and the Windows exemption moved into scenarios
+(three are new: the preload covers a project copy and the embedded bundle, it
+reaches every import form the pinned dist uses, and Windows listings are left
+unchanged). All three existing scenarios keep their names and meaning.
+
 ### Clauses removed
 
 Shortening dropped wording a reviewer may want back. None of it is a behaviour
 the code implements or tests, but each is listed so it can be objected to.
 
 Clauses dropped outright (the split plan's decision 3):
+
+- "Wrapped calls list directories in Node's order" no longer says the preload
+  runs "ahead of any other" in so many words; "first on the argv" says it, and
+  the scenario "Every wrapped spawn carries the preload first" keeps the order
+  against the handover preload. The code (`spawnRaw`, `preloadedArgv`) matches.
+  The description also stops naming `opendir`, a recursive `readdir` and
+  `fs.glob`; the scenario that fails the contract suite on them names all three.
 
 - "Validate relays are spelled through cospec" no longer says the relayed remedy
   is "never inferred from its answer".
@@ -152,7 +170,7 @@ the parity code also marks `warp`).
 - `copilot-cloud-agent`: 6 requirements reworded
 - `cospec-feedback`: 1 requirement reworded
 - `cospec-shell-completion`: 7 requirements reworded
-- `embedded-openspec`: 2 requirements reworded
+- `embedded-openspec`: 3 requirements reworded
 - `harness-workflows`: 20 requirements reworded
 - `json-document-parity`: 5 requirements reworded
 - `nested-change-detection`: 3 requirements reworded

@@ -4,7 +4,8 @@
 
 - [x] 1.1 Generate a `MODIFIED` delta per capability from pr-100's living specs,
       one verbatim block per B requirement in the living spec's order, and
-      verify 151 blocks across 27 capabilities
+      verify 151 blocks across 27 capabilities, plus the one block this change
+      rewords itself (152 in all)
 - [x] 1.2 Confirm every scenario name in the living text survives in its block
       and verify no block drops one
 - [x] 1.3 Confirm every delta description is at most 500 characters and verify
