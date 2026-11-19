@@ -9,6 +9,7 @@ import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { bunTestArgs, parseArgs } from '../fixtures/run-changed.ts'
 import {
   assertSpawnSelectable,
   bootModules,
@@ -395,6 +396,55 @@ describe('the runner', () => {
       'test:changed unit: 0 test file(s) the push to origin reach (0 changed file(s))',
     )
     expect(run.exitCode).toBe(0)
+  })
+
+  test('runs each suite in parallel, with no flag of its own after the timeout', () => {
+    const options = parseArgs(['--base', 'abc', 'contract', 'unit'])
+    expect(options).toEqual({
+      source: { kind: 'base', ref: 'abc' },
+      suites: ['contract', 'unit'],
+      parallel: true,
+      forward: [],
+    })
+    if (typeof options === 'string') throw new Error(options)
+    expect(bunTestArgs(options, ['./test/contract'])).toEqual([
+      'test',
+      './test/contract',
+      '--parallel',
+      '--timeout',
+      '30000',
+    ])
+  })
+
+  test('--no-parallel drops --parallel, and what follows -- reaches bun test as it is', () => {
+    const options = parseArgs([
+      '--no-parallel',
+      'contract',
+      '--',
+      '--shard=2/4',
+      '--timings=a.json',
+      'unit',
+    ])
+    expect(options).toEqual({
+      source: { kind: 'base', ref: 'HEAD' },
+      suites: ['contract'],
+      parallel: false,
+      forward: ['--shard=2/4', '--timings=a.json', 'unit'],
+    })
+    if (typeof options === 'string') throw new Error(options)
+    expect(bunTestArgs(options, ['./test/contract/a.test.ts'])).toEqual([
+      'test',
+      './test/contract/a.test.ts',
+      '--timeout',
+      '30000',
+      '--shard=2/4',
+      '--timings=a.json',
+      'unit',
+    ])
+  })
+
+  test('a suite named only after -- is no suite', () => {
+    expect(parseArgs(['--', 'unit'])).toBe('name at least one suite')
   })
 })
 

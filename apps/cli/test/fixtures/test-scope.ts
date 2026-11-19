@@ -131,7 +131,7 @@ export const FS_READERS: Readonly<Record<string, FsReads>> = {
     reads: ['openspec/schemas/**', 'apps/cli/test/contract/parity-pending.yaml'],
   },
   // It also copies src and runs `update` from the copy, which its import of update.ts reaches.
-  'test/contract/profiles.test.ts': { reads: ['apps/cli/src/canon/workflows/apply.md'] },
+  'test/contract/profiles-init.test.ts': { reads: ['apps/cli/src/canon/workflows/apply.md'] },
   'test/contract/reachability.test.ts': {
     reads: ['apps/cli/src/canon/parity/**', 'apps/cli/test/contract/parity-pending.yaml'],
   },
