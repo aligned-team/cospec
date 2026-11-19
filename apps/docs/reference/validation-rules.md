@@ -188,11 +188,10 @@ soft-promotes a requirement.
 | `verification/deferred-reason`      | E            | a `[~]` row has no non-empty `defer: <reason>`                                                                                                                                        |
 | `verification/critical-real-layer`  | E            | `feat` only: a `[critical]` group has no row on a layer other than `@unit`                                                                                                            |
 | `verification/reproduces-bug`       | E            | `fix` only: no `@regression` row anywhere in the ledger                                                                                                                               |
-| `verification/equivalence`          | E            | `perf` only: missing a `@benchmark` row, an `@equivalence` row, or both                                                                                                               |
+| `verification/equivalence`          | E            | `perf` only: no `@equivalence` row                                                                                                                                                    |
 | `verification/invariant`            | E            | `refactor` only: no `@equivalence` row                                                                                                                                                |
 | `verification/deploy-real-layer`    | W (E-strict) | `build`/`ci` only, `deploy` surface checked: no `@runtime` row                                                                                                                        |
 | `verification/interactive-required` | W (E-strict) | `interactive` surface checked: no `@manual` or `@e2e` row                                                                                                                             |
-| `verification/eval-check`           | W (E-strict) | `agent-behavior` surface checked: no `@eval` row                                                                                                                                      |
 | `verification/integration-check`    | W (E-strict) | `integration` surface checked: no `@integration` row                                                                                                                                  |
 
 ## `design/`

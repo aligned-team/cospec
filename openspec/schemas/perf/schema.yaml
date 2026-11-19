@@ -99,10 +99,11 @@ artifacts:
     description: Acceptance-evidence ledger — each observable behavior, the layer it is exercised at, who runs the check, and the recorded evidence
     template: verification.md
     instruction: |
-      perf's covenant is IDENTICAL behavior at a better cost. Prove both: at least
-      one `@benchmark` row (tied to the proposal's ## Benchmarks, recording the
-      after number) AND at least one `@equivalence` row (the existing suite /
-      characterization passes unchanged, so behavior did not silently drift). Rows:
+      perf's covenant is IDENTICAL behavior. Prove it with at least one
+      `@equivalence` row (the existing suite / characterization passes unchanged, so
+      behavior did not silently drift). The measured improvement belongs in the
+      proposal's ## Benchmarks, not in this ledger; a `@benchmark` row is allowed but
+      never required. Rows:
       `- [ ] N.M @<layer> (<owner>) <probe> -> <result>`; layers @unit @integration
       @e2e @manual @runtime @regression @equivalence @benchmark @eval. A `[x]` row
       needs observed evidence after ` -> `; defer as `[~] … -> defer: <reason>`.

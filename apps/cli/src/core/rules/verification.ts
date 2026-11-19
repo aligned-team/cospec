@@ -181,12 +181,12 @@ export function verificationRules(
       })
     }
   } else if (enforced && type === 'perf') {
-    if (!hasLayer('benchmark') || !hasLayer('equivalence')) {
+    if (!hasLayer('equivalence')) {
       issues.push({
         level: 'ERROR',
         rule: 'verification/equivalence',
         path: FILE,
-        message: 'a perf change needs both a @benchmark row and an @equivalence row',
+        message: 'a perf change needs an @equivalence row (observable behavior unchanged)',
       })
     }
   } else if (enforced && type === 'refactor') {
@@ -222,14 +222,6 @@ export function verificationRules(
       rule: 'verification/interactive-required',
       path: FILE,
       message: 'the interactive surface needs a @manual or @e2e row',
-    })
-  }
-  if (surfaces.has('agent-behavior') && !hasLayer('eval')) {
-    issues.push({
-      level: soft(),
-      rule: 'verification/eval-check',
-      path: FILE,
-      message: 'the agent-behavior surface needs an @eval row',
     })
   }
   if (surfaces.has('integration') && !hasLayer('integration')) {

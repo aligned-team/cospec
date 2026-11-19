@@ -89,12 +89,12 @@ closed as `verification/layer-unknown`, `cospec doctor` reports a malformed
 Each type that requires `verification` layers on a distinct required-row
 fact, checked at validate time:
 
-| type       | required-row fact                                       |
-| ---------- | ------------------------------------------------------- |
-| `feat`     | every `[critical]` group needs a non-`@unit` row        |
-| `fix`      | needs an `@regression` row                              |
-| `perf`     | needs both a `@benchmark` row and an `@equivalence` row |
-| `refactor` | needs an `@equivalence` row                             |
+| type       | required-row fact                                |
+| ---------- | ------------------------------------------------ |
+| `feat`     | every `[critical]` group needs a non-`@unit` row |
+| `fix`      | needs an `@regression` row                       |
+| `perf`     | needs an `@equivalence` row                      |
+| `refactor` | needs an `@equivalence` row                      |
 
 `refactor`'s `@equivalence` row is also where its `design.md` invariant
 section earns its evidence — the plan and the proof live in different
