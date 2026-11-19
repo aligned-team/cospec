@@ -474,7 +474,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     for (const r of [root, copy])
       writeFiles(r, {
         [`openspec/changes/archive/${slotFor(name)}/.openspec.yaml`]:
-          'schema: feat\ncreated: 2026-10-05\nschemaVersion: 2\n',
+          'schema: feat\ncreated: 2026-10-05\nx-cospec-schema-version: 2\n',
       })
     const cs = await failureRow(
       '2.3',

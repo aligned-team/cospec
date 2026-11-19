@@ -104,7 +104,7 @@ schema SHALL get the binary's refusal, nothing written.
 - **WHEN** `cospec new change foo` runs in a root whose `config.yaml` says
   `schema: feat`
 - **THEN** `openspec/changes/foo/.openspec.yaml` says `schema: feat` and carries
-  `schemaVersion: 2`
+  `x-cospec-schema-version: 2`
 
 #### Scenario: An empty --schema is no --schema
 

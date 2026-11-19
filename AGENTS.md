@@ -149,7 +149,10 @@ step 6 with `/cospec:verify` — it walks the verification ledger and names the
 hard archive gates without moving anything.
 
 In-flight v1 changes are grandfathered until `cospec migrate <slug>` stamps them
-to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
+to the current schema version. The stamp is `x-cospec-schema-version` in the
+change's `.openspec.yaml` (the legacy `schemaVersion` key is still read, and
+`migrate` rewrites it); `cospec doctor` lists changes still on v1 and changes
+still carrying the legacy key.
 
 ## Branch, PR, and merge flow
 

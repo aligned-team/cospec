@@ -100,9 +100,9 @@ grandfathering, and a blocking-changes ledger with auto-sync.
 | -------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `cospec init [path]`             | scaffold `openspec/`, schemas, and harness files (idempotent)                                     |
 | `cospec update [--check]`        | re-generate managed files from canon; `--check` is a drift gate                                   |
-| `cospec doctor`                  | read-only health check, incl. changes still on `schemaVersion` 1                                  |
+| `cospec doctor`                  | read-only health check, incl. changes on schema version 1 or the legacy stamp                     |
 | `cospec new <type> <slug>`       | create a typed change; prints the artifact plan                                                   |
-| `cospec migrate <change>`        | stamp a grandfathered change to the current `schemaVersion`, scaffolding deferred verification    |
+| `cospec migrate <change>`        | stamp a grandfathered change to the current schema version, scaffolding deferred verification     |
 | `cospec validate [name]`         | validate changes and specs (`--all`/`--changes`/`--specs`); `--strict` promotes warnings          |
 | `cospec status` / `cospec list`  | change status with type, gate, and archive-readiness columns (`list --specs` lists living specs)  |
 | `cospec instructions <artifact>` | print the authoring instruction for one artifact                                                  |

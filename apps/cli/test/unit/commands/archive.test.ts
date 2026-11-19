@@ -106,12 +106,12 @@ describe('archive pre-flight', () => {
   })
 })
 
-/** Stamp `schemaVersion: 2` onto a change already written by `writeChange` —
+/** Stamp `x-cospec-schema-version: 2` onto a change already written by `writeChange` —
  * the v2 gate (verification enforcement) applies from here on. */
 function stampV2(cwd: string, id: string, schema: string): void {
   writeFileSync(
     join(cwd, 'openspec', 'changes', id, '.openspec.yaml'),
-    `schema: ${schema}\ncreated: 2026-07-06\nschemaVersion: 2\n`,
+    `schema: ${schema}\ncreated: 2026-07-06\nx-cospec-schema-version: 2\n`,
   )
 }
 

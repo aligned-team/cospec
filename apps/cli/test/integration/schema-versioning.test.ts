@@ -5,7 +5,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
+import { cleanupAll, cospec, mkTempRepo, openspec, writeFiles } from '../fixtures/support.ts'
 
 // Commands run as child processes, imported so `bun test --changed` selects this file.
 import '../../src/commands/doctor.ts'
@@ -58,14 +58,93 @@ async function initRepo(): Promise<string> {
   return root
 }
 
-describe('cospec new: schemaVersion stamping', () => {
-  test('a newly created change is stamped schemaVersion: 2', async () => {
+describe('cospec new: schema version stamping', () => {
+  test('a newly created change is stamped x-cospec-schema-version: 2', async () => {
     const root = await initRepo()
     const res = await cospec(['new', 'ci', 'bump-image'], { cwd: root })
     expect(res.exitCode).toBe(0)
     const yaml = readFileSync(join(root, 'openspec/changes/bump-image/.openspec.yaml'), 'utf8')
-    expect(yaml).toMatch(/schemaVersion:\s*2/)
+    expect(yaml).toMatch(/^x-cospec-schema-version:\s*2$/m)
+    expect(yaml).not.toMatch(/^schemaVersion:/m)
     expect(yaml).toMatch(/schema:\s*ci/)
+  })
+
+  test('the pinned openspec validate --strict reports no unknown key on a fresh change', async () => {
+    const root = await initRepo()
+    await cospec(['new', 'feat', 'fresh-feat'], { cwd: root })
+    const res = await openspec(['validate', 'fresh-feat', '--strict', '--json'], root)
+    expect(res.stdout).not.toContain('Unrecognized key')
+    const parsed = JSON.parse(res.stdout) as { items: { issues: { message: string }[] }[] }
+    expect(parsed.items[0]!.issues.some((i) => i.message.includes('x-cospec'))).toBe(false)
+  })
+})
+
+describe('legacy schemaVersion stamp', () => {
+  function authorLegacyStamped(root: string, name: string): void {
+    writeFiles(root, {
+      [`openspec/changes/${name}/.openspec.yaml`]:
+        'schema: ci\ncreated: 2026-07-01\nschemaVersion: 2\n',
+      [`openspec/changes/${name}/proposal.md`]: CI_PROPOSAL,
+      [`openspec/changes/${name}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`openspec/changes/${name}/tasks.md`]: TASKS_DONE,
+    })
+  }
+
+  test('is honoured as version 2 under validate --strict', async () => {
+    const root = await initRepo()
+    authorLegacyStamped(root, 'legacy-stamp')
+    const res = await cospec(['validate', 'legacy-stamp', '--strict', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    const parsed = JSON.parse(res.stdout) as { items: { issues: { rule: string }[] }[] }
+    const rules = parsed.items[0]!.issues.map((i) => i.rule)
+    expect(rules).not.toContain('meta/schema-outdated')
+  })
+
+  test('doctor names it, and migrate rewrites it to the x- key', async () => {
+    const root = await initRepo()
+    authorLegacyStamped(root, 'legacy-stamp')
+    const doctor = await cospec(['doctor', '--json'], { cwd: root })
+    const findings = (
+      JSON.parse(doctor.stdout) as { findings: { check: string; message: string }[] }
+    ).findings
+    expect(
+      findings.some(
+        (f) =>
+          f.check === 'schema-version' &&
+          f.message.includes('legacy-stamp') &&
+          f.message.includes('legacy'),
+      ),
+    ).toBe(true)
+
+    const migrated = await cospec(['migrate', 'legacy-stamp', '--json'], { cwd: root })
+    expect(migrated.exitCode).toBe(0)
+    expect(JSON.parse(migrated.stdout)).toEqual({
+      change: 'legacy-stamp',
+      schemaVersion: 2,
+      migrated: true,
+      verificationScaffolded: false,
+    })
+    const yaml = readFileSync(join(root, 'openspec/changes/legacy-stamp/.openspec.yaml'), 'utf8')
+    expect(yaml).toBe('schema: ci\ncreated: 2026-07-01\nx-cospec-schema-version: 2\n')
+
+    const after = await cospec(['doctor', '--json'], { cwd: root })
+    const again = (JSON.parse(after.stdout) as { findings: { check: string; message: string }[] })
+      .findings
+    expect(
+      again.some((f) => f.check === 'schema-version' && f.message.includes('legacy-stamp')),
+    ).toBe(false)
+  })
+
+  test('the x- key wins over a legacy key beside it', async () => {
+    const root = await initRepo()
+    writeFiles(root, {
+      'openspec/changes/both/.openspec.yaml':
+        'schema: feat\ncreated: 2026-07-01\nschemaVersion: 1\nx-cospec-schema-version: 2\n',
+    })
+    const res = await cospec(['migrate', 'both', '--json'], { cwd: root })
+    const doc = JSON.parse(res.stdout) as { schemaVersion: number; verificationScaffolded: boolean }
+    expect(doc.schemaVersion).toBe(2)
+    expect(doc.verificationScaffolded).toBe(false)
   })
 })
 
@@ -123,7 +202,7 @@ The system SHALL provide the widget behavior when requested.
     expect(res.exitCode).toBe(0)
 
     const yaml = readFileSync(join(root, 'openspec/changes/legacy-widget/.openspec.yaml'), 'utf8')
-    expect(yaml).toMatch(/schemaVersion:\s*2/)
+    expect(yaml).toMatch(/^x-cospec-schema-version:\s*2$/m)
 
     const verification = readFileSync(
       join(root, 'openspec/changes/legacy-widget/verification.md'),
@@ -151,7 +230,7 @@ The system SHALL provide the widget behavior when requested.
       join(root, 'openspec/changes/untouched-widget/.openspec.yaml'),
       'utf8',
     )
-    expect(yaml).not.toMatch(/schemaVersion/)
+    expect(yaml).not.toMatch(/schemaVersion|schema-version/)
   })
 
   test('re-running migrate on an already-v2 change is a no-op success', async () => {

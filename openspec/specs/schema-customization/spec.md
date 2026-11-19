@@ -70,18 +70,18 @@ any directory, if that name is one of the 11 `COSPEC_TYPES`.
 When `<name>` is not one of the 11 cospec types, `cospec new <name> <slug>`
 SHALL check `resolveSchema(base, <name>).kind`. On `'legacy'` it SHALL delegate
 to `openspec new change <slug> --schema <name>`, verify the written
-`.openspec.yaml` schema pointer, stamp no cospec `schemaVersion`, print no typed
-artifact plan, and note that the change carries reduced cospec guarantees
-(structural and openspec-delegated checks only). Any other name SHALL still get
-today's unknown-type error.
+`.openspec.yaml` schema pointer, stamp no `x-cospec-schema-version` or
+`schemaVersion`, print no typed artifact plan, and note that the change carries
+reduced cospec guarantees (structural and delegated checks only). Any other name
+SHALL still get today's unknown-type error.
 
 #### Scenario: New change on a legacy schema
 
 - **WHEN** `cospec new my-custom some-slug` runs and `my-custom` resolves as
   `kind: 'legacy'`
 - **THEN** `openspec/changes/some-slug/.openspec.yaml` has `schema: my-custom`,
-  has no `schemaVersion` field, and cospec prints a reduced-guarantees note
-  instead of the typed artifact plan
+  has neither an `x-cospec-schema-version` nor a `schemaVersion` field, and
+  cospec prints a reduced-guarantees note instead of the typed artifact plan
 
 #### Scenario: New change on an unresolvable name still errors
 

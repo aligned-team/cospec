@@ -656,9 +656,10 @@ drifting apart:
    also pays for the test that ends that risk class.
 2. **`schemaVersion` grandfathering, not content-derived promotion.** The
    composer stamps `version: 2` into every schema; `cospec new` stamps the
-   change's `.openspec.yaml` with `schemaVersion: 2` (a change with no stamp is
-   treated as `schemaVersion: 1`). `enforcedApplyRequires(type, schemaVersion)`
-   filters the static matrix down to artifacts whose
+   change's `.openspec.yaml` with `x-cospec-schema-version: 2` (legacy changes
+   carry it as `schemaVersion:`, still read; a change with no stamp is treated
+   as `schemaVersion: 1`). `enforcedApplyRequires(type, schemaVersion)` filters
+   the static matrix down to artifacts whose
    `introducedAt(artifact, type) <= schemaVersion` — a uniform, monotonic
    version filter applied identically at `apply` and `archive`. `verification`
    is `introducedAt = 2` for feat/fix/perf/refactor; every other (artifact,

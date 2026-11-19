@@ -78,12 +78,12 @@ never regenerates or manages a forked schema — it is yours to edit.
 
 A change run against a fork (`cospec new <name> <slug>` or per-change
 `--schema`) resolves as **legacy** and routes down the legacy lane: no cospec
-`schemaVersion` stamp, no typed artifact-plan, and a "reduced cospec guarantees"
-note from `cospec new`. The legacy lane still keeps every **schema-agnostic**
-hard gate — the archive tasks gate, scenario-preservation, filesystem-move
-verification, and blocker fan-out — and delegates structural validation to
-OpenSpec's own check of the fork's declared artifact graph (`cospec validate`
-emits a `meta/legacy-schema` INFO and no typed `proposal/*`, `verification/*`,
-`design/*`, or `specs/*` rule). The one cospec gate a fork does **not** get is
-the verification-evidence ledger, which is scoped to canon types.
-`cospec doctor` reports a change on a fork as an INFO, not a warning.
+`x-cospec-schema-version` stamp, no typed artifact-plan, and a "reduced cospec
+guarantees" note from `cospec new`. The legacy lane still keeps every
+**schema-agnostic** hard gate — the archive tasks gate, scenario-preservation,
+filesystem-move verification, and blocker fan-out — and delegates structural
+validation to OpenSpec's own check of the fork's declared artifact graph
+(`cospec validate` emits a `meta/legacy-schema` INFO and no typed `proposal/*`,
+`verification/*`, `design/*`, or `specs/*` rule). The one cospec gate a fork
+does **not** get is the verification-evidence ledger, which is scoped to canon
+types. `cospec doctor` reports a change on a fork as an INFO, not a warning.

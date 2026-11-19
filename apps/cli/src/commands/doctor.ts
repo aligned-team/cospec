@@ -634,11 +634,24 @@ function checkChangeSchemas(cwd: string, findings: Finding[]): void {
   }
 }
 
-/** `cospec doctor` lists active changes still on `schemaVersion` 1 (DESIGN §5). */
+/**
+ * `cospec doctor` lists active changes still on `schemaVersion` 1 (DESIGN §5),
+ * and current ones still stamped under the legacy `schemaVersion` key, which
+ * OpenSpec 1.14+ reports as an unknown key.
+ */
 function checkSchemaVersions(cwd: string, findings: Finding[]): void {
   for (const change of listChanges(cwd)) {
     if (!isCospecType(change.schema)) continue
-    if ((change.schemaVersion ?? 1) >= 2) continue
+    if ((change.schemaVersion ?? 1) >= 2) {
+      if (change.legacyStamp === true)
+        findings.push({
+          level: 'INFO',
+          check: 'schema-version',
+          message: `change '${change.id}' still carries the legacy \`schemaVersion\` stamp`,
+          remedy: `run \`cospec migrate ${change.id}\` to rewrite it as \`x-cospec-schema-version\``,
+        })
+      continue
+    }
     findings.push({
       level: 'INFO',
       check: 'schema-version',

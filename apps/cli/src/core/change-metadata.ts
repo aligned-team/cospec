@@ -23,6 +23,15 @@ import { respellRemedies } from './remedies.ts'
 
 export const METADATA_FILENAME = '.openspec.yaml'
 
+/**
+ * The key cospec stamps a change's schema version under. OpenSpec 1.14+
+ * reserves lowercase `x-` keys for tool metadata and warns on any other key it
+ * does not know, so the stamp lives in that namespace.
+ */
+export const SCHEMA_VERSION_KEY = 'x-cospec-schema-version'
+/** The stamp's pre-1.15 spelling, still read as an equal fallback. */
+export const LEGACY_SCHEMA_VERSION_KEY = 'schemaVersion'
+
 /** openspec's `{ declared, invalidReason? }` marker read. */
 export interface MarkerRead {
   /** The marker is set and openspec honours it. */

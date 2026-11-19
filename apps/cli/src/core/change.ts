@@ -3,7 +3,12 @@ import { basename, join, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
-import { loadSchema, userSchemasDir } from './change-metadata.ts'
+import {
+  LEGACY_SCHEMA_VERSION_KEY,
+  loadSchema,
+  SCHEMA_VERSION_KEY,
+  userSchemasDir,
+} from './change-metadata.ts'
 import { artifactOutputExists } from './glob.ts'
 import { openspecPackageDir, printOwnStderrLineOnce } from './openspec.ts'
 import { couldNotParseWarning, readConfigFile } from './project-config-read.ts'
@@ -51,6 +56,8 @@ export interface OpenspecYaml {
   created?: string
   /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
   schemaVersion?: number
+  /** the file still carries the legacy `schemaVersion` key (`cospec migrate` rewrites it). */
+  legacyStamp?: boolean
   /**
    * `skip_specs:` — a persisted request that a spec-bearing type accepts no
    * delta files (the durable equivalent of `cospec archive --skip-specs`). A
@@ -67,10 +74,27 @@ export interface OpenspecYaml {
   retireCapabilities?: boolean
 }
 
+export { LEGACY_SCHEMA_VERSION_KEY, SCHEMA_VERSION_KEY }
+
 /**
- * A `schemaVersion:` value only counts as stamped when it is a positive integer,
- * mirroring the `meta/openspec-yaml` rule. Anything else (0, negative, or
- * fractional) is treated as absent by readers so callers fall back to v1
+ * The raw stamp value a metadata record carries: the `x-` key when present,
+ * else the legacy `schemaVersion`. `legacy` says the value came from the
+ * legacy key.
+ */
+export function rawSchemaVersionStamp(record: Record<string, unknown>): {
+  value: unknown
+  legacy: boolean
+} {
+  if (record[SCHEMA_VERSION_KEY] !== undefined)
+    return { value: record[SCHEMA_VERSION_KEY], legacy: false }
+  const value = record[LEGACY_SCHEMA_VERSION_KEY]
+  return { value, legacy: value !== undefined }
+}
+
+/**
+ * A stamped version (`x-cospec-schema-version:`, else legacy `schemaVersion:`) only counts as
+ * stamped when it is a positive integer, mirroring the `meta/openspec-yaml` rule. Anything else
+ * (0, negative, or fractional) is treated as absent by readers so callers fall back to v1
  * semantics rather than feeding garbage into `enforcedApplyRequires` — a
  * `schemaVersion: 0` must not grandfather every artifact out of the gate.
  */
@@ -97,13 +121,19 @@ export function readOpenspecYaml(changeDir: string): OpenspecYaml | undefined {
   const schema = record.schema
   if (typeof schema !== 'string' || schema.length === 0) return undefined
   const created = typeof record.created === 'string' ? record.created : undefined
-  const schemaVersion = isValidSchemaVersion(record.schemaVersion)
-    ? record.schemaVersion
-    : undefined
+  const stamp = rawSchemaVersionStamp(record)
+  const schemaVersion = isValidSchemaVersion(stamp.value) ? stamp.value : undefined
   const skipSpecs = typeof record.skip_specs === 'boolean' ? record.skip_specs : undefined
   const retireCapabilities =
     typeof record.retire_capabilities === 'boolean' ? record.retire_capabilities : undefined
-  return { schema, created, schemaVersion, skipSpecs, retireCapabilities }
+  return {
+    schema,
+    created,
+    schemaVersion,
+    ...(record[LEGACY_SCHEMA_VERSION_KEY] !== undefined ? { legacyStamp: true } : {}),
+    skipSpecs,
+    retireCapabilities,
+  }
 }
 
 export interface Change {
@@ -114,6 +144,8 @@ export interface Change {
   created?: string
   /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
   schemaVersion?: number
+  /** the stamp is still spelled `schemaVersion` (legacy); see `OpenspecYaml.legacyStamp`. */
+  legacyStamp?: boolean
   /** `skip_specs:` from `.openspec.yaml`, when boolean. */
   skipSpecs?: boolean
   /** `retire_capabilities:` from `.openspec.yaml`, when boolean. */
@@ -155,6 +187,7 @@ function changeAt(dir: string, id: string): Change {
     schema: yaml?.schema ?? '',
     created: yaml?.created,
     schemaVersion: yaml?.schemaVersion,
+    ...(yaml?.legacyStamp === true ? { legacyStamp: true } : {}),
     skipSpecs: yaml?.skipSpecs,
     retireCapabilities: yaml?.retireCapabilities,
   }

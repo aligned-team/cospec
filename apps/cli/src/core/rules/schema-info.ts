@@ -65,7 +65,7 @@ export interface OpenspecYaml {
   created?: string
   /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
   schemaVersion?: number
-  /** a `schemaVersion:` key present but not a positive integer (meta/openspec-yaml). */
+  /** the stamp (`x-cospec-schema-version:`, else legacy `schemaVersion:`) present but not a positive integer (meta/openspec-yaml). */
   schemaVersionInvalid?: boolean
   /**
    * `skip_specs:` — a persisted declaration that this change carries no delta
