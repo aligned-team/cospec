@@ -251,15 +251,24 @@ depends = [
   "lint",
   "format:check",
   "typecheck",
-  "//apps/cli:test",
-  "//apps/cli:test:contract",
-  "//apps/cli:test:integration",
-  "//packages/bench:test",
-  "//e2e:release-test",
+  "check:tests",
   "generate:check",
   "lock:check",
   "vendor:openspec:check",
   "agents:check",
   "cospec-validate-all",
   "openspec:schema:validate",
+]
+
+# The test suites run one after another, not side by side as check's other dependencies do: each
+# apps/cli suite runs its files in parallel, a worker per core, so suites run together would
+# oversubscribe the cores and time out the bench's timing-sensitive rows.
+[tasks."check:tests"]
+description = "Every test suite, one after another (each apps/cli suite runs its files in parallel)"
+run = [
+  { task = "//apps/cli:test" },
+  { task = "//apps/cli:test:contract" },
+  { task = "//apps/cli:test:integration" },
+  { task = "//packages/bench:test" },
+  { task = "//e2e:release-test" },
 ]

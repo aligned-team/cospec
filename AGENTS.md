@@ -415,7 +415,20 @@ itself. Pass `{ runtime: 'node' }` (the tests-only `mise.toml` node pin) only
 for an argv that starts with `--`, or for a row that pins a runtime gap cospec
 closes (a handover key, the readdir order) against the binary under Node itself.
 Assert errno failures through `test/fixtures/errno.ts` (code, syscall, path),
-never the OS-specific sentence.
+never the OS-specific sentence. The apps/cli suites run their files with
+`--parallel` locally (a worker per core, each file isolated: fresh global,
+preload re-run, `process.env` restored; bunfig has no key for it, so each suite
+task and the `test:changed` runner pass it), so a test never depends on another
+file's state and writes only to its own temporary directories, never to a
+repository path another file reads. `mise run check` runs the suites one after
+another (`check:tests`), since side by side they would oversubscribe the cores;
+the bench suite stays serial, its rows timing code. CI runs files one at a time
+instead (a runner's few cores only contend), and splits the contract suite
+across the four `ci-contract` shards, cut by the per-file durations main's last
+run recorded (`bun test --shard` with `--timings`, kept in the Actions cache;
+only main writes them). A contract file too slow for a shard splits into files
+that share a support module, as `profiles-matrix-<n>.test.ts` share
+`test/contract/support/profile-matrix.ts`.
 
 **Tests run what a change reaches** — the hooks and PR CI run
 `mise run test:changed` (`apps/cli/test/fixtures/test-scope.ts`) over a change —
@@ -428,10 +441,11 @@ fixture trees each test copies), nothing for a path no test reads (`UNREAD`), or
 the whole suite for an input every test depends on (the CLI's boot path, the
 test preload, `GLOBAL_INPUTS`) or a non-code file nothing is known to read. PR
 CI runs the whole unit suite (its coverage gate) and that selection of the
-contract and integration suites; pushes to `main` and the merge queue run every
-suite whole, and a release bumps only a `main` commit whose own CI passed
-(`release.yml`'s gate on its `ci-gate` check). A test that spawns the CLI
-imports the module of each command it runs
+contract and integration suites
+(`test:changed -- --no-parallel <suite> -- <bun flags>`); pushes to `main` and
+the merge queue run every suite whole, and a release bumps only a `main` commit
+whose own CI passed (`release.yml`'s gate on its `ci-gate` check). A test that
+spawns the CLI imports the module of each command it runs
 (`import '../../src/commands/<name>.ts'`) — the test preload refuses the spawn
 otherwise. A file under `test/` that builds a path into the repository says what
 it reads in `FS_READERS`, and `support-test-scope.test.ts` fails on one that

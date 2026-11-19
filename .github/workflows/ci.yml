@@ -60,7 +60,8 @@ jobs:
               - '.github/actions/setup-mise/**'
 
   # Runs on every pull request: `bun fmt` checks every change's openspec Markdown, the unit tests
-  # read the docs trees, and the contract and integration tests are scoped below.
+  # read the docs trees, and the integration tests are scoped below (the contract tests run in
+  # ci-contract).
   ci-bun:
     needs: detect-changes
     runs-on: ubuntu-latest
@@ -99,28 +100,23 @@ jobs:
       - run: mise run lint
       - run: mise run format:check
       - run: mise run typecheck
+      # CI runs every suite's files one at a time, never `--parallel`: each test spawns the pinned
+      # binary, so a runner's few cores leave parallel files contending, not faster.
       # The coverage gate measures the whole unit suite, so every event runs all of it.
       - name: Unit tests (coverage gate)
         run: bun test apps/cli/test/unit --coverage --timeout 30000
-      # A pull request runs the contract and integration tests its changes (its diff from its base)
-      # reach — the test files whose import graph reaches a changed file, or the whole suite when a
-      # change sits outside the graph (`mise run test:changed`, apps/cli/test/fixtures/test-scope.ts).
-      - name: Contract tests (what the pull request reaches)
-        if: github.event_name == 'pull_request'
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: mise run test:changed -- --base "$BASE" contract
+      # A pull request runs the integration tests its changes (its diff from its base) reach — the
+      # test files whose import graph reaches a changed file, or the whole suite when a change sits
+      # outside the graph (`mise run test:changed`, apps/cli/test/fixtures/test-scope.ts).
       - name: Integration tests (what the pull request reaches)
         if: github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-        run: mise run test:changed -- --base "$BASE" integration
-      - name: Contract tests
-        if: github.event_name != 'pull_request'
-        run: mise run test:contract
+        run: mise run test:changed -- --base "$BASE" --no-parallel integration
       - name: Integration tests
         if: github.event_name != 'pull_request'
-        run: mise run test:integration
+        working-directory: apps/cli
+        run: bun test ./test/integration --timeout 30000
       - name: Bench unit tests
         run: mise run test:bench
       - name: Release script test
@@ -129,6 +125,98 @@ jobs:
         run: mise run vendor:openspec:check
       - name: Pack smoke
         run: mise run test:pack
+
+  # The contract suite, split across four runners: on one runner, `--parallel` workers only contend
+  # for its cores. bun cuts the slices (`--shard`) by the per-file durations main's last run
+  # recorded (`--timings`), or by file count when none are recorded yet; each runner runs its slice
+  # one file at a time. A pull request slices what it reaches, as ci-bun selects integration.
+  ci-contract-timings:
+    runs-on: ubuntu-latest
+    outputs:
+      key: ${{ steps.lookup.outputs.cache-matched-key }}
+    steps:
+      # The slices add up to the suite only when every shard reads the same durations, so this one
+      # lookup names the entry they all restore: a save landing mid-run cannot reach some shards
+      # and not others.
+      - id: lookup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: apps/cli/.bun-test-timings
+          key: contract-timings-${{ github.run_id }}
+          restore-keys: contract-timings-
+          lookup-only: true
+
+  ci-contract:
+    needs: ci-contract-timings
+    name: ci-contract (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # a pull request's test selection diffs against its base commit
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+      # upstream-spellings.test.ts runs `completion zsh` and `completion fish` (see ci-bun).
+      - name: Install fish and zsh (no mise/aqua registry entry)
+        run: sudo apt-get update && sudo apt-get install -y fish zsh
+      - name: Restore the recorded durations
+        if: needs.ci-contract-timings.outputs.key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: apps/cli/.bun-test-timings
+          key: ${{ needs.ci-contract-timings.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Contract tests, shard ${{ matrix.shard }} of 4
+        working-directory: apps/cli
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          SHARD: ${{ matrix.shard }}
+          RECORD: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          shopt -s nullglob
+          flags=("--shard=$SHARD/4")
+          # --update-timings writes the first --timings path, with only the files this shard ran.
+          if [[ "$RECORD" == true ]]; then
+            flags+=(--update-timings "--timings=.bun-test-timings/next/$SHARD.json")
+          fi
+          for recorded in .bun-test-timings/*.json; do
+            flags+=("--timings=$recorded")
+          done
+          if [[ "$EVENT" == pull_request ]]; then
+            bun test/fixtures/run-changed.ts --base "$BASE" --no-parallel contract -- "${flags[@]}"
+          else
+            bun test ./test/contract --timeout 30000 "${flags[@]}"
+          fi
+      - name: Keep this shard's durations
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: contract-timings-${{ matrix.shard }}
+          path: apps/cli/.bun-test-timings/next/${{ matrix.shard }}.json
+          if-no-files-found: warn
+          retention-days: 1
+
+  # Only main's run records the durations later runs slice by: a pull request's run times only what
+  # it reaches, and its own cache entry would shadow main's for its later runs.
+  ci-contract-timings-save:
+    needs: ci-contract
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          pattern: contract-timings-*
+          path: apps/cli/.bun-test-timings
+          merge-multiple: true
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: apps/cli/.bun-test-timings
+          key: contract-timings-${{ github.run_id }}-${{ github.run_attempt }}
 
   ci-openspec:
     needs: detect-changes
@@ -191,13 +279,14 @@ jobs:
 
   ci-gate:
     if: always()
-    needs: [detect-changes, ci-bun, ci-openspec, ci-shell, ci-actions-lint, ci-docs]
+    needs: [detect-changes, ci-bun, ci-contract, ci-openspec, ci-shell, ci-actions-lint, ci-docs]
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream job results
         env:
           DETECT: ${{ needs.detect-changes.result }}
           BUN: ${{ needs.ci-bun.result }}
+          CONTRACT: ${{ needs.ci-contract.result }}
           OPENSPEC: ${{ needs.ci-openspec.result }}
           SHELL_JOB: ${{ needs.ci-shell.result }}
           ACTIONS: ${{ needs.ci-actions-lint.result }}
@@ -205,6 +294,10 @@ jobs:
         run: |
           if [[ "$DETECT" != "success" ]]; then
             echo "detect-changes did not succeed: $DETECT — gate fails"; exit 1
+          fi
+          # ci-contract always runs; skipped means its timings lookup failed, so nothing ran.
+          if [[ "$CONTRACT" != "success" ]]; then
+            echo "ci-contract did not succeed: $CONTRACT — gate fails"; exit 1
           fi
           for r in "$BUN" "$OPENSPEC" "$SHELL_JOB" "$ACTIONS" "$DOCS"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then

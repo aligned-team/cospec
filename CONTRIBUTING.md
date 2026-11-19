@@ -172,11 +172,28 @@ that does not. A fixture is named by a literal in `mkTempRepo({ fixture })` or
 `copyFixture()`, so the tests that copy each tree are known.
 
 A push runs the contract tests its changes reach too. The contract suite runs
-the real pinned OpenSpec binary and takes about 20 minutes whole locally, so a
-push that changes canon or the CLI's boot path takes that long. Pull-request CI
-runs the same contract and integration selection (and the whole unit suite, for
-its coverage gate); pushes to `main` and the merge queue run every suite whole,
-and a release bumps only a `main` commit whose own CI passed.
+the real pinned OpenSpec binary; whole, it takes about 8 minutes locally, so a
+push that changes canon or the CLI's boot path takes that long.
+
+Locally, the apps/cli suites run their files with `--parallel`: a worker per
+core, each file in a fresh global with its own preload run and `process.env`
+restored. A test therefore never depends on another file's state, and writes
+only to its own temporary directories, never to a path in the repository that
+another file reads. `mise run check` runs the suites one after another
+(`check:tests`), since side by side they would oversubscribe the cores. The
+bench suite stays serial: some of its rows time code.
+
+Pull-request CI runs the same contract and integration selection (and the whole
+unit suite, for its coverage gate); pushes to `main` and the merge queue run
+every suite whole, and a release bumps only a `main` commit whose own CI passed.
+CI runs test files one at a time, since a runner's few cores leave parallel
+files contending rather than faster. The contract suite is split across four
+`ci-contract` jobs instead: `bun test --shard` cuts the slices by the per-file
+durations that `main`'s last run recorded (`--timings`, kept in the Actions
+cache), or by file count before any are recorded. Only `main` records them, so a
+pull request's partial run never skews the next. A contract file too slow for
+one shard splits into files that share a support module, as
+`profiles-matrix-<n>.test.ts` share `test/contract/support/profile-matrix.ts`.
 
 ## The cospec change workflow (we self-host)
 

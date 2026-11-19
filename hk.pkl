@@ -145,7 +145,7 @@ local typecheckSteps = new Mapping<String, Step> {
 // new branch: from the newest commits the remote already has). git hands the hook the remote and
 // the refs; hk passes them on as `hook_args` and `hook_stdin` (its `{{files}}` drops deletions).
 // A change outside the graph — canon, the CLI's boot path — runs a whole suite: the contract
-// suite takes about 20 minutes locally. PR CI runs the same selection against the PR's base; main
+// suite takes about 8 minutes locally. PR CI runs the same selection against the PR's base; main
 // and the merge queue run every suite whole.
 local commitTestSteps = new Mapping<String, Step> {
   ["test"] {
