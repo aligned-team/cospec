@@ -89,6 +89,7 @@ All operations run through mise tasks — never raw tool invocations:
 | E2E eval (advisory)    | `mise run eval:e2e`                                              |
 | Bench (advisory)       | `mise run bench`                                                 |
 | Bench smoke            | `mise run bench:smoke`                                           |
+| Bench complete         | `mise run bench:complete`                                        |
 | Full CI gate           | `mise run check`                                                 |
 
 The hk hooks check what a change touches — a commit runs the staged-file

@@ -182,6 +182,7 @@ export const FS_READERS: Readonly<Record<string, FsReads>> = {
     reads: ['apps/cli/src/canon/apply-instruction.yaml'],
   },
   'test/unit/commands/archive-refusals.test.ts': { reads: ['apps/cli/src/commands/archive.ts'] },
+  'test/unit/commands/complete-lazy.test.ts': { reads: ['apps/cli/src/**/*.ts'] },
   'test/unit/commands/feedback-format.test.ts': {
     reads: ['.github/ISSUE_TEMPLATE/bug_report.yml'],
   },
