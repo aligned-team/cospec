@@ -67,14 +67,13 @@ any directory, if that name is one of the 11 `COSPEC_TYPES`.
 
 ### Requirement: `cospec new` accepts resolvable legacy schemas
 
-`cospec new <name> <slug>` SHALL, when `<name>` is not one of the 11 cospec
-types, check `resolveSchema(base, <name>).kind`. When it resolves to `'legacy'`,
-`cospec new` SHALL delegate to `openspec new change <slug> --schema <name>`,
-verify the written `.openspec.yaml` schema pointer, SHALL NOT stamp a cospec
-`schemaVersion`, SHALL NOT print the typed artifact-plan output, and SHALL print
-a note that the change carries reduced cospec guarantees (structural checks and
-openspec-delegated validation only). A name that is neither a cospec type nor a
-resolvable legacy schema SHALL still produce today's unknown-type error.
+When `<name>` is not one of the 11 cospec types, `cospec new <name> <slug>`
+SHALL check `resolveSchema(base, <name>).kind`. On `'legacy'` it SHALL delegate
+to `openspec new change <slug> --schema <name>`, verify the written
+`.openspec.yaml` schema pointer, stamp no cospec `schemaVersion`, print no typed
+artifact plan, and note that the change carries reduced cospec guarantees
+(structural and openspec-delegated checks only). Any other name SHALL still get
+today's unknown-type error.
 
 #### Scenario: New change on a legacy schema
 

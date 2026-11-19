@@ -17,18 +17,10 @@ other command by `reachability.test.ts`.
 
 `cospec init` SHALL accept `--tools <list>` as the pinned binary's spelling of
 `--harness <list>`, with the same `all`, `none` and comma-separated forms and
-the same refusals, and SHALL never read the list as the target path. Given with
-no value it SHALL be refused as
-`cospec init: option '--tools <tools>' argument missing`, exit 1. Given together
-with `--harness`, the later of the two SHALL win, as commander resolves a
-repeated option. A refusal of the list's content SHALL name the spelling the
-user typed. Either spelling's list (and `experimental --tool`'s) SHALL be read
-as the binary's `resolveToolsArg` reads `--tools`: trimmed, with `all`, `none`
-and each comma-separated name matched case-insensitively; a value that is empty
-once trimmed, or holds no name between its commas, SHALL be refused with the
-binary's own sentence (`The <flag> option requires a value. …` /
-`The <flag> option requires at least one tool ID …`) on stderr, exit 1, before
-anything is written.
+refusals, never reading the list as the target path. With no value it SHALL be
+refused as `cospec init: option '--tools <tools>' argument missing`, exit 1;
+given with `--harness`, the later SHALL win, as commander resolves a repeated
+option. A refusal of the list's content SHALL name the spelling typed.
 
 #### Scenario: Two harnesses through upstream's spelling
 
@@ -58,6 +50,19 @@ anything is written.
 - **THEN** it writes what `--harness all`, `all`, `claude` or `claude,codex`
   writes, exit 0
 
+#### Scenario: Lists are read as resolveToolsArg reads them
+
+- **WHEN** a `--tools`, `--harness`, or `experimental --tool` list is read
+- **THEN** it is trimmed and `all`, `none` and each comma-separated name are
+  matched case-insensitively, as the binary's `resolveToolsArg` reads `--tools`
+
+#### Scenario: An empty or nameless list gets the binary's sentence
+
+- **WHEN** a list is empty once trimmed or holds no name between its commas
+- **THEN** the binary's own sentence (`The <flag> option requires a value. …` /
+  `The <flag> option requires at least one tool ID …`) is printed on stderr, the
+  command exits 1, and nothing is written
+
 ### Requirement: experimental is a hidden alias of init
 
 `cospec experimental [--tool <id>] [--no-interactive]` SHALL be a hidden
@@ -79,33 +84,11 @@ then runs `cospec init` on the current directory, reading `--tool <id>` as
 ### Requirement: new change is upstream's create spelling
 
 `cospec new change <name> [--schema <s>] [--description <text>] [--goal <text>]`
-SHALL create a change named `<name>`. `--schema` SHALL name a cospec type or a
-legacy schema, with the same checks and lanes as `cospec new <type> <name>`;
-without it (or given as `--schema ''`, which upstream reads as absent) the
-wrapped `new change` SHALL run with no `--schema`, so the binary resolves the
-root's `config.yaml` `schema:` default (else `spec-driven`) itself, and the
-change's type SHALL be the `schema:` read back from the `.openspec.yaml` it
-writes (which SHALL equal its document's `change.schema`). Every warning the
-binary prints on stderr for a config field it drops SHALL reach cospec's stderr
-as written, in text and under `--json` alike (stdout staying one document): a
-config it cannot read or parse, one that is not a YAML object, a `schema:` that
-is not a non-empty string (each falling back to `spec-driven`), and an invalid
-`context:`, `rules:` (or empty rule strings), `operations:`, `references:`,
-`store:` or `githubCopilot:`. A default the binary cannot find (a
-whitespace-only `schema:`, or a cospec type the repo has no schema for) SHALL be
-answered with the binary's own refusal, nothing written. A `--schema` the binary
-cannot resolve SHALL be refused with nothing written. `--goal <text>` SHALL be
-stored as `goal:` in the change's `.openspec.yaml`, on this spelling and on
-`cospec new <type> <slug>`. `--initiative <x>` and `--areas <x>` SHALL be
-refused, before any other action-level check, with upstream's removed-option
-message on stderr (text) or its `{change: null, status: [...]}` document
-carrying code `initiative_option_removed` or `areas_option_removed` (`--json`),
-exit 1, and SHALL be absent from `--help` and completion. Under `--json`,
-`new change <name>` SHALL emit upstream's
-`change {id, path, metadataPath, schema}` and `root`, taken from the wrapped
-call's own document, with cospec's `type`, `dir` and `artifacts` beside them;
-`new <type> <slug> --json` SHALL keep `change: <slug>` and SHALL gain the same
-`root`.
+SHALL create change `<name>`. `--schema` SHALL name a cospec type or legacy
+schema, checked as on `cospec new <type> <name>`; absent or `''`, the wrapped
+call SHALL get none, so the binary resolves the config default (else
+`spec-driven`), and the type SHALL be the `schema:` it writes. An unresolvable
+schema SHALL get the binary's refusal, nothing written.
 
 #### Scenario: The key oracle agrees
 
@@ -172,6 +155,53 @@ call's own document, with cospec's `type`, `dir` and `artifacts` beside them;
 - **AND WHEN** `cospec new change foo --areas x --json` runs
 - **THEN** stdout is one document whose status code is `areas_option_removed`
 
+#### Scenario: The written schema is the change's type
+
+- **WHEN** `cospec new change <name>` runs without `--schema`
+- **THEN** the change's type is the `schema:` read back from the
+  `.openspec.yaml` the binary writes, which equals its document's
+  `change.schema`
+
+#### Scenario: The goal is stored on both spellings
+
+- **WHEN** `--goal <text>` is given to `cospec new change <name>` or to
+  `cospec new <type> <slug>`
+- **THEN** it is stored as `goal:` in the change's `.openspec.yaml`
+
+#### Scenario: Every dropped-field warning reaches stderr as written
+
+- **WHEN** the binary warns on stderr that it drops a config field — a config it
+  cannot read or parse, one that is not a YAML object, a `schema:` that is not a
+  non-empty string (each falling back to `spec-driven`), or an invalid
+  `context:`, `rules:` (or empty rule strings), `operations:`, `references:`,
+  `store:` or `githubCopilot:`
+- **THEN** the warning reaches cospec's stderr as written, in text and under
+  `--json` alike, with stdout staying one document
+
+#### Scenario: An unusable config default is the binary's refusal
+
+- **WHEN** the config's `schema:` default is whitespace-only or names a cospec
+  type the repo has no schema for
+- **THEN** cospec answers with the binary's own refusal and writes nothing
+
+#### Scenario: Removed options are refused first and hidden
+
+- **WHEN** `--initiative <x>` or `--areas <x>` is given
+- **THEN** before any other action-level check it is refused with upstream's
+  removed-option message on stderr, or under `--json` its
+  `{change: null, status: [...]}` document carrying code
+  `initiative_option_removed` or `areas_option_removed`, exit 1, and neither
+  option appears in `--help` or completion
+
+#### Scenario: The JSON document carries upstream's change and root
+
+- **WHEN** `cospec new change <name> --json` or
+  `cospec new <type> <slug> --json` runs
+- **THEN** the first emits upstream's `change {id, path, metadataPath, schema}`
+  and `root` from the wrapped call's own document, with cospec's `type`, `dir`
+  and `artifacts` beside them; the second keeps `change: <slug>` and gains the
+  same `root`
+
 ### Requirement: update honours its path
 
 `cospec update [path]` SHALL regenerate the managed files of the project at
@@ -212,13 +242,10 @@ lowercases it, `powershell` included.
 
 `cospec help` SHALL print the program help on stdout, exit 0.
 `cospec help <command>` SHALL print that command's help, exit 0, reading only
-the first operand as commander's implicit `help [command]` does, so
-`cospec help config path` prints the `config` help; a hidden command
-(`experimental`, `__complete`) SHALL get its help too. A name that is no
-command, `help` itself included, SHALL print the program help on stderr, exit 1.
-An option after `help` SHALL NOT be refused: `cospec help --json` and
-`cospec help list --bogus` print the help they would without it, and
-`-V`/`--version` prints the version, as upstream does.
+the first operand as commander's implicit `help [command]` does; a hidden
+command (`experimental`, `__complete`) SHALL get its help too. A name that is no
+command, `help` included, SHALL print the program help on stderr, exit 1. An
+option after `help` SHALL NOT be refused.
 
 #### Scenario: help for a command
 
@@ -234,3 +261,10 @@ An option after `help` SHALL NOT be refused: `cospec help --json` and
 
 - **WHEN** `cospec help bogus` runs
 - **THEN** stderr is the program help, stdout is empty, and the exit code is 1
+
+#### Scenario: Options after help change nothing
+
+- **WHEN** `cospec help --json`, `cospec help list --bogus`, or
+  `cospec help -V`/`--version` runs
+- **THEN** the first two print the help they would without the option, and
+  `-V`/`--version` prints the version, as upstream does

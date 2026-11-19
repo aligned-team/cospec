@@ -80,14 +80,11 @@ same manual block, and exit with gh's own status, or 1 when gh reports none.
 ### Requirement: Upstream feedback is an explicit, version-asserted verbatim relay
 
 `cospec feedback --upstream` SHALL relay the invocation to the wrapped
-`openspec feedback`, which files at `Fission-AI/OpenSpec`, and SHALL print one
-stderr note naming that destination so the user cannot mistake it for cospec's
-tracker. The relay SHALL assert the wrapped binary's version, spawn it piped
-(upstream's feedback path prompts for nothing and `gh auth status` needs no
-TTY), and relay stdout, stderr, and the child's exit code verbatim. This call
-SHALL declare no `expect.exitCodes` allow-list — the documented exception here,
-because upstream propagates gh's own arbitrary exit status, which no allow-list
-can honestly enumerate.
+`openspec feedback`, which files at `Fission-AI/OpenSpec`, after one stderr note
+naming that destination. The relay SHALL assert the wrapped binary's version,
+spawn it piped, and relay stdout, stderr, and exit code verbatim. It SHALL
+declare no `expect.exitCodes` allow-list — the documented exception, since
+upstream propagates gh's arbitrary exit status.
 
 #### Scenario: The destination is named before relaying
 
@@ -102,3 +99,9 @@ can honestly enumerate.
   passthrough allow-list would reject
 - **THEN** `cospec feedback --upstream` exits with exactly that code and relays
   the wrapped stdout and stderr unchanged
+
+#### Scenario: The upstream relay needs no terminal
+
+- **WHEN** `cospec feedback --upstream "<message>"` runs with no TTY attached
+- **THEN** the wrapped `openspec feedback` is spawned piped, prompts for
+  nothing, and its `gh auth status` check still runs

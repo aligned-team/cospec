@@ -32,18 +32,12 @@ on when it is stale relative to the pinned openspec version.
 ### Requirement: Wrapped-openspec resolution order
 
 Wrapped-openspec resolution SHALL prefer a project's own `node_modules` copy
-when it is present and its version satisfies the accepted range; otherwise it
-SHALL fall back to the embedded bundle. The embedded copy is by construction the
-pin, and the version assertion and wrapped-call discipline (declared exit codes,
-stdout deny-list, observable post-conditions) SHALL be preserved for both
-sources.
-
-Diagnostics SHALL follow the same order: when only the embedded copy is
-available, `cospec doctor` SHALL report it as the resolution source and SHALL
-NOT report a resolution error. A resolving in-range project copy produces no
-finding; an out-of-range project copy remains a version error. The doctor check
-SHALL remain read-only: reporting the embedded source MUST NOT extract the
-bundle to disk.
+when present and in the accepted range, else fall back to the embedded bundle
+(by construction the pin). Version assertion and wrapped-call discipline SHALL
+hold for both. `cospec doctor` SHALL follow the same order: with only the
+embedded copy it SHALL report that source and no resolution error, and an
+out-of-range project copy SHALL stay a version error. The check MUST NOT extract
+the bundle to disk.
 
 #### Scenario: Project copy is used when present and in range
 
@@ -70,15 +64,26 @@ bundle to disk.
 - **THEN** the check reports the existing `openspec-version` ERROR for the
   project copy
 
+#### Scenario: Doctor is silent on an in-range project copy
+
+- **WHEN** `cospec doctor` runs with a project copy that resolves in range
+- **THEN** it reports no resolution finding for it
+
+#### Scenario: Both sources keep the wrapped-call discipline
+
+- **WHEN** a wrapped call runs against either the project copy or the embedded
+  bundle
+- **THEN** it declares its exit codes, stdout deny-list, and observable
+  post-condition exactly as for the other source
+
 ### Requirement: Embedded bundle extraction
 
-When the embedded bundle is used, cospec SHALL extract it to a per-version cache
-directory (`${XDG_CACHE_HOME:-~/.cache}/cospec/openspec-<version>/`), write-once
-with an atomic rename, laid out so the bundle's runtime relative reads resolve
-(a synthesized package manifest carrying the pinned version). The extraction
-SHALL be spawned via `process.execPath` with `BUN_BE_BUN=1`, and SHALL enforce
-an observable post-condition that the extracted bundle file exists at the
-expected path with the expected byte length.
+When the embedded bundle is used, cospec SHALL extract it write-once with an
+atomic rename to `${XDG_CACHE_HOME:-~/.cache}/cospec/openspec-<version>/`, laid
+out so the bundle's relative reads resolve (a synthesized manifest carrying the
+pinned version). Extraction SHALL be spawned via `process.execPath` with
+`BUN_BE_BUN=1` and SHALL enforce the post-condition that the extracted bundle
+exists at the expected path with the expected byte length.
 
 #### Scenario: Extraction is write-once and reused
 
@@ -93,16 +98,12 @@ expected path with the expected byte length.
 
 ### Requirement: Wrapped calls list directories in Node's order
 
-Every wrapped openspec call — piped or a terminal handover, against a project
-copy or the embedded bundle — SHALL run behind a preload, ahead of any other,
-that makes the binary's non-recursive `fs.readdirSync`, callback `fs.readdir`
-and `fs.promises.readdir` return a directory's entries in the order Node returns
-them: sorted by the bytes of each name on every platform but Windows, where Node
-does not sort and the preload SHALL change nothing. It SHALL reach every import
-form the pinned dist uses (`node:fs` and `fs` namespaces, `promises`, and
-`node:fs/promises`), for names, `Dirent`s and buffers alike. A contract row
-SHALL fail a pinned dist that lists a directory through an API the preload does
-not cover (`opendir`, a recursive `readdir`, `fs.glob`).
+Every wrapped openspec call, piped or a terminal handover, SHALL run behind a
+readdir preload, first on the argv, that returns a non-recursive directory
+listing in the order Node returns it: sorted by the bytes of each name, except
+on Windows, where Node does not sort and the preload SHALL change nothing. A
+contract row SHALL fail a pinned dist that lists a directory through an API the
+preload does not cover.
 
 #### Scenario: Available changes are listed as upstream lists them
 
@@ -116,6 +117,25 @@ not cover (`opendir`, a recursive `readdir`, `fs.glob`).
 - **WHEN** cospec spawns the wrapped binary, piped or as a terminal handover
 - **THEN** the readdir preload is the first `--preload` on the argv, ahead of
   the handover preload where there is one
+
+#### Scenario: The preload covers a project copy and the embedded bundle
+
+- **WHEN** a wrapped call runs against a project copy or against the embedded
+  bundle
+- **THEN** it runs behind the readdir preload either way
+
+#### Scenario: The preload reaches every import form the pinned dist uses
+
+- **WHEN** the binary lists a directory through `fs.readdirSync`, callback
+  `fs.readdir` or `fs.promises.readdir`, imported through the `node:fs` or `fs`
+  namespace, `promises`, or `node:fs/promises`
+- **THEN** the entries, as names, `Dirent`s or buffers, come back sorted by the
+  bytes of each name
+
+#### Scenario: Windows listings are left unchanged
+
+- **WHEN** a wrapped call runs on Windows
+- **THEN** the preload changes no listing
 
 #### Scenario: A dist that lists directories another way fails the contract suite
 
