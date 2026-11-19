@@ -245,6 +245,30 @@ run = 'printf "%s\n" "$PR_TITLE" | bunx commitlint'
 description = "Stamp ONE release version (semver) into apps/cli/package.json and its bun.lock workspace entry. Idempotent. Usage: mise run release:set-version -- 1.2.3"
 run = "bash scripts/mise-tasks/release/set-version"
 
+[tasks."release:flake-pin"]
+description = "Pin the Nix flake (nix/release.json) to a published release's SHA256SUMS. Usage: mise run release:flake-pin -- 1.2.3"
+run = "bash scripts/mise-tasks/release/flake-pin"
+
+# ───────────────────────────────────────────────
+# Installers + Nix flake
+# ───────────────────────────────────────────────
+
+[tasks."test:install"]
+description = "install.sh end-to-end against a fake on-disk release (asset selection, pinning, checksum refusal)"
+run = "sh scripts/install/test/install-sh.test.sh"
+
+[tasks."test:install:ps1"]
+description = "Pester tests for install.ps1 (asset selection, checksum refusal); needs pwsh + Pester 5"
+run = "pwsh -NoProfile -Command 'Invoke-Pester -Path scripts/install/test/install-ps1.Tests.ps1 -CI'"
+
+[tasks."test:flake"]
+description = "Build the flake package and a consumer flake that applies overlays.default; needs nix"
+run = [
+  "nix build .#default --no-link --print-out-paths",
+  "nix run . -- --version",
+  "nix build ./nix/test/consumer --override-input cospec \"git+file://$PWD?shallow=1\" --no-write-lock-file --no-link",
+]
+
 # ───────────────────────────────────────────────
 # Composed CI gate
 # ───────────────────────────────────────────────
@@ -275,4 +299,5 @@ run = [
   { task = "//apps/cli:test:integration" },
   { task = "//packages/bench:test" },
   { task = "//e2e:release-test" },
+  { task = "test:install" },
 ]

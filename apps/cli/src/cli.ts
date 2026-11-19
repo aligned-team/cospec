@@ -108,6 +108,7 @@ export const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule
   completion: () => import('./commands/completion.ts'),
   feedback: () => import('./commands/feedback.ts'),
   version: () => import('./commands/version.ts'),
+  install: () => import('./commands/install.ts'),
   help: () => import('./commands/help.ts'),
   __complete: () => import('./commands/complete.ts'),
   'check-commit': () => import('./commands/check-commit.ts'),

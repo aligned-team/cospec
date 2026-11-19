@@ -143,8 +143,8 @@ into a positional). Each row also carries a parse policy:
 - **`table`** — cospec parses the argv itself and rejects anything the row
   doesn't declare. Most commands are `table`: `init`, `update`, `doctor`, `new`,
   `migrate`, `validate`, `status`, `list`, `instructions`, `apply`, `archive`,
-  `sync-blockers`, `context`, `view`, `completion`, `feedback`, `version`, and
-  the hidden `__complete`/`check-commit`.
+  `sync-blockers`, `context`, `view`, `completion`, `feedback`, `version`,
+  `install`, and the hidden `__complete`/`check-commit`.
 - **`forward`** — the row is declared for reachability, help and completion, but
   every token cospec's own pre-spawn guards don't consume reaches the wrapped
   binary unchanged, which stays the unknown-option authority for the surfaces it
@@ -164,8 +164,8 @@ into a positional). Each row also carries a parse policy:
 A `table` row also declares whether its command honours the global `--json` and
 `--store`: a row that refuses `--json` answers it with one JSON refusal
 document, and a row whose module never resolves a root (`init`, `update`,
-`completion`, `feedback`, `version`, `check-commit`) refuses `--store` as an
-unknown option instead of absorbing and ignoring it.
+`completion`, `feedback`, `version`, `install`, `check-commit`) refuses
+`--store` as an unknown option instead of absorbing and ignoring it.
 
 `--store-path` is refused on every row regardless of policy, in both
 `--store-path <path>` and `--store-path=<path>` forms and in both the

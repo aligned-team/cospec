@@ -121,6 +121,7 @@ export function upgradeCommand(type: InstallType): string | null {
     case 'mise':
       return 'mise upgrade'
     case 'standalone':
+      return 'cospec install'
     case 'source':
       return null
   }

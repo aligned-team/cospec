@@ -164,14 +164,15 @@ mechanics and the full split of what each CLI owns.
 Every OpenSpec capability has a cospec counterpart — a passthrough, a mirror, or
 an improved version — so any OpenSpec user can switch with zero regressions: the
 change lifecycle, `store`/`context`/`workset`, `show`/`view`/`schemas`/`schema`/
-`templates`, `list --archived`/`--all`, `version`, the machine-global `config`
-(`cospec config <sub>`), native shell `completion`, and `feedback`. `init` and
-`update` (`--dry-run` included) stay cospec-native by design — passing them
-through would write the opsx files cospec's own leftover scan flags — so there
-is never a reason to call bare `openspec`. See
+`templates`, `list --archived`/`--all`, `version`, `install`, the machine-global
+`config` (`cospec config <sub>`), native shell `completion`, and `feedback`.
+`init` and `update` (`--dry-run` included) stay cospec-native by design —
+passing them through would write the opsx files cospec's own leftover scan flags
+— so there is never a reason to call bare `openspec`. See
 [Configuration](/reference/configuration#machine-global-openspec-config) for
 `config`, and [Installation](/guide/installation#shell-completion) for
-`completion`.
+`completion`, and [Commands](/reference/commands) for `install`, which installs
+cospec's own standalone binary rather than OpenSpec's.
 
 Where cospec owns the facts, its counterpart reports more than upstream's:
 `view` is a native dashboard that adds each change's gate state,

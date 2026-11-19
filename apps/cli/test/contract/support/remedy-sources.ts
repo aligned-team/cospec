@@ -51,7 +51,7 @@ export const notRelayed = {
   VERSION_REPORT:
     "`cospec version` is native (`commands/version.ts`) and never spawns the binary's `version`; the wrapped binary is never the standalone build (it runs from a package or the embedded bundle), so its upgrade command is never `install`, and `update`, the other caller, is never spawned (`cospec update` is native)",
   INSTALL:
-    "cospec has no `install` command yet (`parity-pending.yaml` holds it for `standalone-install`), so the binary's `install` is never spawned and nothing it prints is relayed",
+    "`cospec install` is native (`commands/install.ts`): it runs cospec's own release installer and never spawns the binary's `install`",
   STANDALONE_TIP:
     'upstream prints its standalone tip only after `openspec update` (`maybeShowStandaloneTip`); cospec never spawns `update` (`cospec update` is native)',
   FEEDBACK_UPSTREAM:

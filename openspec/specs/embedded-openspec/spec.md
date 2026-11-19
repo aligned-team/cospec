@@ -148,8 +148,7 @@ The dev/CI pin and the embedded bundle SHALL be `@fission-ai/openspec` 1.15.0,
 with `EXPECTED_OPENSPEC_VERSION` equal to it and the accepted range unchanged at
 `>=1.0.0 <2.0.0`. The contract, reachability, remedy-enumeration, key-oracle,
 and optional-workflow differential suites SHALL pass against that pin with
-`parity-pending.yaml` holding only the `install` command, owned by the
-`standalone-install` change.
+`parity-pending.yaml` empty.
 
 #### Scenario: Pin agreement
 
@@ -161,8 +160,7 @@ and optional-workflow differential suites SHALL pass against that pin with
 
 - **WHEN** the reachability test runs against the 1.15.0 dist
 - **THEN** every command, flag, tool id and workflow resolves to the command
-  table, an alias, or the single exception, except `install`, whose one
-  `parity-pending.yaml` entry names `standalone-install` as its owner
+  table, an alias, or the single exception, and `parity-pending.yaml` is `[]`
 
 ### Requirement: Glob port follows the pin's glob stack
 
