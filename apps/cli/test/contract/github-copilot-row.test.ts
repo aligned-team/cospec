@@ -57,13 +57,13 @@ describe('the github-copilot row against the pinned AI_TOOLS', () => {
     expect(commandPath(row, 'sync-specs')).toBe('.github/prompts/cospec-sync-specs.prompt.md')
   })
 
-  test("the row sits between gemini and hermes, upstream's slot", () => {
+  test("the row sits between gemini and gigacode, upstream's slot", () => {
     const names: readonly string[] = HARNESS_NAMES
     const at = names.indexOf('github-copilot')
     expect(names[at - 1]).toBe('gemini')
-    expect(names[at + 1]).toBe('hermes')
+    expect(names[at + 1]).toBe('gigacode')
     const upstream = AI_TOOLS.map((t) => t.value)
     expect(upstream[upstream.indexOf('github-copilot') - 1]).toBe('gemini')
-    expect(upstream[upstream.indexOf('github-copilot') + 1]).toBe('hermes')
+    expect(upstream[upstream.indexOf('github-copilot') + 1]).toBe('gigacode')
   })
 })

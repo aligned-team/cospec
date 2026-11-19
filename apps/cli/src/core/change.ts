@@ -7,9 +7,10 @@ import {
   LEGACY_SCHEMA_VERSION_KEY,
   loadSchema,
   SCHEMA_VERSION_KEY,
+  trackedTasksGenerates,
   userSchemasDir,
 } from './change-metadata.ts'
-import { artifactOutputExists } from './glob.ts'
+import { artifactOutputExists, resolveArtifactOutputs } from './glob.ts'
 import { openspecPackageDir, printOwnStderrLineOnce } from './openspec.ts'
 import { couldNotParseWarning, readConfigFile } from './project-config-read.ts'
 
@@ -587,4 +588,27 @@ export function describeNestedChange(finding: NestedChangeFinding): string {
     'is reported as a change. Nested paths are supported under openspec/specs/ ' +
     `only. Rename each nested change to a flat name (for example "${example}").`
   )
+}
+
+/**
+ * The task files a change's schema tracks — the binary's
+ * `resolveTaskFilesForChange` with `getTaskProgressDetailForChange`'s
+ * fallback: every file the tracked-tasks artifact's `generates` (selected by
+ * `apply.tracks`) resolves to inside the change, else the change's top-level
+ * `tasks.md` when the schema cannot be loaded, tracks nothing, or matches no
+ * file. A pattern that escapes the change throws, as the binary's does.
+ */
+export function trackedTaskFiles(base: string, change: { dir: string; schema: string }): string[] {
+  let generates: string | undefined
+  if (change.schema.length > 0) {
+    try {
+      generates = trackedTasksGenerates(change.schema, base)
+    } catch (error) {
+      // The binary swallows every schema-resolution failure into the fallback.
+      if (!(error instanceof Error)) throw error
+      generates = undefined
+    }
+  }
+  const files = generates === undefined ? [] : resolveArtifactOutputs(change.dir, generates)
+  return files.length > 0 ? files : [join(change.dir, 'tasks.md')]
 }

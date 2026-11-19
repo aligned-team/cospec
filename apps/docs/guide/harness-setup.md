@@ -1,7 +1,7 @@
 ---
 title: Harness setup
 description:
-  What cospec init writes for each of the 40 agent tools — skills, commands, the
+  What cospec init writes for each of the 50 agent tools — skills, commands, the
   shared .agents root and its writer marker, the one home-scoped root, the
   legacy moves — and how to confirm it loaded.
 ---
@@ -11,7 +11,7 @@ description:
 `cospec init --harness <list>` wires cospec's workflows — `propose`, `new`,
 `continue`, `ff`, `apply`, `verify`, `archive`, `bulk-archive`, `sync-specs`,
 `explore`, `onboard`, `update` — into your agent harness by writing project
-files directly. This is cospec's full parity set with opsx 1.13.1: every live
+files directly. This is cospec's full parity set with opsx 1.15.0: every live
 opsx workflow has a cospec-adapted counterpart (opsx `sync` maps to cospec
 `sync-specs`, which merges a change's delta specs into the main specs without
 archiving it through `cospec sync-specs`; opsx `update` maps to cospec
@@ -69,48 +69,58 @@ still accepted as an alias of `devin`. Paths are relative to the repo unless
 marked as home-scoped. `<workflow>` stands for one of the installed workflow ids
 and `<skill>` for its skill name (`cospec-<skill>`, below).
 
-| `--harness`      | Tool                                      | Skills                      | Command files                                    | Invoke                             | Restart         |
-| ---------------- | ----------------------------------------- | --------------------------- | ------------------------------------------------ | ---------------------------------- | --------------- |
-| `agents`         | Other / Universal (shared .agents skills) | `.agents/skills/` (shared)  | —                                                | `/cospec-<skill>`                  | new session     |
-| `amazon-q`       | Amazon Q Developer                        | `.amazonq/skills/`          | `.amazonq/prompts/cospec-<workflow>.md`          | `@cospec-<workflow>`               | restart IDE     |
-| `antigravity`    | Antigravity                               | `.agents/skills/` (shared)  | `.agents/workflows/cospec-<workflow>.md`         | `/cospec-<workflow>`               | restart IDE     |
-| `auggie`         | Auggie (Augment CLI)                      | `.augment/skills/`          | `.augment/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
-| `bob`            | Bob Shell                                 | `.bob/skills/`              | `.bob/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
-| `claude`         | Claude Code                               | `.claude/skills/`           | `.claude/commands/cospec/<workflow>.md`          | `/cospec:<workflow>`               | restart session |
-| `cline`          | Cline                                     | `.cline/skills/`            | `.clinerules/workflows/cospec-<workflow>.md`     | `/cospec-<workflow>`               | restart IDE     |
-| `codeartsagent`  | CodeArts                                  | `.codeartsdoer/skills/`     | —                                                | `/cospec-<skill>`                  | —               |
-| `codeassistant`  | SourceCraft Code Assistant                | `.codeassistant/skills/`    | `.codeassistant/commands/cospec-<workflow>.md`   | `/cospec-<workflow>`               | —               |
-| `codebuddy`      | CodeBuddy Code (CLI)                      | `.codebuddy/skills/`        | `.codebuddy/commands/cospec/<workflow>.md`       | `/cospec:<workflow>`               | —               |
-| `codex`          | Codex                                     | `.agents/skills/` (shared)  | —                                                | `$cospec-<skill>`                  | new session     |
-| `command-code`   | Command Code                              | `.commandcode/skills/`      | `.commandcode/commands/cospec-<workflow>.md`     | `/cospec-<workflow>`               | —               |
-| `continue`       | Continue                                  | `.continue/skills/`         | `.continue/prompts/cospec-<workflow>.prompt`     | `/cospec-<workflow>`               | restart IDE     |
-| `costrict`       | CoStrict                                  | `.cospec/skills/`           | `.cospec/openspec/commands/cospec-<workflow>.md` | `/cospec-<workflow>`               | restart IDE     |
-| `crush`          | Crush                                     | `.crush/skills/`            | `.crush/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | —               |
-| `cursor`         | Cursor                                    | `.cursor/skills/`           | `.cursor/commands/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
-| `devin`          | Devin Desktop (formerly Windsurf)         | `.devin/skills/`            | `.devin/workflows/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
-| `factory`        | Factory Droid                             | `.factory/skills/`          | `.factory/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
-| `forgecode`      | ForgeCode                                 | `.forge/skills/`            | —                                                | `/cospec-<skill>`                  | —               |
-| `gemini`         | Gemini CLI                                | `.gemini/skills/`           | `.gemini/commands/cospec/<workflow>.toml`        | `/cospec:<workflow>`               | —               |
-| `github-copilot` | GitHub Copilot                            | `.github/skills/`           | `.github/prompts/cospec-<workflow>.prompt.md`    | `/cospec-<workflow>`               | restart IDE     |
-| `hermes`         | Hermes Agent                              | `.hermes/skills/`           | —                                                | `/cospec-<skill>`                  | —               |
-| `iflow`          | iFlow                                     | `.iflow/skills/`            | `.iflow/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | —               |
-| `junie`          | Junie                                     | `.junie/skills/`            | `.junie/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | restart IDE     |
-| `kilocode`       | Kilo Code                                 | `.kilocode/skills/`         | `.kilocode/workflows/cospec-<workflow>.md`       | `/cospec-<workflow>`               | restart IDE     |
-| `kimi`           | Kimi Code                                 | `.kimi-code/skills/`        | —                                                | `/skill:cospec-<skill>`            | —               |
-| `kiro`           | Kiro                                      | `.kiro/skills/`             | `.kiro/prompts/cospec-<workflow>.prompt.md`      | `/cospec-<workflow>`               | restart IDE     |
-| `lingma`         | Lingma                                    | `.lingma/skills/`           | `.lingma/commands/cospec/<workflow>.md`          | `/cospec:<workflow>`               | restart IDE     |
-| `minimax-code`   | MiniMax Code                              | `~/.minimax/skills/` (home) | —                                                | `/cospec-<skill>`                  | —               |
-| `oh-my-pi`       | Oh My Pi                                  | `.omp/skills/`              | `.omp/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
-| `opencode`       | OpenCode                                  | `.opencode/skills/`         | `.opencode/commands/cospec-<workflow>.md`        | `/cospec-<workflow>`               | reload project  |
-| `pi`             | Pi                                        | `.pi/skills/`               | `.pi/prompts/cospec-<workflow>.md`               | `/cospec-<workflow>`               | —               |
-| `qoder`          | Qoder                                     | `.qoder/skills/`            | `.qoder/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | restart IDE     |
-| `qwen`           | Qwen Code                                 | `.qwen/skills/`             | `.qwen/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | —               |
-| `roocode`        | Zoo Code                                  | `.roo/skills/`              | `.roo/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | restart IDE     |
-| `rovodev`        | Rovo Dev CLI                              | `.rovodev/skills/`          | —                                                | ask for the `cospec-<skill>` skill | —               |
-| `trae`           | Trae                                      | `.trae/skills/`             | `.trae/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | restart IDE     |
-| `vibe`           | Mistral Vibe                              | `.vibe/skills/`             | —                                                | `/cospec-<skill>`                  | —               |
-| `zcode`          | ZCode                                     | `.zcode/skills/`            | `.zcode/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | —               |
-| `zed`            | Zed Agent                                 | `.agents/skills/` (shared)  | —                                                | `/cospec-<skill>`                  | —               |
+| `--harness`      | Tool                                      | Skills                      | Command files                                     | Invoke                             | Restart         |
+| ---------------- | ----------------------------------------- | --------------------------- | ------------------------------------------------- | ---------------------------------- | --------------- |
+| `agents`         | Other / Universal (shared .agents skills) | `.agents/skills/` (shared)  | —                                                 | `/cospec-<skill>`                  | new session     |
+| `amazon-q`       | Amazon Q Developer                        | `.amazonq/skills/`          | `.amazonq/prompts/cospec-<workflow>.md`           | `@cospec-<workflow>`               | restart IDE     |
+| `amp`            | Amp                                       | `.agents/skills/` (shared)  | —                                                 | `/cospec-<skill>`                  | new session     |
+| `antigravity`    | Antigravity                               | `.agents/skills/` (shared)  | `.agents/workflows/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
+| `atomcode`       | AtomCode                                  | `.atomcode/skills/`         | `.atomcode/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
+| `auggie`         | Auggie (Augment CLI)                      | `.augment/skills/`          | `.augment/commands/cospec-<workflow>.md`          | `/cospec-<workflow>`               | —               |
+| `bob`            | IBM Bob                                   | `.bob/skills/`              | `.bob/commands/cospec-<workflow>.md`              | `/cospec-<workflow>`               | —               |
+| `claude`         | Claude Code                               | `.claude/skills/`           | `.claude/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | restart session |
+| `cline`          | Cline                                     | `.cline/skills/`            | `.clinerules/workflows/cospec-<workflow>.md`      | `/cospec-<workflow>`               | restart IDE     |
+| `codeartsagent`  | CodeArts                                  | `.codeartsdoer/skills/`     | —                                                 | `/cospec-<skill>`                  | —               |
+| `codeassistant`  | SourceCraft Code Assistant                | `.codeassistant/skills/`    | `.codeassistant/commands/cospec-<workflow>.md`    | `/cospec-<workflow>`               | —               |
+| `codebuddy`      | CodeBuddy Code (CLI)                      | `.codebuddy/skills/`        | `.codebuddy/commands/cospec/<workflow>.md`        | `/cospec:<workflow>`               | —               |
+| `codestudio`     | Code Studio                               | `.codestudio/skills/`       | `.codestudio/prompts/cospec-<workflow>.prompt.md` | `/cospec-<workflow>`               | restart IDE     |
+| `codex`          | Codex                                     | `.agents/skills/` (shared)  | —                                                 | `$cospec-<skill>`                  | new session     |
+| `command-code`   | Command Code                              | `.commandcode/skills/`      | `.commandcode/commands/cospec-<workflow>.md`      | `/cospec-<workflow>`               | —               |
+| `continue`       | Continue                                  | `.continue/skills/`         | `.continue/prompts/cospec-<workflow>.prompt`      | `/cospec-<workflow>`               | restart IDE     |
+| `costrict`       | CoStrict                                  | `.cospec/skills/`           | `.cospec/openspec/commands/cospec-<workflow>.md`  | `/cospec-<workflow>`               | restart IDE     |
+| `crush`          | Crush                                     | `.crush/skills/`            | `.crush/commands/cospec/<workflow>.md`            | `/cospec:<workflow>`               | —               |
+| `cursor`         | Cursor                                    | `.cursor/skills/`           | `.cursor/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | restart IDE     |
+| `devin`          | Devin Desktop (formerly Windsurf)         | `.devin/skills/`            | `.devin/workflows/cospec-<workflow>.md`           | `/cospec-<workflow>`               | restart IDE     |
+| `dsh`            | DeepSeek Harness                          | `.dsh/skills/`              | —                                                 | `/cospec-<skill>`                  | —               |
+| `easycode`       | EasyCode                                  | `.easycode/skills/`         | `.easycode/commands/cospec/<workflow>.toml`       | `/cospec:<workflow>`               | —               |
+| `factory`        | Factory Droid                             | `.factory/skills/`          | `.factory/commands/cospec-<workflow>.md`          | `/cospec-<workflow>`               | —               |
+| `forgecode`      | ForgeCode                                 | `.forge/skills/`            | —                                                 | `/cospec-<skill>`                  | —               |
+| `gemini`         | Gemini CLI                                | `.gemini/skills/`           | `.gemini/commands/cospec/<workflow>.toml`         | `/cospec:<workflow>`               | —               |
+| `gigacode`       | GigaCode                                  | `.gigacode/skills/`         | `.gigacode/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
+| `github-copilot` | GitHub Copilot                            | `.github/skills/`           | `.github/prompts/cospec-<workflow>.prompt.md`     | `/cospec-<workflow>`               | restart IDE     |
+| `grok`           | Grok Build                                | `.grok/skills/`             | —                                                 | `/cospec-<skill>`                  | —               |
+| `gsd`            | GSD                                       | `.agents/skills/` (shared)  | —                                                 | ask for the `cospec-<skill>` skill | —               |
+| `hermes`         | Hermes Agent                              | `.hermes/skills/`           | —                                                 | `/cospec-<skill>`                  | —               |
+| `iflow`          | iFlow                                     | `.iflow/skills/`            | `.iflow/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | —               |
+| `junie`          | Junie                                     | `.junie/skills/`            | `.junie/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | restart IDE     |
+| `kilocode`       | Kilo Code                                 | `.kilocode/skills/`         | `.kilo/command/cospec-<workflow>.md`              | `/cospec-<workflow>`               | restart IDE     |
+| `kimi`           | Kimi Code                                 | `.kimi-code/skills/`        | —                                                 | `/skill:cospec-<skill>`            | —               |
+| `kiro`           | Kiro                                      | `.kiro/skills/`             | `.kiro/prompts/cospec-<workflow>.prompt.md`       | `/cospec-<workflow>`               | restart IDE     |
+| `lingma`         | Lingma                                    | `.lingma/skills/`           | `.lingma/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | restart IDE     |
+| `minimax-code`   | MiniMax Code                              | `~/.minimax/skills/` (home) | —                                                 | `/cospec-<skill>`                  | —               |
+| `oh-my-pi`       | Oh My Pi                                  | `.omp/skills/`              | `.omp/commands/cospec-<workflow>.md`              | `/cospec-<workflow>`               | —               |
+| `opencode`       | OpenCode                                  | `.opencode/skills/`         | `.opencode/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | reload project  |
+| `pi`             | Pi                                        | `.pi/skills/`               | `.pi/prompts/cospec-<workflow>.md`                | `/cospec-<workflow>`               | —               |
+| `qoder`          | Qoder                                     | `.qoder/skills/`            | `.qoder/commands/cospec/<workflow>.md`            | `/cospec:<workflow>`               | restart IDE     |
+| `qwen`           | Qwen Code                                 | `.qwen/skills/`             | `.qwen/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
+| `roocode`        | Zoo Code                                  | `.roo/skills/`              | `.roo/commands/cospec-<workflow>.md`              | `/cospec-<workflow>`               | restart IDE     |
+| `rovodev`        | Rovo Dev CLI                              | `.rovodev/skills/`          | —                                                 | ask for the `cospec-<skill>` skill | —               |
+| `trae`           | Trae                                      | `.trae/skills/`             | `.trae/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | restart IDE     |
+| `veai`           | Veai                                      | `.veai/skills/`             | —                                                 | `/cospec-<skill>`                  | —               |
+| `vibe`           | Mistral Vibe                              | `.vibe/skills/`             | —                                                 | `/cospec-<skill>`                  | —               |
+| `warp`           | Warp                                      | `.warp/skills/`             | —                                                 | `/cospec-<skill>`                  | —               |
+| `zcode`          | ZCode                                     | `.zcode/skills/`            | `.zcode/commands/cospec/<workflow>.md`            | `/cospec:<workflow>`               | —               |
+| `zed`            | Zed Agent                                 | `.agents/skills/` (shared)  | —                                                 | `/cospec-<skill>`                  | —               |
 
 Skill names differ from workflow ids, so spell them through the table: `propose`
 is `cospec-propose`, `new` is `cospec-new-change`, `continue` is
@@ -140,9 +150,9 @@ Each row also sets how its files are spelled:
   AGENTS.md-aware assistants) emits no command files; its bodies name the skill
   (`$cospec-<skill>` in Codex, `/cospec-<skill>` elsewhere) rather than a slash
   command that would not resolve.
-- **Antigravity** and **Zed** share the `.agents/skills` root with `codex` and
-  `agents`. Only one of the four writes it; see "The shared `.agents/skills`
-  root" below.
+- **Antigravity**, **Zed**, **Amp** and **GSD** share the `.agents/skills` root
+  with `codex` and `agents`. Only one of them writes it; see "The shared
+  `.agents/skills` root" below.
 - **Kimi Code** names skills with the `/skill:` prefix
   (`/skill:cospec-<skill>`), and its workflows are skills only.
 - **Devin Desktop** (`devin`, formerly Windsurf) writes flat workflow commands
@@ -150,22 +160,34 @@ Each row also sets how its files are spelled:
   skill bodies differ on purpose.
 - **Rovo Dev** (`rovodev`) has no invocation syntax. Its bodies, and cospec's
   receipt hint, ask the tool by name:
-  `ask <tool> to use the cospec-<skill> skill with <arguments>`.
+  `ask <tool> to use the cospec-<skill> skill with <arguments>`. **GSD** (`gsd`)
+  has no slash invocation for skills either, so its bodies ask by name the same
+  way.
+- **EasyCode** (`easycode`) writes TOML commands in a namespaced folder
+  (`.easycode/commands/cospec/<workflow>.toml`), invoked as
+  `/cospec:<workflow>`.
+- **Code Studio** (`codestudio`) writes one `.prompt.md` file per workflow under
+  `.codestudio/prompts/`.
+- **Kilo Code** (`kilocode`) writes its commands to `.kilo/command/`; earlier
+  releases wrote them to `.kilocode/workflows/` (see
+  [Legacy tool roots](#legacy-tool-roots)).
 - **GitHub Copilot** (`github-copilot`) writes skills under `.github/skills/`
   and one prompt file per workflow under `.github/prompts/`, each with a
   `description` frontmatter line and cospec's provenance. Its restart line comes
   from the row's restart flag. The cloud coding agent is a separate opt-in; see
   [GitHub Copilot cloud agent](#github-copilot-cloud-agent-opt-in) below.
-- **Skills-only rows** (`codeartsagent`, `forgecode`, `hermes`, `kimi`,
-  `minimax-code`, `rovodev`, `vibe`, `zed`) write no command files; invoke the
-  skill instead.
+- **Skills-only rows** (`amp`, `codeartsagent`, `dsh`, `forgecode`, `grok`,
+  `gsd`, `hermes`, `kimi`, `minimax-code`, `rovodev`, `veai`, `vibe`, `warp`,
+  `zed`) write no command files; invoke the skill instead.
 
 Some workflows take a positional argument (a type and description, or a change
 slug). Where a tool only forwards a command's arguments through an explicit
-placeholder, cospec inserts one in the command body: `$ARGUMENTS` for OpenCode
-and Command Code, `$@` for Pi and Oh My Pi. Tools that bind arguments implicitly
-get no placeholder. Skill bodies never get one, so the command and skill bodies
-for the same workflow can legitimately differ.
+placeholder, cospec inserts one in the command body: `$ARGUMENTS` for OpenCode,
+Command Code and AtomCode, `$@` for Pi and Oh My Pi. AtomCode's command
+frontmatter also declares `args: optional` for a workflow that takes an argument
+and `args: none` for one that does not. Tools that bind arguments implicitly get
+no placeholder. Skill bodies never get one, so the command and skill bodies for
+the same workflow can legitimately differ.
 
 ### Setup notes
 
@@ -181,6 +203,11 @@ Init prints each selected row's setup note in selection order:
   default. Add this project's `.hermes/skills` directory to
   `skills.external_dirs` in `~/.hermes/config.yaml` so Hermes picks up the
   generated skills.
+- **Amp** — Amp reads the shared `.agents/skills`; start a new session to load
+  the skills. No slash commands are generated.
+- **GSD** — GSD reads the shared `.agents/skills` and picks a skill by its
+  description; ask it to use a cospec skill by name. No slash commands are
+  generated.
 
 Rows that set a restart flag (the table's **Restart** column says `restart IDE`)
 make init print one more line after the notes:
@@ -218,13 +245,13 @@ and otherwise `Try: cospec new feat <slug>` followed by a pointer at
 ## The shared `.agents/skills` root
 
 `.agents/skills` is the vendor-neutral skills root read by Codex, Zed,
-Antigravity and other AGENTS.md-aware assistants. Four rows write to it:
-`codex`, `agents`, `zed` and `antigravity`. Their skill files land at the same
-paths, but Antigravity spells its skills as `/cospec-<skill>` while the others
-spell `$cospec-<skill>` in Codex, so the tree can hold only one set of bytes.
-cospec therefore writes it from one **writer** and records the writer in a
-marker file, `.agents/skills/.cospec-target`, which is manifest-tracked like any
-managed file. The writer is chosen in this order:
+Antigravity and other AGENTS.md-aware assistants. Six rows write to it: `codex`,
+`agents`, `zed`, `antigravity`, `amp` and `gsd`. Their skill files land at the
+same paths, but Antigravity spells its skills as `/cospec-<skill>`, GSD asks for
+them by name, and the others spell `$cospec-<skill>` in Codex, so the tree can
+hold only one set of bytes. cospec therefore writes it from one **writer** and
+records the writer in a marker file, `.agents/skills/.cospec-target`, which is
+manifest-tracked like any managed file. The writer is chosen in this order:
 
 1. the row the marker names, if it is one of the selected rows that writes the
    tree (a marker naming a row that is not selected does not count);
@@ -286,6 +313,13 @@ there. While a legacy file or a pending move remains, `cospec doctor` reports a
 `legacy-layout` warning and `cospec update --check` exits `1`, so CI drift gates
 catch it. Every move appears in init's or update's receipt and in the `--json`
 `migration` array.
+
+Kilo Code's commands moved from `.kilocode/workflows/` to `.kilo/command/`.
+`init`, `update` and the legacy cleanup remove the files cospec and OpenSpec
+generated under `.kilocode/workflows/`, matched by known file name only
+(cospec's own `cospec-<workflow>.md` and OpenSpec's `opsx-<workflow>.md`,
+`openspec-proposal.md`, `openspec-apply.md` and `openspec-archive.md`), and
+leave every other file there, so a note of your own survives.
 
 ## The home skills root (minimax-code)
 
@@ -415,8 +449,9 @@ lifecycle, so pick up newly generated files with:
 - **Codex** — start a new session; skills are loaded per session from
   `.agents/skills`, invoked as `$cospec-<skill>`.
 - **OpenCode** — reload the project.
-- **agents, Zed, Antigravity** — however the assistant reading `.agents/skills`
-  reloads. Antigravity also prints the restart line for its commands.
+- **agents, Zed, Antigravity, Amp, GSD** — however the assistant reading
+  `.agents/skills` reloads. Antigravity also prints the restart line for its
+  commands.
 - **MiniMax Code** — start a new session; its skills live in
   `~/.minimax/skills`.
 - **Other restart rows** — restart the IDE when init prints

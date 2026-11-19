@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:623fd234d1f57a3a9313521daa82d7ecdc929d48f5bd7c0a3bca4071f413f5c0
+  contentHash: sha256:8b3fcc8b300d860b358bd86a46a6d56a8eb044701975f23f48a657a2d1f18d3f
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -113,5 +113,8 @@ Obey the exit code:
 
 ## 3. Finish
 
-When every task is checked, tell the user the change is ready to archive — next
-step `/cospec:archive`.
+When every tracked task is checked, tell the user the tracked tasks are complete
+— not that the change is ready to archive. The next step is to review and verify
+it with `/cospec:verify`, then `/cospec:archive`. Plain
+bullets under `## Workflow follow-up` in `tasks.md` are steps for after archive,
+not tasks to check off here.

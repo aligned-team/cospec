@@ -67,6 +67,8 @@ export interface OpenspecYaml {
   schemaVersion?: number
   /** the stamp (`x-cospec-schema-version:`, else legacy `schemaVersion:`) present but not a positive integer (meta/openspec-yaml). */
   schemaVersionInvalid?: boolean
+  /** top-level keys nothing reads (`change/unknown-metadata-key`), sorted. */
+  unknownKeys?: string[]
   /**
    * `skip_specs:` — a persisted declaration that this change carries no delta
    * specs, the durable equivalent of `cospec archive --skip-specs`. Only a

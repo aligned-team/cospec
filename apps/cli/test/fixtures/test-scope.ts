@@ -126,6 +126,7 @@ export const FS_READERS: Readonly<Record<string, FsReads>> = {
     reads: ['apps/cli/test/unit/__golden__/harness-render/**'],
   },
   'test/contract/nested-detector.test.ts': { reads: ['openspec/schemas/**'] },
+  'test/contract/openspec-1-15-surfaces.test.ts': { reads: ['openspec/schemas/**'] },
   'test/contract/parity-close-out.test.ts': { reads: ['openspec/schemas/**'] },
   'test/contract/precedence-matrix.test.ts': {
     reads: ['openspec/schemas/**', 'apps/cli/test/contract/parity-pending.yaml'],
@@ -181,6 +182,9 @@ export const FS_READERS: Readonly<Record<string, FsReads>> = {
     reads: ['apps/cli/src/canon/apply-instruction.yaml'],
   },
   'test/unit/commands/archive-refusals.test.ts': { reads: ['apps/cli/src/commands/archive.ts'] },
+  'test/unit/commands/feedback-format.test.ts': {
+    reads: ['.github/ISSUE_TEMPLATE/bug_report.yml'],
+  },
   'test/unit/commands/no-legacy-parser.test.ts': { reads: ['apps/cli/src/commands/*.ts'] },
   'test/unit/core/change.test.ts': {
     reads: [

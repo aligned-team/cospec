@@ -36,6 +36,9 @@ const CASES: Record<string, string> = {
   'carriage return before the marker': `a\n\r${S}\nx\n${E}\nb\n`,
   'collapsing blank lines': `a\n\n\n\n${S}\nx\n${E}\n\n\n\nb\n`,
   'CRLF with blank lines': `a\r\n\r\n\r\n\r\n${S}\r\nx\r\n${E}\r\nb\r\n`,
+  'CRLF collapse between text': `a\r\n\r\n${S}\r\nx\r\n${E}\r\n\r\nb\r\n`,
+  'mostly LF with one stray CRLF': `a\r\n\n\n${S}\nx\n${E}\n\n\nb\n`,
+  'mostly CRLF with one stray LF': `a\r\n\r\n\n${S}\r\nx\r\n${E}\r\n\r\n\r\nb\r\n`,
   'inline start': `use ${S} here\nx\n${E}\n`,
   'inline end': `${S}\nx\nsee ${E}\n`,
   'both inline': `see ${S} and ${E} for more\n`,
@@ -57,6 +60,21 @@ describe('removeMarkerBlock and hasOpenSpecMarkers against the pinned binary', (
       expect(hasOpenSpecMarkers(text)).toBe(cleanup.hasOpenSpecMarkers(text))
     })
   }
+})
+
+describe('removeMarkerBlock keeps the dominant line ending (1.13.2)', () => {
+  test('a CRLF CLAUDE.md stays CRLF, collapse separator included', () => {
+    const out = removeMarkerBlock(`# Notes\r\n\r\n${S}\r\nx\r\n${E}\r\n\r\nmore\r\n`)
+    expect(out).toBe('# Notes\r\n\r\nmore\r\n')
+    expect(out.replace(/\r\n/g, '')).not.toContain('\n')
+  })
+
+  test('a CRLF .bashrc-style block between commands leaves no bare LF', () => {
+    const out = removeMarkerBlock(
+      `export A=1\r\n\r\n\r\n${S}\r\nx\r\n${E}\r\n\r\n\r\nexport B=2\r\n`,
+    )
+    expect(out.replace(/\r\n/g, '')).not.toContain('\n')
+  })
 })
 
 describe('LEGACY_CONFIG_FILES', () => {

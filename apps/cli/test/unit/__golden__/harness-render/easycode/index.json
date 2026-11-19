@@ -1,0 +1,218 @@
+[
+  {
+    "path": ".easycode/commands/cospec/apply.toml",
+    "kind": "command",
+    "workflow": "apply",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 6204,
+    "sha256": "551143ab08ed1fcb37d01b64842c8c57cf812677151667e63759445b1c5b6838"
+  },
+  {
+    "path": ".easycode/commands/cospec/archive.toml",
+    "kind": "command",
+    "workflow": "archive",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 8213,
+    "sha256": "9fd93df21bd633e66982d449d58b32d440af135279438847e7351e54b8dfffb4"
+  },
+  {
+    "path": ".easycode/commands/cospec/bulk-archive.toml",
+    "kind": "command",
+    "workflow": "bulk-archive",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 13201,
+    "sha256": "92615477b5fdbb6d3b163a161f53dce9f8a1434f349d68362d8054404ca9d443"
+  },
+  {
+    "path": ".easycode/commands/cospec/continue.toml",
+    "kind": "command",
+    "workflow": "continue",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 5968,
+    "sha256": "6e7de143d4e30feabf8889132c0fdb96049942e939adab276a2beaba1fe16489"
+  },
+  {
+    "path": ".easycode/commands/cospec/explore.toml",
+    "kind": "command",
+    "workflow": "explore",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 9865,
+    "sha256": "2762a6b135a1651701e2e77870d4eb5a5b15a8c578af6b463216c2ebb64549b4"
+  },
+  {
+    "path": ".easycode/commands/cospec/ff.toml",
+    "kind": "command",
+    "workflow": "ff",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 7800,
+    "sha256": "0303a060d4ada4acb2a9b1c47d01a0ddb9fc81b2ce9ab913e29053320a314aaf"
+  },
+  {
+    "path": ".easycode/commands/cospec/new.toml",
+    "kind": "command",
+    "workflow": "new",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 5841,
+    "sha256": "cf35ccbfe77288a4f19c07c8311741fefe3247b0561ab0c1f3bf2bbf4347d01d"
+  },
+  {
+    "path": ".easycode/commands/cospec/onboard.toml",
+    "kind": "command",
+    "workflow": "onboard",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 6042,
+    "sha256": "cce5a6c48af3d2019ed7c485b5f972909bdb9fee3710a52a28877690b00f70f7"
+  },
+  {
+    "path": ".easycode/commands/cospec/propose.toml",
+    "kind": "command",
+    "workflow": "propose",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 10484,
+    "sha256": "845ef05df9ce4488bb824d373e864b6f09f88c14e5dfdb0e8cee03602de921f4"
+  },
+  {
+    "path": ".easycode/commands/cospec/sync-specs.toml",
+    "kind": "command",
+    "workflow": "sync-specs",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 5577,
+    "sha256": "8d0dd8baa93826ae5290d662fe04a7b8ed0c0572abb2fbca068300c5354a1258"
+  },
+  {
+    "path": ".easycode/commands/cospec/update.toml",
+    "kind": "command",
+    "workflow": "update",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 8199,
+    "sha256": "cf1402878017157783e025c2e847688702d45c5daabc918d2ec6029874bbb1cc"
+  },
+  {
+    "path": ".easycode/commands/cospec/verify.toml",
+    "kind": "command",
+    "workflow": "verify",
+    "harness": "easycode",
+    "contentHash": null,
+    "bytes": 9278,
+    "sha256": "6b6b310d157091c16ac4a7ce4bb4bcb98b6d37a11161f259dee217c956fd6fbf"
+  },
+  {
+    "path": ".easycode/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "easycode",
+    "contentHash": "sha256:8b3fcc8b300d860b358bd86a46a6d56a8eb044701975f23f48a657a2d1f18d3f",
+    "bytes": 6431,
+    "sha256": "f35bfe6ec78953d682e784d080d07b5c497aa95ef6ad619c52be4211a9e175c0"
+  },
+  {
+    "path": ".easycode/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "easycode",
+    "contentHash": "sha256:c0a1260d30e003abbc05ed7e4ac5bbb5d8624d7f10c5861c1199869de85d4d81",
+    "bytes": 8442,
+    "sha256": "0fdf332d48a7f1c0165751bc8b3b83dc653918ca945ce4237dcfc30e97b32f69"
+  },
+  {
+    "path": ".easycode/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "easycode",
+    "contentHash": "sha256:86f4208e551beec67227bc5862b64cf3cbf5159b9fc51b9e4765fcc4003fc8fc",
+    "bytes": 13431,
+    "sha256": "36362df4e1e05c2332d2ccefcb33730e19056fe519a0683714ba5487c9d34d36"
+  },
+  {
+    "path": ".easycode/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "easycode",
+    "contentHash": "sha256:08ee523699165cb0044aa2b0321cacc534805b6f8f721e0604b80ff619e1e1df",
+    "bytes": 6198,
+    "sha256": "82dded9af364ae1580f35cb4743aad17c5d2a7172e519d4a3b88afd3d54abe17"
+  },
+  {
+    "path": ".easycode/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "easycode",
+    "contentHash": "sha256:8b0a369418d8566478c6afc3e25e6d63f52d9f5ad8622d515cb6b53fa57f35be",
+    "bytes": 10087,
+    "sha256": "286832a2378b9cf9bb1ad77bc7b80321c22b1e736347f32e77b65fae8085d19e"
+  },
+  {
+    "path": ".easycode/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "easycode",
+    "contentHash": "sha256:f31e79df80202daada4634eb6e8a4ee3ccf11c8682195c834878a4bd0576f450",
+    "bytes": 8022,
+    "sha256": "8840a3d7659cd70fcb9ca1706e74eb051ba900f7cf280f90fcf59a0c7ec00335"
+  },
+  {
+    "path": ".easycode/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "easycode",
+    "contentHash": "sha256:5964354617469f507a1e21275420810b6213ff8fd4837393eb3adc439e6c1db2",
+    "bytes": 6066,
+    "sha256": "424d954f63b66e869d5d4333f0000ce33b09328e5ac5777bf013920c041d1b7e"
+  },
+  {
+    "path": ".easycode/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "easycode",
+    "contentHash": "sha256:8ab2f23fe347a67abfe3c926abb888b29203b106735883df2fd4411d66bf0266",
+    "bytes": 6264,
+    "sha256": "1278deb8dcc1786e59211f3606b93300be526abd5291003c7e36d5eb86c5a25e"
+  },
+  {
+    "path": ".easycode/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "easycode",
+    "contentHash": "sha256:6edd840ee4c7406f13b5eadca3b1dfac54b5fe8fc96d5d08521a929af99970be",
+    "bytes": 10706,
+    "sha256": "a4f55b9df494d7894cd3b063e92934fc60649fd0a62ccaffa9c0311c92555d51"
+  },
+  {
+    "path": ".easycode/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "easycode",
+    "contentHash": "sha256:33c9f44d5ae7cc592e088cdabe8d7156787fa10cbd8b74ecfd647a09a7d41c45",
+    "bytes": 5800,
+    "sha256": "b385539335ecd29d88c340440be588377d44fa803a5b110493a72f7c3f92adab"
+  },
+  {
+    "path": ".easycode/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "easycode",
+    "contentHash": "sha256:1148beb2629c2653fa435f49c43b70390c55b639826f3d98e56ff46549748523",
+    "bytes": 8425,
+    "sha256": "eb4c7a981847a4904a710a1e75abe7c6dff19023911e3522651a8425aba7f849"
+  },
+  {
+    "path": ".easycode/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "easycode",
+    "contentHash": "sha256:c8e1a5d8eb7286672d9a3c27efa9697dd192b8ac44027c76d1f3997a69421d94",
+    "bytes": 9506,
+    "sha256": "9af3f1f2a846aaf242e50049a23552dc9e2a4695399f0e09fd29014ecad64d12"
+  }
+]

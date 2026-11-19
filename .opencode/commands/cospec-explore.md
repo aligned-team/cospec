@@ -3,7 +3,7 @@ description: Investigate the codebase or a spec question without writing impleme
 metadata:
   author: cospec
   generatedBy: cospec@0.11.2
-  contentHash: sha256:8d02827e19b7dfb47a1ca1ea92cf44fbdc7b3415bea89a42f036b235c9024b7b
+  contentHash: sha256:351a90febcbc0aafbaf8074e5dda854bb872d48634dc6e7a0689b30998badcf5
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -143,6 +143,12 @@ not re-ask for what they just asked for, and do ask before anything beyond it.
 This holds only when the request is theirs. A "yes" to an offer you made
 confirms only the scope your offer named, so name the change and the artifacts
 in the offer.
+
+Offer only artifacts the change's type defines — read them from
+`cospec status --change <slug> --json` (`artifactPaths`) once the change
+exists. Capture each insight in whichever of those artifacts fits it and name
+that artifact in your offer; never offer or create a file, such as `design.md`
+or a `specs/` delta, that the type does not have.
 
 Every other confirmation covers only the scope you described. Ask again before
 widening it. Answering a design or clarifying question is never consent to

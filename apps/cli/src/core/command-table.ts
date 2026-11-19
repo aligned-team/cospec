@@ -200,8 +200,9 @@ export function isPending(status: SurfaceStatus): status is { readonly pending: 
 const HANDLED = 'handled' as const
 const NO_OP = 'no-op' as const
 /**
- * A `{pending}` status. No shipped surface is pending any more (`parity-pending.yaml` is
- * empty), so this is exported for the fixture rows that exercise the refusal machinery.
+ * A `{pending}` status. No table surface is marked pending: `parity-pending.yaml`'s one entry
+ * is the top-level `install` command, which has no row to mark, so this is exported for the
+ * fixture rows that exercise the refusal machinery.
  */
 export function pending(owner: PendingOwner): { readonly pending: PendingOwner } {
   return { pending: owner }
@@ -362,6 +363,10 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     flags: [
       cospec({ name: '--check', description: 'Drift gate: exit nonzero on drift, write nothing' }),
       upstream({ name: '--force', description: 'Overwrite conflicting managed files' }),
+      upstream({
+        name: '--dry-run',
+        description: 'Report what the update would change without writing anything',
+      }),
     ],
   },
   {
@@ -539,7 +544,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
   },
   {
     name: 'list',
-    summary: 'List active changes',
+    summary: 'List changes (active by default) or specs',
     hidden: false,
     parse: 'table',
     json: 'accepted',
@@ -561,6 +566,8 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         values: ['recent', 'name'],
         description: 'Sort order: "recent" (default) or "name"',
       }),
+      upstream({ name: '--archived', description: 'Show only archived changes' }),
+      upstream({ name: '--all', description: 'Show both active and archived changes' }),
     ],
   },
   {
@@ -851,13 +858,14 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
   },
   {
     name: 'view',
-    summary: 'Show the OpenSpec dashboard',
+    summary: 'Show the dashboard: active changes, gate and ledger state, archive',
     hidden: false,
     parse: 'table',
     json: 'refused',
     store: 'accepted',
     declaresStorePath: true,
-    jsonRefusalMessage: 'cospec view renders a text dashboard and cannot emit JSON',
+    jsonRefusalMessage:
+      'cospec view renders a text dashboard and cannot emit JSON (use cospec status --all --json)',
     positionals: [],
     flags: [],
   },
@@ -1064,6 +1072,22 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
       cospec({
         name: '--upstream',
         description: 'File at Fission-AI/OpenSpec instead of aligned-team/cospec',
+      }),
+    ],
+  },
+  {
+    name: 'version',
+    summary: "Report cospec's version and install, the wrapped OpenSpec, and updates",
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    store: 'refused',
+    positionals: [],
+    flags: [
+      upstream({
+        name: '--check',
+        description:
+          'Check the npm registry for a newer cospec (COSPEC_NO_UPDATE_CHECK=1 disables)',
       }),
     ],
   },

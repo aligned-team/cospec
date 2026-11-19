@@ -1205,6 +1205,14 @@ export interface ScenarioDrop {
    */
   missingNames: string[]
   /**
+   * The MODIFIED block's scenario names the living requirement does not have,
+   * with multiplicity — the `added` side of openspec's `diffScenarioNames`.
+   */
+  introducedNames: string[]
+  /** Scenario names on each side, as openspec's `describeScenarioBalance` counts them. */
+  deltaNameCount: number
+  livingNameCount: number
+  /**
    * The author wrote a `Scenario removed: <reason>` note. It no longer excuses
    * the drop — it only changes the advice the gate gives, because an author who
    * wrote the note followed documentation that is now wrong.
@@ -1300,10 +1308,8 @@ export function findScenarioDrops(
       if (op.operation !== 'MODIFIED' || op.name === undefined) continue
       const baseline = livingNameOf(op.name)
       const livingCount = living.requirementScenarioCounts.get(baseline) ?? 0
-      const missingNames = missingCurrentScenarios(
-        living.requirementScenarioNames.get(baseline) ?? [],
-        op.scenarioNames,
-      )
+      const livingNames = living.requirementScenarioNames.get(baseline) ?? []
+      const missingNames = missingCurrentScenarios(livingNames, op.scenarioNames)
       if (missingNames.length > 0 || op.scenarioCount < livingCount)
         drops.push({
           capability,
@@ -1311,6 +1317,9 @@ export function findScenarioDrops(
           deltaCount: op.scenarioCount,
           livingCount,
           missingNames,
+          introducedNames: missingCurrentScenarios(op.scenarioNames, livingNames),
+          deltaNameCount: op.scenarioNames.length,
+          livingNameCount: livingNames.length,
           noted: op.scenarioRemovalReasons.length > 0,
         })
     }
@@ -1338,15 +1347,131 @@ export function quoteScenarioNames(names: readonly string[]): string {
   return names.map((n) => `"${n}"`).join(', ')
 }
 
+/** openspec's `MAX_LISTED_ADDED_SCENARIOS`: introduced names listed before the rest are counted. */
+const MAX_LISTED_INTRODUCED = 3
+
+/**
+ * openspec's `describeScenarioBalance` (`parsers/requirement-blocks.ts`, 1.14.2):
+ * the scenario count on each side and up to three names the MODIFIED block
+ * introduces, so a rename reads as a rename rather than a bare loss.
+ */
+export function describeScenarioBalance(drop: ScenarioDrop): string {
+  const count = (value: number) => `${value} ${value === 1 ? 'scenario' : 'scenarios'}`
+  const scale = `The modified block has ${count(drop.deltaNameCount)}; the current spec has ${count(drop.livingNameCount)}.`
+  if (drop.introducedNames.length === 0) return `${scale} It adds none.`
+  const listed = quoteScenarioNames(drop.introducedNames.slice(0, MAX_LISTED_INTRODUCED))
+  const rest = drop.introducedNames.length - MAX_LISTED_INTRODUCED
+  const names = rest > 0 ? `${listed} and ${rest} more` : listed
+  return `${scale} It adds ${count(drop.introducedNames.length)} not in the current spec: ${names}.`
+}
+
 /**
  * The `archive/scenario-preservation` rule message. Names the dropped scenarios
  * when the identity arm found them; falls back to the original count-only
  * wording for a count-arm-only drop, which is the one shape with no names to
- * print. Both shapes start `MODIFIED "<name>" drops scenario`, which is the
- * prefix `validate.ts` keys the delegated-duplicate suppressor on.
+ * print. Either way it closes with openspec's scenario balance (counts on each
+ * side, up to three introduced names). Both shapes start
+ * `MODIFIED "<name>" drops scenario`, which is the prefix `validate.ts` keys
+ * the delegated-duplicate suppressor on.
  */
 export function scenarioDropMessage(drop: ScenarioDrop): string {
-  return drop.missingNames.length > 0
-    ? `MODIFIED "${drop.name}" drops scenario(s) ${quoteScenarioNames(drop.missingNames)} (living ${drop.livingCount} -> delta ${drop.deltaCount})`
-    : `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount}`
+  const head =
+    drop.missingNames.length > 0
+      ? `MODIFIED "${drop.name}" drops scenario(s) ${quoteScenarioNames(drop.missingNames)} (living ${drop.livingCount} -> delta ${drop.deltaCount})`
+      : `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount}`
+  return `${head}. ${describeScenarioBalance(drop)}`
+}
+
+// --- text the archive does not carry (1.14.2) -----------------------------------------------
+
+/** openspec's `DELTA_SECTION_TITLES`, folded as its section lookup folds them. */
+const DELTA_SECTION_TITLES = new Set(
+  [
+    'ADDED Requirements',
+    'MODIFIED Requirements',
+    'REMOVED Requirements',
+    'RENAMED Requirements',
+  ].map((title) => title.toLowerCase()),
+)
+/** openspec's `REQUIREMENT_HEADER_REGEX` and its `## ` section split. */
+const UNAPPLIED_REQUIREMENT_RE = /^###\s*Requirement:\s*(.+)\s*$/i
+const TOP_SECTION_RE = /^(##)\s+(.+)$/
+
+/**
+ * Where text the archive's merge never reads begins: `section` is `null` for
+ * text above the first `## ` header, a delta section's title for prose before
+ * its first requirement, or a foreign section's title.
+ */
+export interface UnappliedContent {
+  section: string | null
+  /** 1-based line where the text starts (a foreign section: its header line). */
+  line: number
+}
+
+/**
+ * openspec's `findUnappliedContent` (`parsers/requirement-blocks.ts`, 1.14.2),
+ * ported line for line, on the text as the binary reads it (BOM stripped, line
+ * endings folded). HTML comments, `# ` titles, a visible `## Purpose`,
+ * REMOVED/RENAMED bodies and stray `###` headers before the first requirement
+ * are not reported.
+ */
+export function findUnappliedContent(text: string): UnappliedContent[] {
+  const lines = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n')
+  const fenceMask = buildCodeFenceMask(lines)
+  // Comments decide only whether a line holds text; an unterminated one runs to
+  // EOF. Fenced lines keep their text, so a `<!--` in a sample hides nothing.
+  const comments = lines
+    .map((line, i) => (fenceMask[i] === true ? '' : line))
+    .join('\n')
+    .replace(/<!--[\s\S]*?(?:--!?>|$)/g, (m) => m.replace(/[^\n]/g, ' '))
+    .split('\n')
+  const masked = lines.map((line, i) => (fenceMask[i] === true ? line : comments[i]!))
+  const sections: { title: string; start: number; lines: string[]; fenced: boolean[] }[] = []
+  const indices: { title: string; index: number }[] = []
+  for (let i = 0; i < lines.length; i++) {
+    if (fenceMask[i] === true) continue
+    const m = TOP_SECTION_RE.exec(lines[i]!)
+    if (m !== null) indices.push({ title: m[2]!.trim(), index: i })
+  }
+  indices.forEach((current, i) => {
+    const end = indices[i + 1]?.index ?? lines.length
+    sections.push({
+      title: current.title,
+      // openspec's `bodyStartLine - 1`: the 0-based index of the first body line.
+      start: current.index + 1,
+      lines: lines.slice(current.index + 1, end),
+      fenced: fenceMask.slice(current.index + 1, end),
+    })
+  })
+  const firstText = (from: number, to: number, skip?: RegExp): number => {
+    for (let i = from; i < to; i++) if (masked[i]!.trim() && !skip?.test(masked[i]!)) return i
+    return -1
+  }
+  const found: UnappliedContent[] = []
+  const preamble = firstText(0, sections.length > 0 ? sections[0]!.start - 1 : lines.length, /^#\s/)
+  if (preamble !== -1) found.push({ section: null, line: preamble + 1 })
+  for (const { title, start, lines: body, fenced } of sections) {
+    const folded = title.toLowerCase()
+    if (folded === 'added requirements' || folded === 'modified requirements') {
+      const block = body.findIndex((l, i) => fenced[i] !== true && UNAPPLIED_REQUIREMENT_RE.test(l))
+      const first = firstText(start, start + (block === -1 ? body.length : block), /^###\s/)
+      if (first !== -1) found.push({ section: title, line: first + 1 })
+    } else if (!DELTA_SECTION_TITLES.has(folded)) {
+      // Only a `## Purpose` outside a comment is the one archive carries over.
+      if (folded === 'purpose' && masked[start - 1]!.trim()) continue
+      if (firstText(start, start + body.length) !== -1) found.push({ section: title, line: start })
+    }
+  }
+  return found
+}
+
+/** openspec's `describeUnappliedContent`: what the dropped text is, in words. */
+export function describeUnappliedContent(content: UnappliedContent, sentenceStart = false): string {
+  const text =
+    content.section === null
+      ? 'text above the first "## " section'
+      : DELTA_SECTION_TITLES.has(content.section.toLowerCase())
+        ? `text before the first requirement in "## ${content.section}"`
+        : `section "## ${content.section}"`
+  return sentenceStart ? text.charAt(0).toUpperCase() + text.slice(1) : text
 }

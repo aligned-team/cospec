@@ -4,54 +4,54 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "amazon-q",
-    "contentHash": "sha256:97e0d63d997ec20cfa1c8374fed789d3b3ef4ff9e84ed77b8c647a10b26a3254",
-    "bytes": 6105,
-    "sha256": "3e79095bbcac59d9b8b82d8e9d9a0ebf0a191e5b4eabfb8b350038f7b42d9a37"
+    "contentHash": "sha256:238eff1be50e3f9ed301ad6c5221949aa3b78fe27ae337b56a5a4c22b15f75bf",
+    "bytes": 6329,
+    "sha256": "6942fee29e63fbef9da45892973207200264ba5078e98a6c064b61f97701a14d"
   },
   {
     "path": ".amazonq/prompts/cospec-archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "amazon-q",
-    "contentHash": "sha256:d26b8578ff9a04f3dc3add40438c5ef9faca380d7005b8dd3a358b69d4bd1f0b",
-    "bytes": 7184,
-    "sha256": "fe92f164a801dcd067ffcfa3bb7fe369a4ef0b18953cd1beb56482b2b56c22aa"
+    "contentHash": "sha256:2ab08773c202816ee4acfa488011286cbb15c1e8c8d8eb4347fcfa2171231ad1",
+    "bytes": 8338,
+    "sha256": "c3d5f5a3dec87cdded3bfbf7ba95e0e8569a51da428a6a3a5163e6ac2c5d7152"
   },
   {
     "path": ".amazonq/prompts/cospec-bulk-archive.md",
     "kind": "command",
     "workflow": "bulk-archive",
     "harness": "amazon-q",
-    "contentHash": "sha256:ecc6ef3c06fca451b984ef2fd2ee64d0af3a3e0713aec4ccdc4a96f1d0cc621c",
-    "bytes": 12458,
-    "sha256": "6c3de5a04ddc64c20ed8ed782ecedd68826be0df441a9d52c235b27d8e111f25"
+    "contentHash": "sha256:669e2a339f653b243bb048dd870043c26a363c3e7a6d9d248cdaf5c6cc13c26a",
+    "bytes": 13322,
+    "sha256": "33c80eaf068f8b854ca23c21eac1a977f101a9890affd24ba22c84b642d11145"
   },
   {
     "path": ".amazonq/prompts/cospec-continue.md",
     "kind": "command",
     "workflow": "continue",
     "harness": "amazon-q",
-    "contentHash": "sha256:fc571946f7c5df3081e6bc43f8bc994d7e84539d2a061d2f774936108643417e",
-    "bytes": 5048,
-    "sha256": "ba83051aedde76e1bebc3de0f00fa858ea86e2c7c9a18900aac531e2579acd8a"
+    "contentHash": "sha256:361d92882140d7a65ecaac31d6dc09e13c451a7500f515e04717368d4c617357",
+    "bytes": 6093,
+    "sha256": "599d9ca632d7911261d0a87cc07cdf2569cc142957ef65f926636a773331441a"
   },
   {
     "path": ".amazonq/prompts/cospec-explore.md",
     "kind": "command",
     "workflow": "explore",
     "harness": "amazon-q",
-    "contentHash": "sha256:0a0c23896d5bed70265b1c8660e8798b3fe4fca4a34794d03c703db0a6637d23",
-    "bytes": 9643,
-    "sha256": "e0e67fb6bf6aa6f071f2eb2af45f3d89b8b67c7dce2f15dbf5f0ab7c730d85df"
+    "contentHash": "sha256:35ecfb70ee5297a4665ac4bdfd98b2542c6330d092ace8c3a351fb8bd15a1f89",
+    "bytes": 9990,
+    "sha256": "e266544a23bd237397aae17c72a95233f4f822be414fca57c0c4cdb6adff1b83"
   },
   {
     "path": ".amazonq/prompts/cospec-ff.md",
     "kind": "command",
     "workflow": "ff",
     "harness": "amazon-q",
-    "contentHash": "sha256:2a8f7cb6823f54d6482d69fc3698cb91ca1d73053c48882d05111b3effbcbcd2",
-    "bytes": 7369,
-    "sha256": "74b73a11a8daf55e5db9cb914f27acd8e1ec3f847d13ac0cc799ab8bd3bc63a2"
+    "contentHash": "sha256:07ff5bf1a011d9581e28250de5aaea3fe40e2c1ffd3522e8134b38fe6e2e1e83",
+    "bytes": 7923,
+    "sha256": "57f22ce41234b5d69d87baa0588612db4ce379d4e36ebf28341414df452ccb70"
   },
   {
     "path": ".amazonq/prompts/cospec-new.md",
@@ -67,18 +67,18 @@
     "kind": "command",
     "workflow": "onboard",
     "harness": "amazon-q",
-    "contentHash": "sha256:a065002311aba2b26744c525bdd0a65df96bb40370e2cf71bbe647b47c883ccf",
-    "bytes": 5754,
-    "sha256": "bc9973a930461c8d155b9038c794dbd2bbbb1aa9830b518f219d3aeec7fbab80"
+    "contentHash": "sha256:dae206ed093c2b683e7a8285a56e7964a43f2589b6983dc5091ab568a06a153c",
+    "bytes": 6167,
+    "sha256": "9b845ac0a1636c51a74393c004aabac4a10667862b2ac12a1ed2993b19ec7eb1"
   },
   {
     "path": ".amazonq/prompts/cospec-propose.md",
     "kind": "command",
     "workflow": "propose",
     "harness": "amazon-q",
-    "contentHash": "sha256:623aeb466f93a52fc47bdd890040ca59aacecb1384033e53990edb37e02b3a1d",
-    "bytes": 10249,
-    "sha256": "2071e68ec73fc1093fe3ee65a09bcc7603ac371dec8b1cbb7f08ca5f35839a68"
+    "contentHash": "sha256:8c035292dd45966b8ae011a912880e9b6477dd55635a9c3fe0c1a1090a887ad2",
+    "bytes": 10609,
+    "sha256": "22b84274e6544ff73fd9613d1374cfae127ed2088010a13343cc8146f14e83dd"
   },
   {
     "path": ".amazonq/prompts/cospec-sync-specs.md",
@@ -94,72 +94,72 @@
     "kind": "command",
     "workflow": "update",
     "harness": "amazon-q",
-    "contentHash": "sha256:5447d9afb572ce1ffa29a72786ba7f8b926e1f7c4028e9ab84b054254e875214",
-    "bytes": 6823,
-    "sha256": "23608d65a24b69a65f33f523fcce499f7290dbabda5ffd00aef978b72188f3a9"
+    "contentHash": "sha256:d9ecdf0b1cfabcb62b6bd872e7bebcd84cab9ad4c414c18632351d9c303d5cda",
+    "bytes": 8322,
+    "sha256": "516f90893c7ae27e717c84253594835e0a7718ec8eb04d4c12f1accfad92f812"
   },
   {
     "path": ".amazonq/prompts/cospec-verify.md",
     "kind": "command",
     "workflow": "verify",
     "harness": "amazon-q",
-    "contentHash": "sha256:ad83011e49ba6dc3c500f876eed3d15091fc88cbae6949179f59f58a35ec57df",
-    "bytes": 5246,
-    "sha256": "73ff3f392674d2cb63d78a6b3d79407a6c800c8810b7d1b7a65d615e9dee123d"
+    "contentHash": "sha256:4a14cb4ea86db96eab52b31c0d0da0d3a622bca1352f73d03aa36c81f6a69bbc",
+    "bytes": 9403,
+    "sha256": "74a5f9519259d679a4bbe52f0a6c628d09f792e1226674035cdfca45cbeea038"
   },
   {
     "path": ".amazonq/skills/cospec-apply-change/SKILL.md",
     "kind": "skill",
     "workflow": "apply",
     "harness": "amazon-q",
-    "contentHash": "sha256:97e0d63d997ec20cfa1c8374fed789d3b3ef4ff9e84ed77b8c647a10b26a3254",
-    "bytes": 6207,
-    "sha256": "6ae4bfbf388e50d2c500fff374c0ee92918a49c6c199e64401dce27ae423ae24"
+    "contentHash": "sha256:238eff1be50e3f9ed301ad6c5221949aa3b78fe27ae337b56a5a4c22b15f75bf",
+    "bytes": 6431,
+    "sha256": "a2d2c52a6d11e2ee7683742f4950044122cb682ec31b6af0d396339f7fd62be6"
   },
   {
     "path": ".amazonq/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "amazon-q",
-    "contentHash": "sha256:d26b8578ff9a04f3dc3add40438c5ef9faca380d7005b8dd3a358b69d4bd1f0b",
-    "bytes": 7288,
-    "sha256": "5a66db09e51cf2a915ee65d9b02792989b002fe20451e0cc93b92db5317210ff"
+    "contentHash": "sha256:2ab08773c202816ee4acfa488011286cbb15c1e8c8d8eb4347fcfa2171231ad1",
+    "bytes": 8442,
+    "sha256": "b851af72ef6103482733e08b081d9af479bfaab99b5ec13d84ebaf4c5cea21e5"
   },
   {
     "path": ".amazonq/skills/cospec-bulk-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "amazon-q",
-    "contentHash": "sha256:ecc6ef3c06fca451b984ef2fd2ee64d0af3a3e0713aec4ccdc4a96f1d0cc621c",
-    "bytes": 12567,
-    "sha256": "a9b7d9a2ccb54a65ee8b12b30709fd626e13edefe76d36117bbb8d9a344ccdc8"
+    "contentHash": "sha256:669e2a339f653b243bb048dd870043c26a363c3e7a6d9d248cdaf5c6cc13c26a",
+    "bytes": 13431,
+    "sha256": "0094b3f4f04a4d3e08f4faaf5284b633e11a3f065e521d82979e1fbdbefd7fa8"
   },
   {
     "path": ".amazonq/skills/cospec-continue-change/SKILL.md",
     "kind": "skill",
     "workflow": "continue",
     "harness": "amazon-q",
-    "contentHash": "sha256:fc571946f7c5df3081e6bc43f8bc994d7e84539d2a061d2f774936108643417e",
-    "bytes": 5153,
-    "sha256": "ce9c6e3571f382049e600d35865e1c717f508972249ddccfe06b49605867c073"
+    "contentHash": "sha256:361d92882140d7a65ecaac31d6dc09e13c451a7500f515e04717368d4c617357",
+    "bytes": 6198,
+    "sha256": "b8f02989d240c81273e2ffd21652567392c9e1fe5ad88042f7ad2f25feb65497"
   },
   {
     "path": ".amazonq/skills/cospec-explore/SKILL.md",
     "kind": "skill",
     "workflow": "explore",
     "harness": "amazon-q",
-    "contentHash": "sha256:0a0c23896d5bed70265b1c8660e8798b3fe4fca4a34794d03c703db0a6637d23",
-    "bytes": 9740,
-    "sha256": "de5e1ee17c30f77bd41e8ebfe20710a082d4d5fda721e4df57cc2d7a1b0b6861"
+    "contentHash": "sha256:35ecfb70ee5297a4665ac4bdfd98b2542c6330d092ace8c3a351fb8bd15a1f89",
+    "bytes": 10087,
+    "sha256": "86b7f7b84b2128d46f8e4d0d4ce1a7c345e00650fffc79a3f9597e1691613585"
   },
   {
     "path": ".amazonq/skills/cospec-ff-change/SKILL.md",
     "kind": "skill",
     "workflow": "ff",
     "harness": "amazon-q",
-    "contentHash": "sha256:2a8f7cb6823f54d6482d69fc3698cb91ca1d73053c48882d05111b3effbcbcd2",
-    "bytes": 7468,
-    "sha256": "4a282561016bbab0c3668b12f00646a9e35329bc9513e413fd523198210c7fd3"
+    "contentHash": "sha256:07ff5bf1a011d9581e28250de5aaea3fe40e2c1ffd3522e8134b38fe6e2e1e83",
+    "bytes": 8022,
+    "sha256": "578cbbde11d427dd16717a0ad47037f2742c93d7ff5607b313e3ab19fad21b21"
   },
   {
     "path": ".amazonq/skills/cospec-new-change/SKILL.md",
@@ -175,18 +175,18 @@
     "kind": "skill",
     "workflow": "onboard",
     "harness": "amazon-q",
-    "contentHash": "sha256:a065002311aba2b26744c525bdd0a65df96bb40370e2cf71bbe647b47c883ccf",
-    "bytes": 5851,
-    "sha256": "23fa8a3c4ccc72f6764276a6e9cecca95d73014d3073df2b11cab8735f1ce1c9"
+    "contentHash": "sha256:dae206ed093c2b683e7a8285a56e7964a43f2589b6983dc5091ab568a06a153c",
+    "bytes": 6264,
+    "sha256": "a5f6040e5b7e4a76223430a35f2ccbfafb2596912eb11c54fb750603ab57064e"
   },
   {
     "path": ".amazonq/skills/cospec-propose/SKILL.md",
     "kind": "skill",
     "workflow": "propose",
     "harness": "amazon-q",
-    "contentHash": "sha256:623aeb466f93a52fc47bdd890040ca59aacecb1384033e53990edb37e02b3a1d",
-    "bytes": 10346,
-    "sha256": "b07d299dd5759899fb61b9cd6c8b7a97c05e28b4df3497a922fd2c36fcfed08b"
+    "contentHash": "sha256:8c035292dd45966b8ae011a912880e9b6477dd55635a9c3fe0c1a1090a887ad2",
+    "bytes": 10706,
+    "sha256": "f92cb86d157b3b07b56361e0e6eef5c9ee6e61aa208f29854c49561b63c30a2a"
   },
   {
     "path": ".amazonq/skills/cospec-sync-specs/SKILL.md",
@@ -202,17 +202,17 @@
     "kind": "skill",
     "workflow": "update",
     "harness": "amazon-q",
-    "contentHash": "sha256:5447d9afb572ce1ffa29a72786ba7f8b926e1f7c4028e9ab84b054254e875214",
-    "bytes": 6926,
-    "sha256": "ee551bc9223515ab8ba04891f502639fc296c3a59c3ae86ad0a98f5104180cc6"
+    "contentHash": "sha256:d9ecdf0b1cfabcb62b6bd872e7bebcd84cab9ad4c414c18632351d9c303d5cda",
+    "bytes": 8425,
+    "sha256": "c755d196baa02ad92e2826f8c4a4f4e815b495c64e08e19ed3f66671f7ac057b"
   },
   {
     "path": ".amazonq/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "amazon-q",
-    "contentHash": "sha256:ad83011e49ba6dc3c500f876eed3d15091fc88cbae6949179f59f58a35ec57df",
-    "bytes": 5349,
-    "sha256": "9be0083ed0ca40514a3efa8d551e47ae423a7363ca6161714439a60c663e7050"
+    "contentHash": "sha256:4a14cb4ea86db96eab52b31c0d0da0d3a622bca1352f73d03aa36c81f6a69bbc",
+    "bytes": 9506,
+    "sha256": "865fbba1e8ffeef94cc9f561f04652a0d58fd18b414aa8c15476d8d7dd8c491e"
   }
 ]

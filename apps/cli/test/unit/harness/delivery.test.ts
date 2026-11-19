@@ -76,7 +76,7 @@ describe('capability', () => {
       const expected =
         row.commands !== undefined
           ? 'adapter-backed'
-          : row.id === 'codex'
+          : row.skillsInvocable === true
             ? 'skills-invocable'
             : 'none'
       expect({ id: row.id, capability: commandSurfaceCapability(row) }).toEqual({

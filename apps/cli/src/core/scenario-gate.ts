@@ -12,6 +12,7 @@ import { join, relative } from 'node:path'
 import { openspecDir } from './change.ts'
 import {
   type DeltaOp,
+  describeScenarioBalance,
   findScenarioDrops,
   type LivingSpec,
   parseDeltaSpec,
@@ -111,7 +112,7 @@ export function scenarioRefusal(command: string, drops: readonly ScenarioDrop[])
       (d) =>
         `  ${d.capability}: "${d.name}" ${d.livingCount} -> ${d.deltaCount} scenario(s)${
           d.missingNames.length > 0 ? `; missing: ${quoteScenarioNames(d.missingNames)}` : ''
-        }`,
+        }. ${describeScenarioBalance(d)}`,
     ),
   ]
   if (drops.some((d) => d.noted)) lines.push(`${SCENARIO_DROP_NOTE_RETIRED}.`)

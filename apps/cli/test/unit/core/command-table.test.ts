@@ -427,6 +427,8 @@ describe('pending surfaces', () => {
       '--blocked',
       '--changes',
       '--sort',
+      '--archived',
+      '--all',
     ])
   })
 })
@@ -458,6 +460,7 @@ describe('table shape', () => {
       'config',
       'completion',
       'feedback',
+      'version',
       'help',
       '__complete',
       'check-commit',
@@ -520,6 +523,7 @@ describe('table shape', () => {
         'help',
         'init',
         'update',
+        'version',
       ].toSorted(),
     )
   })

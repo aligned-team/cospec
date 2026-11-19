@@ -1,4 +1,6 @@
 # feat — the full workflow (DESIGN §3.2/§3.4, binding schema output).
+# proposalInstruction ports the durable capability-name guidance from
+# schemas/spec-driven/schema.yaml at OpenSpec 1.15.0.
 type: feat
 description: A new feature — the full workflow
 summary: 'proposal → blocking-changes, specs (+ design) → verification → tasks'
@@ -18,7 +20,10 @@ proposalInstruction: |
   ## Capabilities (### New Capabilities / ### Modified Capabilities — each
   name is a capability path relative to specs/, kebab-case per segment, and
   maps to specs/<capability-path>/spec.md; follow the project's existing
-  layout and reuse an existing capability's path verbatim), ## Impact (files,
+  layout and reuse an existing capability's path verbatim; name a new
+  capability for a durable system behavior such as `user-auth`, not for this
+  change's work such as `add-login-endpoint`, with a cohesive boundary that can
+  own related requirements as the system evolves and no catch-all), ## Impact (files,
   APIs, migrations; mark breaking changes with BREAKING).
   If while writing this you realize the work is really a fix/refactor/etc.,
   stop and re-create the change: `cospec new <correct-type> <slug>`.

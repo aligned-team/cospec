@@ -6,6 +6,13 @@
 // exits 1 on any drift (this is `generate:check` for the self-repo). `--force`
 // clobbers user-modified managed files. `openspec/config.yaml`, changes, and
 // specs are never touched.
+//
+// `--dry-run [--json]` (OpenSpec 1.15.0's `update --dry-run`) runs the same
+// engine writing nothing and reports the plan: upstream's document
+// (`changes[]` of `{path, action, tool}`, `notes`, `failures`, and `status` on
+// an early failure, which exits 1), each change adding cospec's harness `row`
+// and the `reason` it would change. Unlike `--check`, a pending change is not a
+// failure: the dry run exits 0.
 
 import {
   existsSync,
@@ -420,6 +427,8 @@ export interface GenerateResult {
   cloud?: CopilotCloudReport
   /** What the run did with the cloud files: the option `init` passed, else the resolved one. */
   cloudDirective: CopilotCloudDirective
+  /** The harness row that rendered each emitted path (home paths absolute). */
+  harnessOfPath: ReadonlyMap<string, string>
 }
 
 /** Run one file operation, recording an isolated write failure against `path` instead of throwing. */
@@ -713,7 +722,16 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   const migration = migrateLegacySkills(cwd, mdEmitted, writeOpts)
 
   if (!writeOpts.dryRun) writeManifest(cwd, newManifest)
-  return { results, failed, migration, manifest: newManifest, skillWriters, cloud, cloudDirective }
+  return {
+    results,
+    failed,
+    migration,
+    manifest: newManifest,
+    skillWriters,
+    cloud,
+    cloudDirective,
+    harnessOfPath,
+  }
 }
 
 /**
@@ -795,13 +813,20 @@ export async function run(ctx: CommandContext): Promise<number> {
   const { flags, parsed } = ctx
   // `update [path]`: the project the path names, as upstream's `update` takes it.
   const cwd = resolve(ctx.cwd, parsed!.positionals[0] ?? '.')
-  const check = hasFlag(parsed!, '--check')
+  const dryRun = hasFlag(parsed!, '--dry-run')
   const force = hasFlag(parsed!, '--force')
+  if (dryRun && hasFlag(parsed!, '--check')) return dryRunFailure(flags.json, DRY_RUN_WITH_CHECK)
+  // Neither mode writes: `--check` is the drift gate, `--dry-run` the plan.
+  const check = hasFlag(parsed!, '--check') || dryRun
 
   if (!existsSync(openspecDir(cwd))) {
+    // Upstream's message, spelled through cospec.
+    if (dryRun)
+      return dryRunFailure(flags.json, "No OpenSpec directory found. Run 'cospec init' first.")
     process.stderr.write(`cospec: no openspec/ directory at ${cwd} — run 'cospec init' first\n`)
     return 1
   }
+  const priorManifest = dryRun ? readManifest(cwd) : undefined
 
   // Upstream's order: legacy tool roots move before detection, so a renamed tool's files
   // are where its row looks; the consent-gated ones are asked about (or, unattended, moved).
@@ -854,7 +879,27 @@ export async function run(ctx: CommandContext): Promise<number> {
   )
 
   // A file that could not be written is a failed run, in every mode.
-  const exitCode = failed.length > 0 || (check && (drifted.length > 0 || wouldMove)) ? 1 : 0
+  const exitCode =
+    failed.length > 0 || (check && !dryRun && (drifted.length > 0 || wouldMove)) ? 1 : 0
+
+  if (dryRun) {
+    const plan = dryRunPlan({
+      cwd,
+      results,
+      migration,
+      moves,
+      failed: generated.failed,
+      harnessOfPath: generated.harnessOfPath,
+      harnesses,
+      priorManifest,
+    })
+    process.stdout.write(
+      flags.json
+        ? `${JSON.stringify({ version: 1, mode: 'dry-run', harnesses, ...plan }, null, 2)}\n`
+        : renderPlan(plan),
+    )
+    return exitCode
+  }
 
   for (const w of cloudWarnings) {
     process.stderr.write(`Warning: failed to sync Copilot cloud agent files: ${w.error}\n`)
@@ -1026,4 +1071,193 @@ function renderHuman(
     lines.push('Reconcile the .cospec-new sidecars, or re-run with --force to overwrite.')
   }
   process.stdout.write(`${lines.join('\n')}\n`)
+}
+
+// --- the dry run (OpenSpec 1.15.0 `update --dry-run`) ---------------------------------------
+
+const DRY_RUN_WITH_CHECK =
+  '--check and --dry-run cannot be combined: --check is the drift gate (exit 1 on drift), --dry-run reports the plan'
+
+export type PlanAction = 'add' | 'update' | 'delete'
+
+/**
+ * Why a managed file would change: `missing` (not on disk), `stale-stamp` (written by another
+ * cospec version), `canon-drift` (same version, different content), `user-modified` /
+ * `foreign-file` (kept; the new version goes to a `.cospec-new` sidecar), `forced` (`--force`
+ * overwrites an edit), `no-longer-generated` (a removed workflow or harness file),
+ * `legacy-layout` (a file in a former location moves or goes).
+ */
+export type PlanReason =
+  | 'missing'
+  | 'stale-stamp'
+  | 'canon-drift'
+  | 'user-modified'
+  | 'foreign-file'
+  | 'forced'
+  | 'no-longer-generated'
+  | 'legacy-layout'
+
+/** Upstream's `{path, action, tool}`, plus cospec's harness `row` and `reason`. */
+export interface PlanChange {
+  path: string
+  action: PlanAction
+  /** The harness row id, or `openspec` for the `openspec/` tree (upstream's word for its own files). */
+  tool: string
+  row: string | null
+  reason: PlanReason
+}
+
+export interface UpdatePlan {
+  changes: PlanChange[]
+  notes: { code: string; message: string }[]
+  failures: { tool: string; error: string; path: string; row: string | null }[]
+}
+
+/** The early-failure document (`status`, exit 1), or its message on stderr outside `--json`. */
+function dryRunFailure(json: boolean, message: string): number {
+  if (json) {
+    const doc = {
+      version: 1,
+      mode: 'dry-run',
+      changes: [],
+      notes: [],
+      failures: [],
+      status: [{ severity: 'error', code: 'update_error', message }],
+    }
+    process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
+  } else process.stderr.write(`cospec update: ${message}\n`)
+  return 1
+}
+
+/** The detected row whose skills root or command directory holds `path`. */
+function rowByPrefix(path: string, harnesses: readonly HarnessName[], home: string): string | null {
+  for (const id of harnesses) {
+    const row = adapterFor(id)
+    const skills = skillsRoot(row)
+    const base = skills.scope === 'home' ? join(home, skills.root) : skills.root
+    if (path.startsWith(`${base}/`)) return id
+    const command = commandPath(row, 'workflow')
+    if (command !== undefined && path.startsWith(`${dirname(command)}/`)) return id
+  }
+  return null
+}
+
+function updateReason(
+  cwd: string,
+  r: WriteResult,
+  priorManifest: Manifest | undefined,
+): PlanReason {
+  const abspath = r.scope === 'home' ? r.path : join(cwd, r.path)
+  if (existsSync(abspath)) {
+    const meta = readManagedMeta(readFileSync(abspath, 'utf8'))
+    if (meta?.generatedBy !== undefined)
+      return meta.generatedBy === CURRENT_GENERATED_BY ? 'canon-drift' : 'stale-stamp'
+  }
+  if (priorManifest !== undefined && priorManifest.cospecVersion !== CURRENT_GENERATED_BY)
+    return 'stale-stamp'
+  return 'canon-drift'
+}
+
+/** A planned path's `tool`: its row, else `openspec` for the `openspec/` tree, else `cospec`. */
+function toolOf(path: string, row: string | null): string {
+  return row ?? (path.startsWith('openspec/') ? 'openspec' : 'cospec')
+}
+
+/** The dry run's plan from one `generate()` run that wrote nothing (pure over its inputs). */
+export function dryRunPlan(input: {
+  cwd: string
+  results: readonly WriteResult[]
+  migration: readonly WriteResult[]
+  moves: readonly LegacyToolMove[]
+  failed: readonly FailedWrite[]
+  harnessOfPath: ReadonlyMap<string, string>
+  harnesses: readonly HarnessName[]
+  priorManifest: Manifest | undefined
+  home?: string
+}): UpdatePlan {
+  const home = input.home ?? resolveHomeDir()
+  const rowOf = (path: string): string | null =>
+    input.harnessOfPath.get(path) ?? rowByPrefix(path, input.harnesses, home)
+  const changes = new Map<string, PlanChange>()
+  const add = (path: string, action: PlanAction, reason: PlanReason, rowPath = path): void => {
+    const row = rowOf(rowPath)
+    changes.set(path, { path, action, tool: toolOf(rowPath, row), row, reason })
+  }
+  let sidecars = 0
+  for (const r of input.results) {
+    switch (r.outcome) {
+      case 'created':
+        add(r.path, 'add', 'missing')
+        break
+      case 'updated':
+        add(r.path, 'update', updateReason(input.cwd, r, input.priorManifest))
+        break
+      case 'forced':
+        add(r.path, 'update', 'forced')
+        break
+      case 'removed':
+        add(r.path, 'delete', 'no-longer-generated')
+        break
+      case 'preserved-modified':
+      case 'preserved-foreign': {
+        // The edit stays; the new version would be written beside it.
+        if (r.sidecar === undefined) break
+        sidecars++
+        const sidecarAbs = r.scope === 'home' ? r.sidecar : join(input.cwd, r.sidecar)
+        add(
+          r.sidecar,
+          existsSync(sidecarAbs) ? 'update' : 'add',
+          r.outcome === 'preserved-modified' ? 'user-modified' : 'foreign-file',
+          r.path,
+        )
+        break
+      }
+      case 'unchanged':
+        break
+    }
+  }
+  for (const r of input.migration)
+    if (r.outcome === 'removed') add(r.path, 'delete', 'legacy-layout')
+  for (const e of legacyMoveEntries(input.moves)) {
+    if (e.outcome === 'moved') {
+      add(e.path, 'delete', 'legacy-layout')
+      add(e.to, 'add', 'legacy-layout')
+    } else if (e.outcome === 'removed') add(e.path, 'delete', 'legacy-layout')
+  }
+  const notes: UpdatePlan['notes'] =
+    sidecars > 0
+      ? [
+          {
+            code: 'cospec_sidecars',
+            message: `${sidecars} file(s) carry edits cospec keeps: the update would write each new version beside it as .cospec-new (or rerun with --force to overwrite)`,
+          },
+        ]
+      : []
+  const failures = input.failed.map((f) => {
+    const row = rowOf(f.path)
+    return { tool: toolOf(f.path, row), error: f.error, path: f.path, row }
+  })
+  return {
+    changes: [...changes.values()].toSorted((a, b) => a.path.localeCompare(b.path)),
+    notes,
+    failures,
+  }
+}
+
+/** The dry run's text form: upstream's `formatUpdatePlan` lines, each with its row and reason. */
+export function renderPlan(plan: UpdatePlan): string {
+  const lines: string[] = []
+  if (plan.changes.length === 0) lines.push('No changes: managed files are up to date.')
+  else {
+    lines.push(`${plan.changes.length} file(s) would change:`)
+    const width = Math.max(...plan.changes.map((c) => c.action.length))
+    for (const c of plan.changes)
+      lines.push(`  ${c.action.padEnd(width)}  ${c.path}  (${c.row ?? c.tool}: ${c.reason})`)
+  }
+  for (const note of plan.notes) lines.push(`Note: ${note.message}`)
+  if (plan.failures.length > 0) {
+    lines.push('Failures:')
+    for (const f of plan.failures) lines.push(`  ${f.path}  ${f.error}`)
+  }
+  return `${lines.join('\n')}\n`
 }

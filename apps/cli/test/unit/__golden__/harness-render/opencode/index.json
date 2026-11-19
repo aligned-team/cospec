@@ -4,42 +4,42 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "opencode",
-    "contentHash": "sha256:9fe5d010a326b70a28a1be28aec1230c47324ed7341f53647ef959b87a0c244d"
+    "contentHash": "sha256:1172221c5f2d1d68f5ce6fa433835656559ad62399c7f05199bb17ea8eb3df01"
   },
   {
     "path": ".opencode/commands/cospec-archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "opencode",
-    "contentHash": "sha256:dd9ae25d09df267b6d04cf8343e5138d9e547a0cd7fa1037539f18c0891cc58b"
+    "contentHash": "sha256:81bc698b58bad21f63c7c69411f44ae72fe3bc08cd36eb2c40173aec4f2bdd90"
   },
   {
     "path": ".opencode/commands/cospec-bulk-archive.md",
     "kind": "command",
     "workflow": "bulk-archive",
     "harness": "opencode",
-    "contentHash": "sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061"
+    "contentHash": "sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8"
   },
   {
     "path": ".opencode/commands/cospec-continue.md",
     "kind": "command",
     "workflow": "continue",
     "harness": "opencode",
-    "contentHash": "sha256:962a94c85a74e73206c82be164882aa3f7a3c0f214657ece49e7bcc1572116ba"
+    "contentHash": "sha256:b52ab2afec85c3202839b712d83cfd0add9c169194b9cec2909719c7457d74c0"
   },
   {
     "path": ".opencode/commands/cospec-explore.md",
     "kind": "command",
     "workflow": "explore",
     "harness": "opencode",
-    "contentHash": "sha256:8d02827e19b7dfb47a1ca1ea92cf44fbdc7b3415bea89a42f036b235c9024b7b"
+    "contentHash": "sha256:351a90febcbc0aafbaf8074e5dda854bb872d48634dc6e7a0689b30998badcf5"
   },
   {
     "path": ".opencode/commands/cospec-ff.md",
     "kind": "command",
     "workflow": "ff",
     "harness": "opencode",
-    "contentHash": "sha256:d56d5fe05f13e9b8809c7b008f846dd9b154ddf7a18af51957a14a865cadda35"
+    "contentHash": "sha256:7dee7768b57c53bf4cbabfb179dc8d70c9d8e76da28f582955f9f24cf4a7d574"
   },
   {
     "path": ".opencode/commands/cospec-new.md",
@@ -53,14 +53,14 @@
     "kind": "command",
     "workflow": "onboard",
     "harness": "opencode",
-    "contentHash": "sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1"
+    "contentHash": "sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d"
   },
   {
     "path": ".opencode/commands/cospec-propose.md",
     "kind": "command",
     "workflow": "propose",
     "harness": "opencode",
-    "contentHash": "sha256:d003432e45fdd001251bbbc76abd03fd29b80a928693f58f2dd4a0123cf8f34e"
+    "contentHash": "sha256:fc4ccb691b80aa16f30402645e4d4475d9c2d16776cfbcc5f7f9c3a1e89f2e2b"
   },
   {
     "path": ".opencode/commands/cospec-sync-specs.md",
@@ -74,56 +74,56 @@
     "kind": "command",
     "workflow": "update",
     "harness": "opencode",
-    "contentHash": "sha256:470ff5b08245444c207e0d840f1f8e9da31d788f89cda0ea78dd52cf99205463"
+    "contentHash": "sha256:79eef8427d9c6d60247e4e2d62641ea145abf9220b18a31bff7082da44657435"
   },
   {
     "path": ".opencode/commands/cospec-verify.md",
     "kind": "command",
     "workflow": "verify",
     "harness": "opencode",
-    "contentHash": "sha256:1c986f3864400ce5f9a8cc47eb82fb3535f056d985a9576be68c93fa3052eec6"
+    "contentHash": "sha256:f901db074a5113cc17fdf0df9aec43307581576e35d3d973ad52714113f60df8"
   },
   {
     "path": ".opencode/skills/cospec-apply-change/SKILL.md",
     "kind": "skill",
     "workflow": "apply",
     "harness": "opencode",
-    "contentHash": "sha256:beca9525bfb14e05457e411c750775c8c627bcb4f7a39dce5ece2f6606cd81bb"
+    "contentHash": "sha256:cd03b86b4c63bd3088a00cf111bc5ec06a30de927d4c40e9072d38e222d5b3eb"
   },
   {
     "path": ".opencode/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "opencode",
-    "contentHash": "sha256:6a557cabdefacf87f0dc0d81af1a83adf0bb1395e8a03609dbcc9d7a78b9c4b2"
+    "contentHash": "sha256:eb03158edfae964ba6662a16b94d5fdc388cf86b02be4ca2a18b73c728f338d8"
   },
   {
     "path": ".opencode/skills/cospec-bulk-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "opencode",
-    "contentHash": "sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061"
+    "contentHash": "sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8"
   },
   {
     "path": ".opencode/skills/cospec-continue-change/SKILL.md",
     "kind": "skill",
     "workflow": "continue",
     "harness": "opencode",
-    "contentHash": "sha256:1982b017073af0ee9e2fcf93d1603cfba8d7e423647314f60ea1f6a383b1e399"
+    "contentHash": "sha256:531a28ebfd11763bf2e6fe4e3f04d0206da8191ec23e0d2b22be07324b513b3e"
   },
   {
     "path": ".opencode/skills/cospec-explore/SKILL.md",
     "kind": "skill",
     "workflow": "explore",
     "harness": "opencode",
-    "contentHash": "sha256:59536b110e1ba0dce3a8ae4af609b8ef3027afe05d6a8da14315b008ba5f10b7"
+    "contentHash": "sha256:d5ccf8e47a1ae1d9b9077e2e90eed5afbf260101343aabb9cc56e531e704265e"
   },
   {
     "path": ".opencode/skills/cospec-ff-change/SKILL.md",
     "kind": "skill",
     "workflow": "ff",
     "harness": "opencode",
-    "contentHash": "sha256:fd181273cbfd35a43472a5ce82adf8ecb551ca214128814431908827d90c9878"
+    "contentHash": "sha256:45677d9ea78ac10ec4888b5704df01bd6334dd09164a060fe335864a75943eb3"
   },
   {
     "path": ".opencode/skills/cospec-new-change/SKILL.md",
@@ -137,14 +137,14 @@
     "kind": "skill",
     "workflow": "onboard",
     "harness": "opencode",
-    "contentHash": "sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1"
+    "contentHash": "sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d"
   },
   {
     "path": ".opencode/skills/cospec-propose/SKILL.md",
     "kind": "skill",
     "workflow": "propose",
     "harness": "opencode",
-    "contentHash": "sha256:e1d4365c02f4cdf229e041faee431076055a12cccd565940846c40987a4500b4"
+    "contentHash": "sha256:01d95f06409f0c2be3dd83454a1ebb9a5251269282c2d4e4d013c133bd7d2dd8"
   },
   {
     "path": ".opencode/skills/cospec-sync-specs/SKILL.md",
@@ -158,13 +158,13 @@
     "kind": "skill",
     "workflow": "update",
     "harness": "opencode",
-    "contentHash": "sha256:387d8cfcde216c42a943f9eec1e378f5b1728c4a5ed8a13ee693b55bdd2c64ac"
+    "contentHash": "sha256:5400252751e6cbdb1d01f2f81a6f82ab1dd3e9f60a87f1cac15a6db06701415d"
   },
   {
     "path": ".opencode/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "opencode",
-    "contentHash": "sha256:7e43ab522cae4feec756cdaa997e23255cf5f418cfdebbea8d03bb13771a1fde"
+    "contentHash": "sha256:4a6bdd47ec9a00d80a6925c4a39d0527e78be868fff38ed637f85e04a8621c5a"
   }
 ]

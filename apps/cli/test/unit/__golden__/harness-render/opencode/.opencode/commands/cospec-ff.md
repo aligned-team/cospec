@@ -3,7 +3,7 @@ description: Author every remaining artifact on an already-scaffolded change in 
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d56d5fe05f13e9b8809c7b008f846dd9b154ddf7a18af51957a14a865cadda35
+  contentHash: sha256:7dee7768b57c53bf4cbabfb179dc8d70c9d8e76da28f582955f9f24cf4a7d574
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -123,7 +123,16 @@ Loop until every artifact in `apply.requires` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
    `verification.md` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the `instruction` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
+
+Ask the user only when the context is critically unclear — when a wrong guess
+would change what gets built. Otherwise keep going, and state the assumption you
+made in the artifact it shapes.
 
 For `blocking-changes.md`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft

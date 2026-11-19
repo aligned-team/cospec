@@ -253,10 +253,14 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       // OpenCode drops a slash command's arguments unless the body names them, so an
       // arg-taking workflow's COMMAND body carries the row's placeholder while its skill body
       // does not — which is why each surface hashes its own body.
-      const commandBody =
+      const withArguments =
         commands?.injectArguments !== undefined && w.takesArguments === true
           ? injectArgumentPlaceholder(spelled, commands.injectArguments)
           : spelled
+      const commandBody =
+        commands?.preamble === undefined
+          ? withArguments
+          : `${commands.preamble}\n\n${withArguments}`
       assertWorkflowConditionalsResolved(skillBody, skillWriteReason(w.skill))
       assertWorkflowConditionalsResolved(commandBody, commandWriteReason(w.id))
       const skillSection = `\n${skillBody}`
@@ -421,7 +425,7 @@ export function escapeTomlMultilineBasicString(value: string): string {
   )
 }
 
-/** A TOML command file: upstream Gemini's `description` + multiline `prompt` layout. */
+/** A TOML command file: upstream's Gemini and EasyCode `description` + `prompt` layout. */
 export function serializeTomlCommand(description: string, body: string): string {
   return `description = "${escapeTomlBasicString(description)}"
 

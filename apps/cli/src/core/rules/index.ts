@@ -92,3 +92,4 @@ export {
   verificationRules,
 }
 export { specsRules } from './specs.ts'
+export { configRulesIssues } from './config.ts'

@@ -2,7 +2,7 @@
 
 cospec is a wrapper. It owns no spec-format logic of its own that OpenSpec
 already implements correctly — it constrains, validates, and verifies OpenSpec
-`1.13.1`, and closes the specific failure modes that make raw OpenSpec unsafe to
+`1.15.0`, and closes the specific failure modes that make raw OpenSpec unsafe to
 hand to an agent.
 
 ## The wrapping boundary
@@ -83,7 +83,7 @@ cospec spawns OpenSpec; it never imports it.
   a refusal message naming the range and a `COSPEC_ALLOW_OPENSPEC_DRIFT=1`
   override for the brave (which makes cospec version-blind but does not make an
   out-of-range binary safe to wrap). Separately, the repo pins one exact build
-  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.13.1`), the version the contract
+  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.15.0`), the version the contract
   suite is probed against. The dep pin, the `mise.toml` pin, that constant, and
   the live binary are held coherent by the version tripwire contract test (the
   pin is exact and in range; the binary reports it and satisfies the range), so
@@ -143,8 +143,8 @@ into a positional). Each row also carries a parse policy:
 - **`table`** — cospec parses the argv itself and rejects anything the row
   doesn't declare. Most commands are `table`: `init`, `update`, `doctor`, `new`,
   `migrate`, `validate`, `status`, `list`, `instructions`, `apply`, `archive`,
-  `sync-blockers`, `context`, `view`, `completion`, `feedback`, and the hidden
-  `__complete`/`check-commit`.
+  `sync-blockers`, `context`, `view`, `completion`, `feedback`, `version`, and
+  the hidden `__complete`/`check-commit`.
 - **`forward`** — the row is declared for reachability, help and completion, but
   every token cospec's own pre-spawn guards don't consume reaches the wrapped
   binary unchanged, which stays the unknown-option authority for the surfaces it
@@ -164,8 +164,8 @@ into a positional). Each row also carries a parse policy:
 A `table` row also declares whether its command honours the global `--json` and
 `--store`: a row that refuses `--json` answers it with one JSON refusal
 document, and a row whose module never resolves a root (`init`, `update`,
-`completion`, `feedback`, `check-commit`) refuses `--store` as an unknown option
-instead of absorbing and ignoring it.
+`completion`, `feedback`, `version`, `check-commit`) refuses `--store` as an
+unknown option instead of absorbing and ignoring it.
 
 `--store-path` is refused on every row regardless of policy, in both
 `--store-path <path>` and `--store-path=<path>` forms and in both the
@@ -576,8 +576,8 @@ because a real breach there must not compute as a clean archive:
   through `REMOVED` carries no MODIFIED op, so the gate never sees it. This is
   the gate that would have caught the archive-time thinning `openspec archive`
   itself waves through at exit 0. It ships with a contract test against the real
-  pinned openspec 1.13.1 binary proving cospec refuses even though openspec
-  would happily merge the delta — a false PASS here is a release blocker, same
+  pinned openspec binary proving cospec refuses even though openspec would
+  happily merge the delta — a false PASS here is a release blocker, same
   discipline as the rest of the archive-precondition family. As of upstream
   1.8.0, `openspec archive` also runs its own overlapping scenario-loss check,
   so cospec's gate is defence-in-depth on 1.8.0+ runtimes and is the **sole**

@@ -1,16 +1,14 @@
-// `core/glob.ts`, cospec's port of the pinned binary's `artifactOutputExists`
-// over the fast-glob cospec pins (fast-glob 3, micromatch 4, picomatch 2,
-// braces 3), held to those modules as the pinned package resolves them: the
-// same fast-glob version, fast-glob's brace expansion, the regex fast-glob
-// matches each pattern with (under its own default settings' micromatch
-// options), and the binary's `artifactOutputExists` answer over one change
-// directory. The port's surface is `expandBraces(pattern)`, `makeRe(pattern)`
-// and `artifactOutputExists(changeDir, generates)`.
+// `core/glob.ts`, cospec's port of the pinned binary's `resolveArtifactOutputs` /
+// `artifactOutputExists` over the glob stack cospec pins (tinyglobby, picomatch,
+// brace-expansion), held to those modules as the pinned package resolves them: the
+// same package versions, the binary's own `isGlobPattern`, and the binary's
+// `resolveArtifactOutputs` answer (its file list, or the message it throws with) over
+// one change directory, including the nesting and expansion bounds.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
@@ -21,8 +19,8 @@ import { cleanupAll, mkTempRepo, REPO_ROOT } from '../fixtures/support.ts'
 afterAll(cleanupAll)
 
 interface GlobPort {
-  expandBraces: (pattern: string) => string[]
-  makeRe: (pattern: string) => RegExp
+  isGlobPattern: (pattern: string) => boolean
+  resolveArtifactOutputs: (changeDir: string, generates: string) => string[]
   artifactOutputExists: (changeDir: string, generates: string) => boolean
 }
 
@@ -32,25 +30,10 @@ const PORT_MODULE = join(import.meta.dir, '../../src/core', 'glob.ts')
 const port = async (): Promise<GlobPort> => (await import(PORT_MODULE)) as GlobPort
 
 const requireFromOpenspec = createRequire(join(openspecPackageDir(), 'package.json'))
-const fastGlobOut = dirname(requireFromOpenspec.resolve('fast-glob'))
-const fgPattern = requireFromOpenspec(join(fastGlobOut, 'utils/pattern.js')) as {
-  expandBraceExpansion: (pattern: string) => string[]
-  makeRe: (pattern: string, options: object) => RegExp
-}
-const FgSettings = (
-  requireFromOpenspec(join(fastGlobOut, 'settings.js')) as { default: new (o: object) => object }
-).default
-const FgProviderSync = (
-  requireFromOpenspec(join(fastGlobOut, 'providers/sync.js')) as {
-    default: new (settings: object) => { _getMicromatchOptions: () => object }
-  }
-).default
-/** The micromatch options fast-glob matches with under its default settings. */
-const FG_MATCH_OPTIONS = new FgProviderSync(new FgSettings({}))._getMicromatchOptions()
 
 const upstream = (await import(
   join(openspecPackageDir(), 'dist/core/artifact-graph/outputs.js')
-)) as { artifactOutputExists: (changeDir: string, generates: string) => boolean }
+)) as GlobPort
 
 function generatesOf(schemaFile: string): string[] {
   const doc = parseYaml(readFileSync(schemaFile, 'utf8')) as { artifacts: { generates: string }[] }
@@ -89,7 +72,24 @@ const PATTERNS = [
     'rfc/[[:alpha:]]*.md',
     'rfc/\\*.md',
     '.hidden/*.md',
+    'rfc/{draft}/{1..2}.md',
+    'rfc/{draft}*.md',
+    'rfc//*.md',
+    '{../outside,rfc}/*.md',
+    'rfc/**/../*.md',
   ]),
+]
+
+/** Patterns at and past the nesting (16) and expansion (1024) bounds. */
+const BOUND_PATTERNS = [
+  `rfc/${'{a,'.repeat(17)}b${'}'.repeat(17)}*.md`,
+  `rfc/${'{a,'.repeat(16)}b${'}'.repeat(16)}*.md`,
+  `rfc/${'('.repeat(17)}a${')'.repeat(17)}*.md`,
+  `rfc/${'{a,b}'.repeat(11)}.md`,
+  `rfc/${'{a,b}'.repeat(10)}.md`,
+  'rfc/{1..1025}.md',
+  'rfc/{1..1024}.md',
+  'rfc/{1..1000000000}.md',
 ]
 
 /** One change directory holding a file each pattern above can match, and some none can. */
@@ -116,10 +116,10 @@ const FILES = [
   'other/file.txt',
 ]
 
-/** An `artifactOutputExists` answer: its boolean, or the message it throws with. */
-function outcome(run: () => boolean): { exists: boolean } | { throws: string } {
+/** A `resolveArtifactOutputs` answer, relative to `dir`, or the message it throws with. */
+function outcome(dir: string, run: () => string[]): { paths: string[] } | { throws: string } {
   try {
-    return { exists: run() }
+    return { paths: run().map((p) => relative(realpathSync(dir), p)) }
   } catch (error) {
     return { throws: (error as Error).message }
   }
@@ -135,58 +135,57 @@ function changeDir(files: readonly string[]): string {
   return dir
 }
 
+const GLOB_PACKAGES = ['tinyglobby', 'picomatch', 'brace-expansion'] as const
+
 describe("core/glob.ts answers as the pinned binary's glob modules", () => {
-  test('cospec resolves the fast-glob the pinned binary resolves', () => {
+  test('cospec resolves the glob packages the pinned binary resolves', () => {
     const own = createRequire(PORT_MODULE)
-    const version = (req: NodeJS.Require) =>
-      (req(req.resolve('fast-glob/package.json')) as { version: string }).version
-    expect(version(own)).toBe(version(requireFromOpenspec))
-  })
-
-  test('every pattern expands its braces as fast-glob does', async () => {
-    const { expandBraces } = await port()
-    for (const pattern of PATTERNS)
-      expect({ pattern, expanded: expandBraces(pattern) }).toEqual({
-        pattern,
-        expanded: fgPattern.expandBraceExpansion(pattern),
+    const version = (req: NodeJS.Require, name: string) =>
+      (req(req.resolve(`${name}/package.json`)) as { version: string }).version
+    for (const name of GLOB_PACKAGES)
+      expect({ name, version: version(own, name) }).toEqual({
+        name,
+        version: version(requireFromOpenspec, name),
       })
   })
 
-  test("every pattern and each expansion compiles to fast-glob's regex", async () => {
-    const { makeRe } = await port()
-    for (const pattern of new Set(
-      PATTERNS.flatMap((p) => [p, ...fgPattern.expandBraceExpansion(p)]),
-    )) {
-      const want = fgPattern.makeRe(pattern, FG_MATCH_OPTIONS)
-      const got = makeRe(pattern)
-      expect({ pattern, source: got.source, flags: got.flags }).toEqual({
+  test('every pattern reads as a glob exactly when the binary says so', async () => {
+    const { isGlobPattern } = await port()
+    for (const pattern of [...PATTERNS, ...BOUND_PATTERNS])
+      expect({ pattern, glob: isGlobPattern(pattern) }).toEqual({
         pattern,
-        source: want.source,
-        flags: want.flags,
+        glob: upstream.isGlobPattern(pattern),
       })
-    }
   })
 
-  test("artifactOutputExists is the binary's over a populated change", async () => {
-    const { artifactOutputExists } = await port()
+  test("resolveArtifactOutputs is the binary's over a populated change", async () => {
+    const { resolveArtifactOutputs } = await port()
     const dir = changeDir(FILES)
-    for (const pattern of PATTERNS)
-      expect({ pattern, ...outcome(() => artifactOutputExists(dir, pattern)) }).toEqual({
+    for (const pattern of [...PATTERNS, ...BOUND_PATTERNS])
+      expect({ pattern, ...outcome(dir, () => resolveArtifactOutputs(dir, pattern)) }).toEqual({
         pattern,
-        ...outcome(() => upstream.artifactOutputExists(dir, pattern)),
+        ...outcome(dir, () => upstream.resolveArtifactOutputs(dir, pattern)),
       })
-  })
+  }, 60_000)
 
   test("artifactOutputExists is the binary's with each file alone", async () => {
     const { artifactOutputExists } = await port()
     for (const file of FILES) {
       const dir = changeDir([file])
       for (const pattern of PATTERNS)
-        expect({ file, pattern, ...outcome(() => artifactOutputExists(dir, pattern)) }).toEqual({
+        expect({ file, pattern, ...exists(() => artifactOutputExists(dir, pattern)) }).toEqual({
           file,
           pattern,
-          ...outcome(() => upstream.artifactOutputExists(dir, pattern)),
+          ...exists(() => upstream.artifactOutputExists(dir, pattern)),
         })
     }
-  })
+  }, 60_000)
 })
+
+function exists(run: () => boolean): { exists: boolean } | { throws: string } {
+  try {
+    return { exists: run() }
+  } catch (error) {
+    return { throws: (error as Error).message }
+  }
+}
