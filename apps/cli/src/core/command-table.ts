@@ -200,9 +200,8 @@ export function isPending(status: SurfaceStatus): status is { readonly pending: 
 const HANDLED = 'handled' as const
 const NO_OP = 'no-op' as const
 /**
- * A `{pending}` status. No table surface is marked pending: `parity-pending.yaml`'s one entry
- * is the top-level `install` command, which has no row to mark, so this is exported for the
- * fixture rows that exercise the refusal machinery.
+ * A `{pending}` status. No shipped surface is pending any more (`parity-pending.yaml` is
+ * empty), so this is exported for the fixture rows that exercise the refusal machinery.
  */
 export function pending(owner: PendingOwner): { readonly pending: PendingOwner } {
   return { pending: owner }
@@ -1090,6 +1089,25 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
           'Check the npm registry for a newer cospec (COSPEC_NO_UPDATE_CHECK=1 disables)',
       }),
     ],
+  },
+  {
+    // Upstream's `install` installs its own standalone build; cospec's installs cospec's,
+    // through the same release installer its docs give (`scripts/install/`).
+    name: 'install',
+    summary: 'Install the standalone cospec binary (latest release unless [version] is given)',
+    hidden: false,
+    parse: 'table',
+    json: 'refused',
+    store: 'refused',
+    jsonRefusalMessage: 'cospec install runs the release installer and cannot emit JSON',
+    positionals: [
+      upstreamArg({
+        name: 'version',
+        required: false,
+        description: 'A release version (1.2.3); default: the latest release',
+      }),
+    ],
+    flags: [],
   },
   {
     // Commander's implicit program-level `help [command]`, last in upstream's

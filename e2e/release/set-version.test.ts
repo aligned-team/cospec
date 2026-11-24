@@ -34,7 +34,7 @@ const GATE_TPL = 'apps/cli/src/canon/gate/mise.toml.tpl'
 const gateTplCospecVersion = (text: string): string | undefined =>
   text.match(/^"npm:@aligned-team\/cospec" = "([^"]+)"/m)?.[1]
 
-/** The seven per-platform binary packages the main manifest pins (Linux split by libc). */
+/** The eight per-platform binary packages the main manifest pins (Linux split by libc). */
 const PLATFORMS = [
   'linux-x64-gnu',
   'linux-x64-musl',
@@ -43,6 +43,7 @@ const PLATFORMS = [
   'darwin-x64',
   'darwin-arm64',
   'win32-x64',
+  'win32-arm64',
 ] as const
 const platformPackage = (p: string): string => `apps/cli/npm/${p}/package.json`
 
