@@ -2,7 +2,7 @@
 description: Walk a first-time user through one real cospec change end to end, narrating each step. Also use when the user says "cospec onboard" or "openspec onboard".
 metadata:
   author: cospec
-  generatedBy: cospec@0.11.2
+  generatedBy: cospec@0.12.0
   contentHash: sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d
 ---
 

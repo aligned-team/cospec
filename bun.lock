@@ -12,7 +12,7 @@
     },
     "apps/cli": {
       "name": "@aligned-team/cospec",
-      "version": "0.11.2",
+      "version": "0.12.0",
       "bin": {
         "cospec": "./bin/cospec.js",
       },
@@ -28,14 +28,14 @@
         "yaml": "2.9.0",
       },
       "optionalDependencies": {
-        "@aligned-team/cospec-darwin-arm64": "0.11.2",
-        "@aligned-team/cospec-darwin-x64": "0.11.2",
-        "@aligned-team/cospec-linux-arm64-gnu": "0.11.2",
-        "@aligned-team/cospec-linux-arm64-musl": "0.11.2",
-        "@aligned-team/cospec-linux-x64-gnu": "0.11.2",
-        "@aligned-team/cospec-linux-x64-musl": "0.11.2",
-        "@aligned-team/cospec-win32-arm64": "0.11.2",
-        "@aligned-team/cospec-win32-x64": "0.11.2",
+        "@aligned-team/cospec-darwin-arm64": "0.12.0",
+        "@aligned-team/cospec-darwin-x64": "0.12.0",
+        "@aligned-team/cospec-linux-arm64-gnu": "0.12.0",
+        "@aligned-team/cospec-linux-arm64-musl": "0.12.0",
+        "@aligned-team/cospec-linux-x64-gnu": "0.12.0",
+        "@aligned-team/cospec-linux-x64-musl": "0.12.0",
+        "@aligned-team/cospec-win32-arm64": "0.12.0",
+        "@aligned-team/cospec-win32-x64": "0.12.0",
       },
     },
     "apps/docs": {

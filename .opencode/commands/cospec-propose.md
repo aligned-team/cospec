@@ -2,7 +2,7 @@
 description: Propose a new change and generate every artifact its type requires, in one guided pass. Also use when the user says "cospec propose" or "openspec propose".
 metadata:
   author: cospec
-  generatedBy: cospec@0.11.2
+  generatedBy: cospec@0.12.0
   contentHash: sha256:a1c82f94d4f3199616e222840d411395a22c06192597cae79c5f900e89c2b538
 ---
 
